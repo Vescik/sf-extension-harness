@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 3,
+  "workflow": "guardrail-review",
+  "workflowClass": "governed",
+  "generatedAt": "2026-07-10T12:10:00Z",
+  "status": "success",
+  "recordRef": {
+    "recordId": "ADO-example-project-1201",
+    "recordRevision": 12,
+    "recordHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "scopeHash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "designHash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "groundingHash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "consumedHandoffId": null,
+    "createdHandoffId": null
+  },
+  "sourceRefs": [
+    "record:ADO-example-project-1201@12"
+  ],
+  "ruleRefs": [
+    "SAFE-EVID-001"
+  ],
+  "evidenceRefs": [
+    "EV-EXAMPLE-VERIFICATION"
+  ],
+  "knowledgeSnapshotAt": "2026-07-10T12:05:00Z",
+  "reconciliation": {
+    "status": "matched",
+    "mismatches": [],
+    "missingEvidence": []
+  },
+  "completeness": {
+    "status": "complete",
+    "missingEvidence": []
+  },
+  "reviewStatus": "accepted",
+  "assumptions": [],
+  "warnings": [],
+  "filesWritten": [],
+  "verification": [
+    "Validated the independent review."
+  ],
+  "artifactPath": ".ai/change-records/ADO-example-project-1201/record.json",
+  "entryRefs": [
+    {
+      "entryId": "Flow:c:DemoRouting",
+      "reviewedContentDigest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "factsDigest": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+      "sourceTreeDigest": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+      "profile": "salesforce.flow@1"
+    }
+  ]
+}

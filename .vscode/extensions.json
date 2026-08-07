@@ -1,0 +1,13 @@
+{
+  "recommendations": [
+    "github.copilot",
+    "github.copilot-chat",
+    "ms-python.python",
+    "salesforce.salesforcedx-vscode-expanded",
+    "redhat.vscode-yaml",
+    "redhat.vscode-xml",
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "davidanson.vscode-markdownlint"
+  ]
+}

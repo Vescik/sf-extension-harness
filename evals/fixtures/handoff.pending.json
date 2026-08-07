@@ -1,0 +1,78 @@
+{
+  "completeness": "complete",
+  "consumedAt": null,
+  "consumedBy": null,
+  "consumedRecordRevision": null,
+  "createdAt": "2026-07-10T10:00:00Z",
+  "designHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "groundingHash": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+  "evidenceRefs": [
+    {
+      "completeness": "complete",
+      "durability": "durable",
+      "evidenceId": "EV-component-inventory",
+      "path": "evidence/EV-component-inventory.json",
+      "retrievedAt": "2026-07-10T09:30:00Z",
+      "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "sourceRef": "ADO:example-project#123@7",
+      "sourceRevision": 7,
+      "type": "component-inventory"
+    }
+  ],
+  "expectedNextState": {
+    "phase": "development",
+    "status": "in_progress"
+  },
+  "fromRole": "solution-designer",
+  "handoffId": "HO-DEMO-123-development",
+  "prohibitedActions": [
+    "Do not change the approved component scope."
+  ],
+  "reason": "The generic component design is approved for implementation.",
+  "recordHash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "recordId": "ADO-example-project-123",
+  "recordRevision": 6,
+  "repositories": [],
+  "requiredActions": [
+    "Load the persisted design and verify the named workspace root."
+  ],
+  "requiredReads": [
+    {
+      "path": "design.md",
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  ],
+  "ruleRefs": [],
+  "schemaVersion": 2,
+  "scope": {
+    "components": [
+      {
+        "name": "ManagedComponentA",
+        "type": "CustomObject"
+      }
+    ],
+    "paths": [
+      "force-app/main/default/flows/SubscriberExtensionA.flow-meta.xml"
+    ],
+    "workspaceRoot": "brain-core"
+  },
+  "scopeHash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "state": {
+    "phase": "design",
+    "status": "accepted"
+  },
+  "status": "pending",
+  "summary": "Implement only the approved subscriber-owned extension around the sourced package boundary.",
+  "toRole": "development-assistant",
+  "unresolvedQuestions": [],
+  "updatedAt": "2026-07-10T10:00:00Z",
+  "entryRefs": [
+    {
+      "entryId": "Flow:c:DemoRouting",
+      "reviewedContentDigest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "factsDigest": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+      "sourceTreeDigest": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+      "profile": "salesforce.flow@1"
+    }
+  ]
+}

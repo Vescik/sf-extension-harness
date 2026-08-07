@@ -1,0 +1,61 @@
+{
+  "$schema": "../schemas/harness-config.schema.json",
+  "schemaVersion": 1,
+  "ado": {
+    "organization": "<ADO_ORGANIZATION>",
+    "project": "<ADO_PROJECT>",
+    "releaseQueryId": "<ADO_SAVED_QUERY_ID>",
+    "allowedHttpsOrigins": [
+      "https://dev.azure.com/<ADO_ORGANIZATION>"
+    ]
+  },
+  "salesforce": {
+    "orgs": [
+      {
+        "alias": "<DEV_ALIAS>",
+        "environment": "development",
+        "expectedInstanceHost": "<MY_DOMAIN>--<DEV_SANDBOX>.sandbox.my.salesforce.com",
+        "expectedOrganizationId": "<DEV_ORGANIZATION_ID>"
+      },
+      {
+        "alias": "<QA_ALIAS>",
+        "environment": "qa",
+        "expectedInstanceHost": "<MY_DOMAIN>--<QA_SANDBOX>.sandbox.my.salesforce.com",
+        "expectedOrganizationId": "<QA_ORGANIZATION_ID>"
+      },
+      {
+        "alias": "<UAT_ALIAS>",
+        "environment": "uat",
+        "expectedInstanceHost": "<MY_DOMAIN>--<UAT_SANDBOX>.sandbox.my.salesforce.com",
+        "expectedOrganizationId": "<UAT_ORGANIZATION_ID>"
+      }
+    ],
+    "review": {
+      "enabled": false,
+      "deniedOrganizationIds": [],
+      "apiVersion": "67.0",
+      "requireDualSource": true,
+      "allowedPackageNamespaces": [],
+      "allowedObjectApiNames": [],
+      "maxFieldsPerObject": 500,
+      "evidenceMaxAgeMinutes": 30
+    }
+  },
+  "safety": {
+    "sharedSandboxWritesApproved": false,
+    "sharedSandboxApprovalRef": "",
+    "autoApproveRetrieveWithReceipt": false,
+    "allowScopedEnumeration": false
+  },
+  "workspace": {
+    "salesforceRootName": "brain-core",
+    "manifestPath": "manifest/package.xml"
+  },
+  "cache": {
+    "wikiPageMaxAgeMinutes": 129600,
+    "onStaleDefault": "ask"
+  },
+  "knowledge": {
+    "chatReviewer": "<FULL_NAME_OF_THE_HUMAN_WHO_APPROVES_KNOWLEDGE_IN_CHAT>"
+  }
+}

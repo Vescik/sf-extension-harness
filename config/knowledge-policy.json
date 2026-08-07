@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "orgUsage": {
+    "allowedOriginRemotes": [],
+    "maxOrgUsageAgeDays": 90,
+    "maxSampleColumns": 20,
+    "sampleRowsMax": 50,
+    "usageGroupSuppressionFloor": 5
+  }
+}

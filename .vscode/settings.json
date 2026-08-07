@@ -1,0 +1,78 @@
+{
+  // Copilot customization activation for direct-folder use. The checked-in single-root
+  // sf-harness.code-workspace repeats these settings; scripts/validate_harness.py checks parity.
+  "github.copilot.chat.codeGeneration.useInstructionFiles": true,
+  "chat.includeApplyingInstructions": true,
+  "chat.includeReferencedInstructions": true,
+  "chat.instructionsFilesLocations": { ".github/instructions": true },
+  "chat.promptFilesLocations": { ".github/prompts": true },
+  "chat.agentFilesLocations": { ".github/agents": true },
+  "chat.useAgentSkills": true,
+  "chat.agentSkillsLocations": { ".github/skills": true },
+  "chat.useAgentsMdFile": true,
+  "chat.hookFilesLocations": { ".github/hooks": true },
+  "chat.useCustomAgentHooks": true,
+  "chat.useCustomizationsInParentRepositories": false,
+
+  // Pre-approve the workspace's own guarded scripts so agents run them without a click.
+  // matchCommandLine regexes are anchored and forbid shell metacharacters (; & | > < ` $),
+  // so chained/redirected commands never auto-run. The human-only `work_record.py approve`
+  // and the knowledge promote/review commands are excluded by lookahead (denial itself lives
+  // in the safety hook + the executor backstop, owner decision 2026-08-04); raw sf/sfdx
+  // and destructive commands stay denied (false always wins). This only skips the approval
+  // click — the role guard and safety hook still enforce the actual boundaries.
+  // MCP read-only tools cannot be pre-approved from settings (VS Code has no per-tool key yet);
+  // trust the `salesforce-readonly` and `ado-readonly` servers once via "Chat: Manage Tool
+  // Approval" (workspace scope). See SETUP.md.
+  "chat.tools.terminal.autoApprove": {
+    "/^(?:\\S*[\\\\/])?(?:python3?|py)(?:\\.exe)?(?:\\s+-3)?\\s+(?:\\S*[\\\\/])?scripts[\\\\/]preflight\\.py(?:\\s+[^\\n\\r;&|<>`$()]*)?$/": {
+      "approve": true,
+      "matchCommandLine": true
+    },
+    "/^(?:\\S*[\\\\/])?(?:python3?|py)(?:\\.exe)?(?:\\s+-3)?\\s+(?:\\S*[\\\\/])?scripts[\\\\/]work_record\\.py\\s+(?!approve\\b)[^\\n\\r;&|<>`$()]*$/": {
+      "approve": true,
+      "matchCommandLine": true
+    },
+    "/^(?:\\S*[\\\\/])?(?:python3?|py)(?:\\.exe)?(?:\\s+-3)?\\s+(?:\\S*[\\\\/])?scripts[\\\\/]knowledge_store\\.py\\s+(?!(?:entry|feature)-(?:approve|revoke)\\b)[^\\n\\r;&|<>`$()]*$/": {
+      "approve": true,
+      "matchCommandLine": true
+    },
+    "/^(?:\\S*[\\\\/])?(?:python3?|py)(?:\\.exe)?(?:\\s+-3)?\\s+(?:\\S*[\\\\/])?scripts[\\\\/]knowledge_search\\.py(?:\\s+[^\\n\\r;&|<>`$()]*)?$/": {
+      "approve": true,
+      "matchCommandLine": true
+    },
+    "/^(?:\\S*[\\\\/])?(?:python3?|py)(?:\\.exe)?(?:\\s+-3)?\\s+(?:\\S*[\\\\/])?scripts[\\\\/]force_app_knowledge\\.py(?:\\s+[^\\n\\r;&|<>`$()]*)?$/": {
+      "approve": true,
+      "matchCommandLine": true
+    },
+    "/^git\\s+(status|diff|log|show|blame|describe|shortlog|rev-parse|ls-files|grep)(\\s+[^\\n\\r;&|<>`$()]*)?$/": {
+      "approve": true,
+      "matchCommandLine": true
+    },
+    "/^(ls|pwd|cat|head|tail|wc|grep|findstr|where|which|dir|type|Get-ChildItem|Get-Content|Get-Location|Select-String|Test-Path)(\\s+[^\\n\\r;&|<>`$()]*)?$/": {
+      "approve": true,
+      "matchCommandLine": true
+    },
+    "sf": false,
+    "sfdx": false,
+    "rm": false,
+    "del": false,
+    "rmdir": false,
+    "kill": false,
+    "curl": false,
+    "wget": false
+  },
+
+  "files.exclude": {
+    "**/.DS_Store": true,
+    ".cache/**": true
+  },
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/.sfdx": true,
+    "**/.sf": true,
+    ".cache/**": true,
+    "output/**": true
+  },
+  "xml.preferences.showSchemaDocumentationType": "none"
+}

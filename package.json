@@ -1,0 +1,36 @@
+{
+  "name": "sf-harness-brain-core",
+  "version": "1.0.0",
+  "private": true,
+  "license": "MIT",
+  "description": "Single-root Salesforce DX project and governed GitHub Copilot harness.",
+  "scripts": {
+    "lint": "eslint \"scripts/**/*.mjs\"",
+    "prettier": "prettier --write --no-error-on-unmatched-pattern \"force-app/**/*.{cls,cmp,component,css,html,js,json,md,page,trigger,xml,yaml,yml}\" \"manifest/**/*.xml\" \"sfdx-project.json\" \"config/project-scratch-def.json\"",
+    "prettier:verify": "prettier --check --no-error-on-unmatched-pattern \"force-app/**/*.{cls,cmp,component,css,html,js,json,md,page,trigger,xml,yaml,yml}\" \"manifest/**/*.xml\" \"sfdx-project.json\" \"config/project-scratch-def.json\""
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@azure-devops/mcp": "2.8.1",
+    "@salesforce/mcp": "0.30.15"
+  },
+  "overrides": {
+    "@babel/core": "^7.29.6",
+    "protobufjs": "^7.6.3",
+    "postcss": "^8.5.10",
+    "fast-uri": "^3.1.4",
+    "fast-xml-parser@^5.0.0": "^5.10.1",
+    "@hono/node-server": "^2.0.5"
+  },
+  "devDependencies": {
+    "@emnapi/core": "1.11.3",
+    "@emnapi/runtime": "1.11.3",
+    "@eslint/js": "^9.29.0",
+    "@prettier/plugin-xml": "^3.4.1",
+    "eslint": "^9.39.5",
+    "globals": "^15.14.0",
+    "prettier": "^3.9.6"
+  }
+}

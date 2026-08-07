@@ -1,0 +1,3422 @@
+"""One-file Knowledge Entry executor (T07 P1).
+
+Implements docs/knowledge-one-file-contract.md v1.1: strict canonical parsing, the
+three-digest boundary, the append-only approval ledger, computed effectiveness lanes,
+and the executor-only write path (entry-draft / entry-approve / entry-revoke) plus the
+read commands (entry-status, entry-check, entry-review-render).
+
+Design invariants enforced here, not by callers:
+- all structured frontmatter (typeFacts, intentionalErrors, source.*, scope.*) is derived
+  by this executor from force-app source via the collector; callers author only body
+  prose and candidateKeywords (contract §6.4.6);
+- approval binds to reviewedContentDigest and is authoritative in the ledger, latest-wins
+  (contract §6.1); byte-replay of previously approved versions is not effective;
+- entry-approve is digest-pinned on the command line (contract §6.2);
+- the artifacts path is governed: raw edits are denied by the role guard, writes happen
+  only here, atomically, with a path<->identity round-trip check (contract §3, §6.4).
+"""
+
+from __future__ import annotations
+
+import argparse
+import copy
+import json
+import re
+import sys
+import unicodedata
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+import yaml
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+try:
+    from scripts.knowledge_digest import canonical_digest
+    from scripts.relation_kinds import edge_assurance
+except ModuleNotFoundError:  # invoked as `python scripts/knowledge_store.py`
+    from knowledge_digest import canonical_digest  # type: ignore
+    from relation_kinds import edge_assurance  # type: ignore
+
+ARTIFACTS_ROOT = ROOT / ".ai/knowledge/artifacts"
+LEDGER_PATH = ROOT / ".ai/knowledge/artifacts-ledger.jsonl"
+# Features live OUTSIDE ARTIFACTS_ROOT so all_entry_paths(), corpus_fingerprint() and the
+# artifact index never see them — a Feature is not a Salesforce artifact and must never be
+# citable as an entryRef. Their ledger is separate for the same reason it is separate in the
+# contract: the artifact ledger's stamp is folded into every projection's reuse key, so sharing
+# one file would discard the entire artifact index on every feature approval.
+FEATURES_ROOT = ROOT / ".ai/knowledge/features"
+FEATURE_LEDGER_PATH = ROOT / ".ai/knowledge/features-ledger.jsonl"
+REVIEW_ARTIFACT_ROOT = ROOT / "output/knowledge-approvals"
+SCHEMA_DIR = ROOT / "schemas"
+LOCAL_CONFIG = ROOT / "config/harness.local.json"
+TAXONOMY_PATH = ROOT / ".ai/knowledge/keyword-taxonomy.md"
+# Org-usage layer (contract v1.2 §6.6): a SEPARATE append-only ledger — the approval ledger is
+# never written by attach/detach, which is half of the approval-preservation argument.
+ORG_LEDGER_PATH = ROOT / ".ai/knowledge/artifacts-org-ledger.jsonl"
+ORG_USAGE_CACHE = ROOT / ".cache/org-usage"
+KNOWLEDGE_POLICY_PATH = ROOT / "config/knowledge-policy.json"
+
+SENTINEL_PATTERN = re.compile(r"<AGENT_[A-Z0-9_]*>?")
+PROSE_CHUNK_LIMIT = 25
+MANIFEST_CHUNK_LIMIT = 500
+SAFE_NAME_BUDGET = 100
+PATH_BUDGET = 200
+WINDOWS_RESERVED = {"CON", "PRN", "AUX", "NUL"} | {f"COM{i}" for i in range(1, 10)} | {
+    f"LPT{i}" for i in range(1, 10)
+}
+
+PROFILES = {
+    "Flow": {"id": "salesforce.flow", "version": "1.0.0", "schema": "knowledge-profile-flow.schema.json"},
+    "CustomField": {
+        "id": "salesforce.custom-field",
+        "version": "1.0.0",
+        "schema": "knowledge-profile-customfield.schema.json",
+    },
+    "ApexClass": {"id": "salesforce.apex", "version": "1.0.0", "schema": "knowledge-profile-apex.schema.json"},
+    "ApexTrigger": {"id": "salesforce.apex", "version": "1.0.0", "schema": "knowledge-profile-apex.schema.json"},
+    "ValidationRule": {
+        "id": "salesforce.validation-rule",
+        "version": "1.0.0",
+        "schema": "knowledge-profile-validationrule.schema.json",
+    },
+    "PermissionSet": {
+        "id": "salesforce.permission-set",
+        "version": "1.0.0",
+        "schema": "knowledge-profile-permissionset.schema.json",
+    },
+    "CustomObject": {
+        "id": "salesforce.custom-object",
+        "version": "1.0.0",
+        "schema": "knowledge-profile-customobject.schema.json",
+    },
+    "RecordType": {
+        "id": "salesforce.record-type",
+        "version": "1.0.0",
+        "schema": "knowledge-profile-recordtype.schema.json",
+    },
+    "CustomMetadata": {
+        "id": "salesforce.custom-metadata",
+        "version": "1.0.0",
+        "schema": "knowledge-profile-custommetadata.schema.json",
+    },
+    "LightningComponentBundle": {
+        "id": "salesforce.lightning-component",
+        "version": "1.0.0",
+        "schema": "knowledge-profile-lwc.schema.json",
+    },
+    "FieldSet": {
+        "id": "salesforce.field-set",
+        "version": "1.0.0",
+        "schema": "knowledge-profile-field-set.schema.json",
+    },
+    "CompactLayout": {
+        "id": "salesforce.compact-layout",
+        "version": "1.0.0",
+        "schema": "knowledge-profile-compact-layout.schema.json",
+    },
+    "BusinessProcess": {
+        "id": "salesforce.business-process",
+        "version": "1.0.0",
+        "schema": "knowledge-profile-business-process.schema.json",
+    },
+    "WebLink": {
+        "id": "salesforce.web-link",
+        "version": "1.0.0",
+        "schema": "knowledge-profile-web-link.schema.json",
+    },
+    "DuplicateRule": {
+        "id": "salesforce.duplicate-rule",
+        "version": "1.0.0",
+        "schema": "knowledge-profile-duplicate-rule.schema.json",
+    },
+    "MatchingRule": {
+        "id": "salesforce.matching-rule",
+        "version": "1.0.0",
+        "schema": "knowledge-profile-matching-rule.schema.json",
+    },
+    "Queue": {"id": "salesforce.queue", "version": "1.0.0", "schema": "knowledge-profile-queue.schema.json"},
+    "Role": {"id": "salesforce.role", "version": "1.0.0", "schema": "knowledge-profile-role.schema.json"},
+    "DelegateGroup": {
+        "id": "salesforce.delegate-group",
+        "version": "1.0.0",
+        "schema": "knowledge-profile-delegate-group.schema.json",
+    },
+    "PermissionSetGroup": {
+        "id": "salesforce.permission-set-group",
+        "version": "1.0.0",
+        "schema": "knowledge-profile-permission-set-group.schema.json",
+    },
+    "StaticResource": {
+        "id": "salesforce.static-resource",
+        "version": "1.0.0",
+        "schema": "knowledge-profile-static-resource.schema.json",
+    },
+    "PlatformEventChannel": {
+        "id": "salesforce.platform-event-channel",
+        "version": "1.0.0",
+        "schema": "knowledge-profile-platform-event-channel.schema.json",
+    },
+    "PlatformEventChannelMember": {
+        "id": "salesforce.platform-event-channel-member",
+        "version": "1.0.0",
+        "schema": "knowledge-profile-platform-event-channel-member.schema.json",
+    },
+    # GlobalValueSet and StandardValueSet share one profile/schema, the salesforce.apex
+    # precedent: same fact shape, two source metadata types.
+    "GlobalValueSet": {
+        "id": "salesforce.value-set",
+        "version": "1.0.0",
+        "schema": "knowledge-profile-value-set.schema.json",
+    },
+    "StandardValueSet": {
+        "id": "salesforce.value-set",
+        "version": "1.0.0",
+        "schema": "knowledge-profile-value-set.schema.json",
+    },
+    # The per-label CustomLabel components are profiled; the CustomLabels container
+    # (labelCount only) deliberately is not — an entry with no reviewable content.
+    "CustomLabel": {
+        "id": "salesforce.custom-label",
+        "version": "1.0.0",
+        "schema": "knowledge-profile-custom-label.schema.json",
+    },
+    "CustomTab": {
+        "id": "salesforce.custom-tab",
+        "version": "1.0.0",
+        "schema": "knowledge-profile-custom-tab.schema.json",
+    },
+    "CustomApplication": {
+        "id": "salesforce.custom-application",
+        "version": "1.0.0",
+        "schema": "knowledge-profile-custom-application.schema.json",
+    },
+    "FlowDefinition": {
+        "id": "salesforce.flow-definition",
+        "version": "1.0.0",
+        "schema": "knowledge-profile-flow-definition.schema.json",
+    },
+    "PathAssistant": {
+        "id": "salesforce.path-assistant",
+        "version": "1.0.0",
+        "schema": "knowledge-profile-path-assistant.schema.json",
+    },
+    "ListView": {
+        "id": "salesforce.list-view",
+        "version": "1.0.0",
+        "schema": "knowledge-profile-list-view.schema.json",
+    },
+    "ReportType": {
+        "id": "salesforce.report-type",
+        "version": "1.0.0",
+        "schema": "knowledge-profile-report-type.schema.json",
+    },
+    "SharingRules": {
+        "id": "salesforce.sharing-rules",
+        "version": "1.0.0",
+        "schema": "knowledge-profile-sharing-rules.schema.json",
+    },
+    "QuickAction": {
+        "id": "salesforce.quick-action",
+        "version": "1.0.0",
+        "schema": "knowledge-profile-quick-action.schema.json",
+    },
+    "MutingPermissionSet": {
+        "id": "salesforce.muting-permission-set",
+        "version": "1.0.0",
+        "schema": "knowledge-profile-muting-permission-set.schema.json",
+    },
+    "Dashboard": {
+        "id": "salesforce.dashboard",
+        "version": "1.0.0",
+        "schema": "knowledge-profile-dashboard.schema.json",
+    },
+    "EmailTemplate": {
+        "id": "salesforce.email-template",
+        "version": "1.0.0",
+        "schema": "knowledge-profile-email-template.schema.json",
+    },
+    "AuraDefinitionBundle": {
+        "id": "salesforce.aura",
+        "version": "1.0.0",
+        "schema": "knowledge-profile-aura.schema.json",
+    },
+    # The nine integration surfaces share one profile/schema, the salesforce.apex
+    # precedent: a union fact shape, nine source metadata types.
+    "NamedCredential": {
+        "id": "salesforce.integration",
+        "version": "1.0.0",
+        "schema": "knowledge-profile-integration.schema.json",
+    },
+    "ExternalCredential": {
+        "id": "salesforce.integration",
+        "version": "1.0.0",
+        "schema": "knowledge-profile-integration.schema.json",
+    },
+    "RemoteSiteSetting": {
+        "id": "salesforce.integration",
+        "version": "1.0.0",
+        "schema": "knowledge-profile-integration.schema.json",
+    },
+    "ExternalDataSource": {
+        "id": "salesforce.integration",
+        "version": "1.0.0",
+        "schema": "knowledge-profile-integration.schema.json",
+    },
+    "ExternalServiceRegistration": {
+        "id": "salesforce.integration",
+        "version": "1.0.0",
+        "schema": "knowledge-profile-integration.schema.json",
+    },
+    "ConnectedApp": {
+        "id": "salesforce.integration",
+        "version": "1.0.0",
+        "schema": "knowledge-profile-integration.schema.json",
+    },
+    "AuthProvider": {
+        "id": "salesforce.integration",
+        "version": "1.0.0",
+        "schema": "knowledge-profile-integration.schema.json",
+    },
+    "CspTrustedSite": {
+        "id": "salesforce.integration",
+        "version": "1.0.0",
+        "schema": "knowledge-profile-integration.schema.json",
+    },
+    "CorsWhitelistOrigin": {
+        "id": "salesforce.integration",
+        "version": "1.0.0",
+        "schema": "knowledge-profile-integration.schema.json",
+    },
+    "Profile": {
+        "id": "salesforce.profile",
+        "version": "1.0.0",
+        "schema": "knowledge-profile-profile.schema.json",
+    },
+    "Layout": {
+        "id": "salesforce.layout",
+        "version": "1.0.0",
+        "schema": "knowledge-profile-layout.schema.json",
+    },
+    "FlexiPage": {
+        "id": "salesforce.flexipage",
+        "version": "1.0.0",
+        "schema": "knowledge-profile-flexipage.schema.json",
+    },
+    "Workflow": {
+        "id": "salesforce.workflow",
+        "version": "1.0.0",
+        "schema": "knowledge-profile-workflow.schema.json",
+    },
+    # The three routing-rule containers share one profile/schema, the
+    # salesforce.integration precedent: one fact shape, three source metadata types.
+    "AssignmentRules": {
+        "id": "salesforce.routing-rules",
+        "version": "1.0.0",
+        "schema": "knowledge-profile-routing-rules.schema.json",
+    },
+    "AutoResponseRules": {
+        "id": "salesforce.routing-rules",
+        "version": "1.0.0",
+        "schema": "knowledge-profile-routing-rules.schema.json",
+    },
+    "EscalationRules": {
+        "id": "salesforce.routing-rules",
+        "version": "1.0.0",
+        "schema": "knowledge-profile-routing-rules.schema.json",
+    },
+    "ApprovalProcess": {
+        "id": "salesforce.approval-process",
+        "version": "1.0.0",
+        "schema": "knowledge-profile-approval-process.schema.json",
+    },
+    "Report": {
+        "id": "salesforce.report",
+        "version": "1.0.0",
+        "schema": "knowledge-profile-report.schema.json",
+    },
+    # ApexPage and ApexComponent share one profile/schema, the salesforce.apex
+    # precedent: same regex-parsed markup extraction, two source metadata types.
+    "ApexPage": {
+        "id": "salesforce.visualforce",
+        "version": "1.0.0",
+        "schema": "knowledge-profile-visualforce.schema.json",
+    },
+    "ApexComponent": {
+        "id": "salesforce.visualforce",
+        "version": "1.0.0",
+        "schema": "knowledge-profile-visualforce.schema.json",
+    },
+}
+
+# Storage families group the artifacts tree for navigation; a family is never evidence and
+# never creates a graph relation. ApexClass always lives under code/ even when it serves as
+# a UI controller. Lives here next to PROFILES so the one pin test and every future consumer
+# (Feature v2 layer names, family-aware search) import the same dict instead of copying it.
+FAMILY_BY_TYPE = {
+    "CustomObject": "objects",
+    "CustomField": "objects",
+    "ValidationRule": "objects",
+    "RecordType": "objects",
+    "BusinessProcess": "objects",
+    "DuplicateRule": "objects",
+    "MatchingRule": "objects",
+    "ApexComponent": "ui",
+    "ApexPage": "ui",
+    "AuraDefinitionBundle": "ui",
+    "CompactLayout": "ui",
+    "CustomApplication": "ui",
+    "CustomTab": "ui",
+    "FieldSet": "ui",
+    "FlexiPage": "ui",
+    "Layout": "ui",
+    "LightningComponentBundle": "ui",
+    "ListView": "ui",
+    "PathAssistant": "ui",
+    "QuickAction": "ui",
+    "WebLink": "ui",
+    "DelegateGroup": "access",
+    "MutingPermissionSet": "access",
+    "PermissionSet": "access",
+    "PermissionSetGroup": "access",
+    "Profile": "access",
+    "Queue": "access",
+    "Role": "access",
+    "SharingRules": "access",
+    "ApprovalProcess": "automation",
+    "AssignmentRules": "automation",
+    "AutoResponseRules": "automation",
+    "EscalationRules": "automation",
+    "Flow": "automation",
+    "FlowDefinition": "automation",
+    "Workflow": "automation",
+    "ApexClass": "code",
+    "ApexTrigger": "code",
+    "AuthProvider": "integration",
+    "ConnectedApp": "integration",
+    "CorsWhitelistOrigin": "integration",
+    "CspTrustedSite": "integration",
+    "ExternalCredential": "integration",
+    "ExternalDataSource": "integration",
+    "ExternalServiceRegistration": "integration",
+    "NamedCredential": "integration",
+    "PlatformEventChannel": "integration",
+    "PlatformEventChannelMember": "integration",
+    "RemoteSiteSetting": "integration",
+    "CustomMetadata": "configuration",
+    "GlobalValueSet": "configuration",
+    "StandardValueSet": "configuration",
+    "Dashboard": "reporting",
+    "Report": "reporting",
+    "ReportType": "reporting",
+    "CustomLabel": "shared",
+    "EmailTemplate": "shared",
+    "StaticResource": "shared",
+}
+
+# Member types of the objects family route into a per-object subdirectory; their full name
+# is Object.Member (contract §: CustomField ships as Object.Field, and namespace prefixes
+# use __, never a dot, so the first dot is always the object/member split).
+OBJECT_MEMBER_DIRS = {
+    "CustomField": "fields",
+    "ValidationRule": "validation-rules",
+    "RecordType": "record-types",
+    "BusinessProcess": "business-processes",
+    "DuplicateRule": "duplicate-rules",
+    "MatchingRule": "matching-rules",
+}
+
+OBJECT_TYPE_BY_MEMBER_DIR = {directory: name for name, directory in OBJECT_MEMBER_DIRS.items()}
+
+
+class StoreError(RuntimeError):
+    """Fail-closed executor error; message is the actionable reason."""
+
+
+import contextlib
+
+
+@contextlib.contextmanager
+def rooted(root: Path):
+    """Bind module paths to a different repo root (work_record gates, unit tests)."""
+    global ROOT, ARTIFACTS_ROOT, LEDGER_PATH, REVIEW_ARTIFACT_ROOT, LOCAL_CONFIG, TAXONOMY_PATH
+    global FEATURES_ROOT, FEATURE_LEDGER_PATH, ORG_LEDGER_PATH, ORG_USAGE_CACHE, KNOWLEDGE_POLICY_PATH
+    saved = (ROOT, ARTIFACTS_ROOT, LEDGER_PATH, REVIEW_ARTIFACT_ROOT, LOCAL_CONFIG, TAXONOMY_PATH,
+             FEATURES_ROOT, FEATURE_LEDGER_PATH, ORG_LEDGER_PATH, ORG_USAGE_CACHE, KNOWLEDGE_POLICY_PATH)
+    ROOT = Path(root).resolve()
+    ARTIFACTS_ROOT = ROOT / ".ai/knowledge/artifacts"
+    LEDGER_PATH = ROOT / ".ai/knowledge/artifacts-ledger.jsonl"
+    FEATURES_ROOT = ROOT / ".ai/knowledge/features"
+    FEATURE_LEDGER_PATH = ROOT / ".ai/knowledge/features-ledger.jsonl"
+    REVIEW_ARTIFACT_ROOT = ROOT / "output/knowledge-approvals"
+    LOCAL_CONFIG = ROOT / "config/harness.local.json"
+    TAXONOMY_PATH = ROOT / ".ai/knowledge/keyword-taxonomy.md"
+    ORG_LEDGER_PATH = ROOT / ".ai/knowledge/artifacts-org-ledger.jsonl"
+    ORG_USAGE_CACHE = ROOT / ".cache/org-usage"
+    KNOWLEDGE_POLICY_PATH = ROOT / "config/knowledge-policy.json"
+    try:
+        yield
+    finally:
+        (ROOT, ARTIFACTS_ROOT, LEDGER_PATH, REVIEW_ARTIFACT_ROOT, LOCAL_CONFIG, TAXONOMY_PATH,
+         FEATURES_ROOT, FEATURE_LEDGER_PATH, ORG_LEDGER_PATH, ORG_USAGE_CACHE, KNOWLEDGE_POLICY_PATH) = saved
+
+
+# --- strict canonical parser (contract §5.6) -------------------------------------------
+
+
+class StrictLoader(yaml.SafeLoader):
+    """YAML 1.2-leaning strict loader: no duplicate keys, no anchors/aliases/merge keys."""
+
+    def compose_node(self, parent, index):  # type: ignore[override]
+        if self.check_event(yaml.events.AliasEvent):
+            raise StoreError("frontmatter rejects YAML aliases/anchors (contract §5.6)")
+        return super().compose_node(parent, index)
+
+
+def _strict_mapping(loader: StrictLoader, node: yaml.nodes.MappingNode, deep: bool = False):
+    mapping: dict[Any, Any] = {}
+    for key_node, value_node in node.value:
+        key = loader.construct_object(key_node, deep=True)
+        if key == "<<":
+            raise StoreError("frontmatter rejects YAML merge keys (contract §5.6)")
+        if key in mapping:
+            raise StoreError(f"frontmatter rejects duplicate key {key!r} (contract §5.6)")
+        mapping[key] = loader.construct_object(value_node, deep=deep)
+    return mapping
+
+
+StrictLoader.add_constructor(
+    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _strict_mapping
+)
+# YAML 1.1 boolean landmines (NO/on/off) stay strings under this narrowed resolver set.
+for boolish in "yYnNoO":
+    if boolish in StrictLoader.yaml_implicit_resolvers:
+        StrictLoader.yaml_implicit_resolvers[boolish] = [
+            (tag, regexp)
+            for tag, regexp in StrictLoader.yaml_implicit_resolvers[boolish]
+            if tag != "tag:yaml.org,2002:bool"
+        ]
+
+
+def split_entry(text: str) -> tuple[dict[str, Any], str]:
+    """Exactly one frontmatter block: starts '---\\n', ends first '\\n---\\n'."""
+    if not text.startswith("---\n"):
+        raise StoreError("entry must start with a '---' frontmatter block")
+    end = text.find("\n---\n", 4)
+    if end < 0:
+        raise StoreError("unterminated frontmatter block")
+    # StrictLoader subclasses SafeLoader (no object construction) and additionally rejects
+    # duplicate keys, aliases/anchors, and merge keys (contract §5.6).
+    loader = StrictLoader(text[4:end + 1])
+    try:
+        frontmatter = loader.get_single_data()
+    finally:
+        loader.dispose()
+    if not isinstance(frontmatter, dict):
+        raise StoreError("frontmatter must be a mapping")
+    return frontmatter, text[end + 5:]
+
+
+def normalize_body(body: str) -> str:
+    text = unicodedata.normalize("NFC", body.replace("\r\n", "\n").replace("\r", "\n"))
+    lines = [line.rstrip() for line in text.split("\n")]
+    return "\n".join(lines).strip("\n") + "\n" if any(line for line in lines) else ""
+
+
+# --- identity, safe names, paths (contract §3) -----------------------------------------
+
+
+def identity_of(metadata_type: str, namespace: str | None, full_name: str) -> str:
+    return f"{metadata_type}:{namespace or 'c'}:{full_name}"
+
+
+def safe_name(full_name: str, identity: str) -> str:
+    normalized = unicodedata.normalize("NFKC", full_name)
+    encoded = "".join(
+        ch if re.fullmatch(r"[A-Za-z0-9_-]", ch) else "".join(f"%{b:02X}" for b in ch.encode("utf-8"))
+        for ch in normalized
+    )
+    suffix = ""
+    if len(encoded) > SAFE_NAME_BUDGET or encoded.rstrip(". ") != encoded:
+        digest = canonical_digest(unicodedata.normalize("NFKC", identity))[7:15]
+        cut = encoded[:SAFE_NAME_BUDGET]
+        if "%" in cut[-2:]:  # never split a %XX triplet
+            cut = cut[: cut.rindex("%")]
+        encoded, suffix = cut.rstrip(". "), f"-{digest}"
+    stem = encoded + suffix
+    if stem.split("-", 1)[0].upper() in WINDOWS_RESERVED or stem.upper() in WINDOWS_RESERVED:
+        stem += "-" + canonical_digest(unicodedata.normalize("NFKC", identity))[7:15]
+    return stem
+
+
+def relative_path(path: Path) -> str:
+    """Repo-relative path as DATA: always forward slashes, on every platform.
+
+    `relative_path(path)` renders backslashes on Windows, which is the team's only
+    platform. Every path this executor emits is compared against, or pasted next to, a path
+    built elsewhere with `as_posix()` — `work_record.entry_relative_path` is one — so the two
+    forms silently stop matching there and nowhere else. Path separators are a rendering
+    detail of the local filesystem; a citation is a record, and its form must not depend on
+    which machine wrote it.
+    """
+    return path.relative_to(ROOT).as_posix()
+
+
+def entry_path(metadata_type: str, namespace: str | None, full_name: str) -> Path:
+    identity = identity_of(metadata_type, namespace, full_name)
+    family = FAMILY_BY_TYPE.get(metadata_type)
+    if family is None:
+        raise StoreError(f"no storage family registered for metadata type {metadata_type!r}")
+    segment = namespace or "c"
+    if family == "objects" and metadata_type != "CustomObject":
+        object_name, dot, member = full_name.partition(".")
+        if not dot or not object_name or not member:
+            raise StoreError(
+                f"{metadata_type} full name must be Object.Member, got {full_name!r} for {identity}"
+            )
+        # The object directory is shared with the CustomObject leaf and every sibling member,
+        # so its safe_name is keyed to the object's own identity — keying it to this member's
+        # identity would give the same object a different digest-suffixed directory per member
+        # whenever safe_name has to escape or truncate.
+        object_dir = safe_name(object_name, identity_of("CustomObject", namespace, object_name))
+        path = (
+            ARTIFACTS_ROOT / "objects" / segment / object_dir
+            / OBJECT_MEMBER_DIRS[metadata_type] / f"{safe_name(member, identity)}.md"
+        )
+    elif family == "objects":
+        path = ARTIFACTS_ROOT / "objects" / segment / safe_name(full_name, identity) / "object.md"
+    else:
+        path = ARTIFACTS_ROOT / family / metadata_type / segment / f"{safe_name(full_name, identity)}.md"
+    if len(relative_path(path)) > PATH_BUDGET:
+        raise StoreError(f"derived path exceeds {PATH_BUDGET}-char budget for {identity}")
+    return path
+
+
+def assert_no_reparse_points(root: Path | None = None) -> None:
+    """Refuse a symlink/junction anywhere under the tree a command is about to write.
+
+    Scoped, because the walk is the command's own cost: a single-file feature-status or
+    feature-open paying an rglob over a 15 k-entry artifact corpus is a scale defect, and the
+    artifact corpus is not what those commands write anyway. Each caller passes the root it
+    governs, so the check still covers every path it can create (§6, R4)."""
+
+    base = root if root is not None else ROOT / ".ai/knowledge"
+    if not base.exists():
+        return
+    scope = base.relative_to(ROOT).as_posix() if base.is_relative_to(ROOT) else str(base)
+    for path in base.rglob("*"):
+        if path.is_symlink():
+            raise StoreError(f"reparse point/symlink under {scope}: {path} (contract §3)")
+
+
+# --- digests (contract §5) -------------------------------------------------------------
+
+
+def _canonical_facts(frontmatter: dict[str, Any]) -> dict[str, Any]:
+    facts = copy.deepcopy(
+        {
+            "typeFacts": frontmatter.get("typeFacts") or {},
+            "intentionalErrors": frontmatter.get("intentionalErrors") or [],
+            "limitations": sorted(frontmatter.get("limitations") or []),
+            "extractionCoverage": frontmatter.get("extractionCoverage") or {},
+            "assurance": frontmatter.get("assurance") or {},
+        }
+    )
+    type_facts = facts["typeFacts"]
+    if isinstance(type_facts.get("references"), list):
+        type_facts["references"] = sorted(
+            type_facts["references"], key=lambda item: (item.get("kind", ""), item.get("target", ""))
+        )
+    if isinstance(type_facts.get("variables"), list):
+        type_facts["variables"] = sorted(
+            type_facts["variables"], key=lambda item: item.get("apiName", "")
+        )
+    for error in facts["intentionalErrors"]:
+        if isinstance(error.get("customLabelRefs"), list):
+            error["customLabelRefs"] = sorted(error["customLabelRefs"])
+    return facts
+
+
+def facts_digest(frontmatter: dict[str, Any]) -> str:
+    return canonical_digest(_canonical_facts(frontmatter))
+
+
+def semantics_digest(body: str) -> str:
+    return canonical_digest(normalize_body(body))
+
+
+def reviewed_content_digest(frontmatter: dict[str, Any], body: str) -> str:
+    subject = frontmatter["subject"]
+    profile = frontmatter["profile"]
+    return canonical_digest(
+        {
+            "identity": identity_of(subject["metadataType"], subject.get("namespace"), subject["fullName"]),
+            "profileMajor": f"{profile['id']}@{profile['version'].split('.', 1)[0]}",
+            "factsDigest": facts_digest(frontmatter),
+            "semanticsDigest": semantics_digest(body),
+            "sensitivity": frontmatter["sensitivity"],
+        }
+    )
+
+
+# --- ledger (contract §6.1) ------------------------------------------------------------
+
+
+def read_ledger(path: Path | None = None) -> list[dict[str, Any]]:
+    ledger = path or LEDGER_PATH
+    if not ledger.exists():
+        return []
+    records = []
+    for index, line in enumerate(ledger.read_text(encoding="utf-8").splitlines(), 1):
+        if not line.strip():
+            continue
+        record = json.loads(line)
+        if record.get("sequence") != index:
+            raise StoreError(f"ledger sequence break at line {index} (append-only violated)")
+        records.append(record)
+    return records
+
+
+def ledger_latest(records: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    latest: dict[str, dict[str, Any]] = {}
+    for record in records:
+        latest[record["identity"]] = record
+    return latest
+
+
+def append_ledger(entries: list[dict[str, Any]], path: Path | None = None) -> None:
+    ledger = path or LEDGER_PATH
+    records = read_ledger(ledger)
+    sequence = len(records)
+    ledger.parent.mkdir(parents=True, exist_ok=True)
+    with ledger.open("a", encoding="utf-8", newline="\n") as handle:
+        for entry in entries:
+            sequence += 1
+            handle.write(json.dumps({"sequence": sequence, **entry}, sort_keys=True) + "\n")
+
+
+# --- validation and lanes (contract §4) -------------------------------------------------
+
+
+def load_schema(name: str) -> dict[str, Any]:
+    return json.loads((SCHEMA_DIR / name).read_text(encoding="utf-8"))
+
+
+def validate_entry(frontmatter: dict[str, Any], body: str) -> list[str]:
+    from jsonschema import Draft202012Validator
+
+    problems: list[str] = []
+    envelope = Draft202012Validator(load_schema("knowledge-entry.schema.json"))
+    problems.extend(error.message for error in envelope.iter_errors(frontmatter))
+    metadata_type = frontmatter.get("subject", {}).get("metadataType")
+    profile = PROFILES.get(metadata_type or "")
+    if profile is None:
+        problems.append(f"unsupported profile for metadataType {metadata_type!r}")
+    else:
+        profile_validator = Draft202012Validator(load_schema(profile["schema"]))
+        payload = {
+            "typeFacts": frontmatter.get("typeFacts", {}),
+            "intentionalErrors": frontmatter.get("intentionalErrors", []),
+        }
+        problems.extend(error.message for error in profile_validator.iter_errors(payload))
+    raw = yaml.dump(frontmatter, sort_keys=True) + body
+    if SENTINEL_PATTERN.search(raw):
+        problems.append("unfilled <AGENT_...> sentinel present (contract §6.4.6)")
+    sections = [line for line in body.splitlines() if line.startswith("## ")]
+    if any(section != "## Purpose" for section in sections):
+        problems.append("pilot body may contain only '## Purpose' (contract §2.2)")
+    approved_terms = approved_taxonomy_terms()
+    for keyword in frontmatter.get("keywords", []):
+        if keyword not in approved_terms:
+            problems.append(f"keyword {keyword!r} is not in the approved taxonomy")
+    return problems
+
+
+def approved_taxonomy_terms() -> set[str]:
+    if not TAXONOMY_PATH.exists():
+        return set()
+    terms: set[str] = set()
+    in_terms = False
+    for line in TAXONOMY_PATH.read_text(encoding="utf-8").splitlines():
+        if line.strip().lower() == "## terms":
+            in_terms = True
+            continue
+        if in_terms and line.startswith("## "):
+            break
+        if in_terms and line.startswith("- "):
+            terms.add(line[2:].split("—", 1)[0].strip().strip("`"))
+    return terms
+
+
+def compute_lane(path: Path, latest: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    """Effectiveness lane for one entry — always the full check.
+
+    There is deliberately no partial mode. One existed, skipping the source-fragment re-digest
+    on the theory that it was the expensive part; profiling at 9 000 entries put the cost in
+    YAML parsing and jsonschema validation instead and left the re-digest out of the top frames
+    entirely, so the partial mode bought ~2 % while returning a lane that was asserted rather
+    than proven. `entry-check --changed-since` now skips whole entries instead."""
+
+    text = path.read_text(encoding="utf-8")
+    frontmatter, body = split_entry(text)
+    subject = frontmatter["subject"]
+    identity = identity_of(subject["metadataType"], subject.get("namespace"), subject["fullName"])
+    result = {"identity": identity, "path": relative_path(path), "problems": validate_entry(frontmatter, body)}
+    try:
+        expected = entry_path(subject["metadataType"], subject.get("namespace"), subject["fullName"])
+    except StoreError as exc:
+        # An unroutable subject (unregistered type, objects-family name without its dot) is
+        # this one entry's integrity failure, not grounds to crash the sweep over the corpus.
+        result["lane"] = "not-effective"
+        result["problems"].append(f"path/identity round-trip failed ({exc})")
+        return result
+    if path.resolve() != expected.resolve():
+        result["lane"] = "not-effective"
+        result["problems"].append(f"path/identity round-trip failed (expected {expected.relative_to(ROOT)})")
+        return result
+    if frontmatter["lifecycle"]["state"] == "draft":
+        # A draft is never served, so its outstanding work is not an integrity failure. An
+        # entry still awaiting its description belongs in `draft` with the reason attached —
+        # reporting it as `not-effective` made ordinary unfinished work look like corruption.
+        result["lane"] = "draft"
+        # The digest is a pure function of content, so it exists even while the entry is
+        # unfinished. Withholding it made draft-lane search hits fail hydration and vanish.
+        result["reviewedContentDigest"] = reviewed_content_digest(frontmatter, body)
+        result["sourceTreeDigest"] = frontmatter["scope"]["sourceTreeDigest"]
+        result["profile"] = (
+            f"{frontmatter['profile']['id']}@{frontmatter['profile']['version'].split('.', 1)[0]}"
+        )
+        return result
+    if result["problems"]:
+        result["lane"] = "not-effective"
+        return result
+    recomputed = reviewed_content_digest(frontmatter, body)
+    result["reviewedContentDigest"] = recomputed
+    ledger_record = latest.get(identity)
+    if ledger_record is None:
+        result["lane"] = "not-effective"
+        result["problems"].append("approved state without any ledger record (quarantined)")
+    elif ledger_record["action"] == "revoke":
+        result["lane"] = "revoked"
+    elif ledger_record["reviewedContentDigest"] != recomputed:
+        result["lane"] = "not-effective"
+        result["problems"].append("recomputed digest is not the latest ledger record")
+    elif frontmatter["approval"].get("reviewedContentDigest") != recomputed:
+        result["lane"] = "not-effective"
+        result["problems"].append("in-file approval mirror mismatches recomputation")
+    elif any(
+        frontmatter["approval"].get(field) != ledger_record.get(field)
+        for field in ("reviewedBy", "reviewedAt", "mechanism")
+    ):
+        # The ledger is authoritative for who approved, when, and by which mechanism
+        # (contract §5.3). Content tampering is caught by the digest; provenance tampering
+        # would otherwise be invisible, so the mirror is compared field by field.
+        result["lane"] = "not-effective"
+        result["problems"].append("in-file approval provenance mismatches the ledger record")
+    else:
+        regenerated = regenerate_fragment_digest(frontmatter)
+        result["lane"] = "approved-current" if regenerated else "approved-drifted"
+        result["factsDigest"] = facts_digest(frontmatter)
+    result["sourceTreeDigest"] = frontmatter["scope"]["sourceTreeDigest"]
+    result["profile"] = f"{frontmatter['profile']['id']}@{frontmatter['profile']['version'].split('.', 1)[0]}"
+    return result
+
+
+def lane_for_identity(root: Path, identity: str) -> dict[str, Any] | None:
+    """Compute the effectiveness lane for one identity under an explicit repo root."""
+    with rooted(root):
+        latest = ledger_latest(read_ledger())
+        for path in all_entry_paths():
+            try:
+                lane = compute_lane(path, latest)
+            except StoreError:
+                continue
+            if lane["identity"] == identity:
+                return lane
+    return None
+
+
+def verify_entry_citations(root: Path, entry_refs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Advisory verdicts for cited Knowledge Entries (SAFE-CLAIM-001 v2 entryRefs).
+
+    Relocated from KnowledgeRegistry (v1 retirement P0): the entry layer owns its own
+    citation verdicts so an envelope check survives the claim registry's removal."""
+
+    results: list[dict[str, Any]] = []
+    for reference in entry_refs:
+        entry_id = str(reference.get("entryId", ""))
+        record: dict[str, Any] = {"entryId": entry_id}
+        lane = lane_for_identity(root, entry_id) if entry_id else None
+        if lane is None:
+            record.update(verdict="missing", severity="invalid", reason="no entry with this identity")
+        elif lane["lane"] == "revoked":
+            record.update(verdict="revoked", severity="invalid", reason="approval was revoked")
+        elif lane["lane"] == "draft":
+            record.update(verdict="not-approved", severity="invalid", reason="entry is still a draft")
+        elif lane["lane"] == "not-effective":
+            record.update(
+                verdict="not-effective",
+                severity="invalid",
+                reason="; ".join(lane.get("problems", [])) or "entry failed its integrity checks",
+            )
+        elif reference.get("reviewedContentDigest") and lane.get("reviewedContentDigest") != reference["reviewedContentDigest"]:
+            record.update(
+                verdict="digest-mismatch",
+                severity="invalid",
+                reason="cited content digest is not the entry's current approved digest",
+            )
+        elif lane["lane"] == "approved-drifted":
+            record.update(
+                verdict="drifted",
+                severity="warning",
+                reason="source moved on since approval; re-approve before citing as current",
+            )
+        else:
+            record.update(verdict="current", severity="ok", reason="approved-current")
+        results.append(record)
+    return results
+
+
+def regenerate_fragment_digest(frontmatter: dict[str, Any]) -> bool:
+    """True when every recorded source fragment still matches the working tree."""
+    from scripts.force_app_knowledge import file_digest  # local import: heavy module
+
+    for fragment in frontmatter["source"]["fragments"]:
+        fragment_path = ROOT / fragment["path"]
+        if not fragment_path.exists():
+            return False
+        if file_digest(fragment_path) != fragment["sourceDigest"].removeprefix("sha256:"):
+            return False
+    return True
+
+
+def all_entry_paths(include_case_twins: bool = False) -> list[Path]:
+    if not ARTIFACTS_ROOT.exists():
+        return []
+    if include_case_twins:
+        # `rglob("*.md")` is case-sensitive on Linux, so `NAME.MD` — exactly the kind of file
+        # the case-fold gate exists to refuse — was invisible to the one check meant to see it,
+        # and `entry-check` passed over a collision that breaks every Windows/macOS checkout.
+        return sorted(
+            path for path in ARTIFACTS_ROOT.rglob("*")
+            if path.is_file() and path.suffix.casefold() == ".md"
+        )
+    return sorted(ARTIFACTS_ROOT.rglob("*.md"))
+
+
+# --- collector adapters (contract §6.4.6, §7) ------------------------------------------
+
+
+def collector_component(metadata_type: str, full_name: str) -> dict[str, Any]:
+    from scripts.force_app_knowledge import ForceAppKnowledge
+
+    builder = ForceAppKnowledge(ROOT)
+    inventory = builder.inventory()
+    wanted = f"{metadata_type}:{full_name}"
+    for component in inventory.get("components", []):
+        if component.get("id") == wanted:
+            return component
+    raise StoreError(f"component {wanted} not found in force-app source")
+
+
+_OPERATION_KINDS = {"lookup": "recordLookup", "create": "recordCreate", "update": "recordUpdate", "delete": "recordDelete"}
+
+
+def render_decision_path(path: Any) -> str:
+    """One reachability path, rendered for the profile's `decisionGuards: [string]`.
+
+    The collector emits `paths` as a list of PATHS, each a list of hop OBJECTS
+    (`{decision, outcome?, outcomeLabel?, conditions?, default?}`, force_app_knowledge.py:960-966).
+    Joining those with `" -> ".join(...)` raised `TypeError: sequence item 0: expected str
+    instance, dict found` on the first real Flow that declared a custom error behind a decision —
+    an unhandled crash, not a degraded fact, so the whole entry could not be drafted. The pilot
+    never hit it because its fixture errors sit on the trigger path with no decision above them.
+
+    A hop renders as the decision name, qualified by the branch that reaches it: the outcome label
+    when there is one, the API outcome name otherwise, and `default` for the else-branch. An
+    unrecognised hop degrades to its decision name rather than raising — a guard string is
+    disclosure, and losing the whole entry to gain a punctuation mark is the wrong trade.
+    """
+
+    if not isinstance(path, list):
+        return str(path)
+    steps: list[str] = []
+    for hop in path:
+        if not isinstance(hop, dict):
+            steps.append(str(hop))
+            continue
+        decision = str(hop.get("decision") or "").strip()
+        if not decision:
+            continue
+        branch = hop.get("outcomeLabel") or hop.get("outcome")
+        if branch:
+            steps.append(f"{decision} [{branch}]")
+        elif hop.get("default"):
+            steps.append(f"{decision} [default]")
+        else:
+            steps.append(decision)
+    return " -> ".join(steps)
+
+
+def flow_type_facts(component: dict[str, Any]) -> tuple[dict[str, Any], list[dict[str, Any]], dict[str, str]]:
+    facts = component.get("facts", {})
+    references = [
+        {
+            "kind": ref["kind"],
+            "target": ref["target"],
+            "assurance": edge_assurance(ref["kind"], bool(ref.get("heuristic"))),
+        }
+        for ref in component.get("references", [])
+    ]
+    type_facts: dict[str, Any] = {
+        "processType": facts.get("processType") or "Flow",
+        "status": facts.get("status") or "Draft",
+    }
+    trigger = {
+        key: value
+        for key, value in {
+            "object": facts.get("object"),
+            "type": facts.get("triggerType"),
+            "recordTriggerType": facts.get("recordTriggerType"),
+        }.items()
+        if value
+    }
+    if trigger:
+        type_facts["trigger"] = trigger
+    variables = [
+        {
+            key: value
+            for key, value in {
+                "apiName": item.get("name"),
+                "dataType": item.get("dataType") or "String",
+                "objectType": item.get("objectType"),
+                "isInput": item.get("isInput"),
+                "isOutput": item.get("isOutput"),
+                "isCollection": item.get("isCollection"),
+            }.items()
+            if value is not None
+        }
+        for item in facts.get("variables") or []
+        if item.get("name")
+    ]
+    if variables:
+        type_facts["variables"] = variables
+    operations = [
+        {
+            key: value
+            for key, value in {
+                "kind": _OPERATION_KINDS.get(op.get("operation", "")),
+                "object": op.get("object"),
+                "elementApiName": op.get("element"),
+            }.items()
+            if value
+        }
+        for op in facts.get("dataOperations") or []
+        if _OPERATION_KINDS.get(op.get("operation", "")) and op.get("object")
+    ]
+    if operations:
+        type_facts["operations"] = operations
+    if references:
+        type_facts["references"] = references
+    heuristic = any(ref["assurance"] == "source-derived-heuristic" for ref in references)
+    assurance = {"typeFacts": "source-derived-heuristic" if heuristic else "source-exact"}
+    intentional = []
+    for item in facts.get("errorCatalog") or []:
+        if item.get("kind") != "custom-error":
+            continue  # screen-validation and fault-path never enter (contract §7)
+        error: dict[str, Any] = {
+            "kind": "flow-custom-error",
+            "originTag": "customErrors",
+            "elementApiName": item.get("component", ""),
+            "messageTemplate": item.get("errorMessage", ""),
+            "presentation": (
+                {"mode": "field", "field": item["fieldSelection"]}
+                if item.get("isFieldError") and item.get("fieldSelection")
+                else {"mode": "record"}
+            ),
+            "reachability": {
+                "triggerContext": item.get("triggerContext") or "not-derived",
+                "decisionGuards": [render_decision_path(p) for p in item.get("paths", [])],
+                "truncated": bool(item.get("pathsTruncated")),
+            },
+            "basis": "source-declared",
+            "limitations": [],
+        }
+        if item.get("componentLabel"):
+            error["elementLabel"] = item["componentLabel"]
+        if item.get("resolvedErrorMessage"):
+            error["resolvedDefaultText"] = item["resolvedErrorMessage"]
+        labels = re.findall(r"\$Label\.[A-Za-z0-9_.]+", item.get("errorMessage", ""))
+        if labels:
+            error["customLabelRefs"] = sorted(set(labels))
+        intentional.append(error)
+    return type_facts, intentional, assurance
+
+
+def _edges(component: dict[str, Any]) -> list[dict[str, Any]]:
+    """Collector references as profile edges, with assurance derived from the kind vocabulary.
+
+    Reading only the collector's per-edge `heuristic` flag was a laundering bug: the flag is set
+    for kinds that are heuristic only *sometimes* (`queries-object` is structural from Flow XML
+    and regex-derived from Apex), never for kinds that are heuristic *always* (`object-token`,
+    `invokes-class`, `var-field-ref`, `soql-field`). Measured on a 189-component probe corpus,
+    414 of 595 edges therefore claimed `source-exact` for a regex match — inside factsDigest,
+    so a human approved the claim, and SAFE-CLAIM-001 v2 would ground a work record on it."""
+
+    return [
+        {
+            "kind": reference["kind"],
+            "target": reference["target"],
+            "assurance": edge_assurance(reference["kind"], bool(reference.get("heuristic"))),
+        }
+        for reference in component.get("references", [])
+    ]
+
+
+def _assurance_for(edges: list[dict[str, Any]]) -> dict[str, str]:
+    """Section marker is the weakest member (contract §2.1)."""
+    heuristic = any(edge["assurance"] == "source-derived-heuristic" for edge in edges)
+    return {"typeFacts": "source-derived-heuristic" if heuristic else "source-exact"}
+
+
+# Collector facts deliberately not carried into an entry, with the reason. Everything else is
+# passed through: hand-listing what to KEEP silently lost real content — validation rules
+# arrived as `conditionPresent: true` without the formula, fields lost their picklist values
+# and rollup definitions, Apex lost its sharing model and SOQL/DML targets. Anything the
+# collector emits that a profile does not declare now fails draft validation loudly instead
+# of disappearing from the entry.
+FACT_EXCLUSIONS: dict[str, dict[str, str]] = {
+    "Flow": {
+        "errorCatalog": "screen-validation and fault-path entries must never reach an entry; "
+        "author-declared Custom Errors are carried in intentionalErrors instead (contract §7)",
+        "elementCounts": "shape statistics, not an assertion about the artifact",
+        "start": "already represented by trigger/*",
+        "referencedObjects": "already represented as typed reference edges",
+        "dataOperations": "already represented by operations[]",
+        "variables": "carried by the Flow profile mapping",
+        "formulas": "expression bodies belong to the source, not the entry",
+        "label": "not a behavioural fact for Flow entries",
+        "object": "already represented by trigger.object",
+        "triggerType": "already represented by trigger.type",
+        "recordTriggerType": "already represented by trigger.recordTriggerType",
+        "processType": "carried by the Flow profile mapping",
+        "status": "carried by the Flow profile mapping",
+    },
+}
+
+
+def _normalize_fact(value: Any) -> Any:
+    """Digit-only XML text becomes an integer; everything else is carried verbatim.
+
+    Salesforce emits numeric attributes (field length, precision, scale) as text. Normalizing
+    them keeps numeric facets comparable without inventing or losing information."""
+    if isinstance(value, str) and value.isdigit():
+        return int(value)
+    return value
+
+
+def _passthrough_adapter(metadata_type: str):
+    """Carry the collector's facts faithfully; exclusions must be declared and justified."""
+
+    excluded = set(FACT_EXCLUSIONS.get(metadata_type, {}))
+
+    def adapter(component: dict[str, Any]) -> tuple[dict[str, Any], list[dict[str, Any]], dict[str, str]]:
+        facts = component.get("facts", {})
+        edges = _edges(component)
+        type_facts = {
+            key: _normalize_fact(value)
+            for key, value in facts.items()
+            if key not in excluded and value is not None
+        }
+        if metadata_type in {"ApexClass", "ApexTrigger"}:
+            type_facts["kind"] = metadata_type
+        if edges:
+            type_facts["references"] = edges
+        return type_facts, [], _assurance_for(edges)
+
+    return adapter
+
+
+ADAPTERS = {
+    # Flow keeps a bespoke adapter: it is the only type with intentionalErrors, which must be
+    # derived from the customErrors element class rather than passed through.
+    "Flow": flow_type_facts,
+    **{
+        metadata_type: _passthrough_adapter(metadata_type)
+        for metadata_type in (
+            "CustomField",
+            "ApexClass",
+            "ApexTrigger",
+            "ValidationRule",
+            "PermissionSet",
+            "CustomObject",
+            "RecordType",
+            "CustomMetadata",
+            "LightningComponentBundle",
+            "FieldSet",
+            "CompactLayout",
+            "BusinessProcess",
+            "WebLink",
+            "DuplicateRule",
+            "MatchingRule",
+            "Queue",
+            "Role",
+            "DelegateGroup",
+            "PermissionSetGroup",
+            "StaticResource",
+            "PlatformEventChannel",
+            "PlatformEventChannelMember",
+            "GlobalValueSet",
+            "StandardValueSet",
+            "CustomLabel",
+            "CustomTab",
+            "CustomApplication",
+            "FlowDefinition",
+            "PathAssistant",
+            "ListView",
+            "ReportType",
+            "SharingRules",
+            "QuickAction",
+            "MutingPermissionSet",
+            "Dashboard",
+            "EmailTemplate",
+            "AuraDefinitionBundle",
+            "NamedCredential",
+            "ExternalCredential",
+            "RemoteSiteSetting",
+            "ExternalDataSource",
+            "ExternalServiceRegistration",
+            "ConnectedApp",
+            "AuthProvider",
+            "CspTrustedSite",
+            "CorsWhitelistOrigin",
+            "Profile",
+            "Layout",
+            "FlexiPage",
+            "Workflow",
+            "AssignmentRules",
+            "AutoResponseRules",
+            "EscalationRules",
+            "ApprovalProcess",
+            "Report",
+            "ApexPage",
+            "ApexComponent",
+        )
+    },
+}
+
+
+# --- write path -------------------------------------------------------------------------
+
+
+def render_entry(frontmatter: dict[str, Any], body: str) -> str:
+    return "---\n" + yaml.dump(frontmatter, sort_keys=True, allow_unicode=True, default_flow_style=False) + "---\n\n" + normalize_body(body)
+
+
+def atomic_write(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp = path.with_suffix(".tmp")
+    with temp.open("w", encoding="utf-8", newline="\n") as handle:
+        handle.write(text)
+    temp.replace(path)
+
+
+def assert_no_casefold_collision(path: Path) -> None:
+    parent = path.parent
+    if not parent.exists():
+        return
+    for sibling in parent.iterdir():
+        if sibling != path and sibling.name.casefold() == path.name.casefold():
+            raise StoreError(f"case-fold path collision: {sibling.name} vs {path.name} (contract §3)")
+
+
+def project_source_api_version() -> str:
+    """The project's own sourceApiVersion, fail-closed — never a hardcoded stand-in.
+
+    The previous CLI default was the literal "64.0" while the project declared 67.0, so
+    every draft made without the flag silently recorded a version nothing else used (F-5,
+    live pass 2026-08-06)."""
+
+    project_path = ROOT / "sfdx-project.json"
+    try:
+        version = json.loads(project_path.read_text(encoding="utf-8")).get("sourceApiVersion")
+    except (OSError, json.JSONDecodeError) as exc:
+        raise StoreError(f"cannot read sourceApiVersion from sfdx-project.json: {exc}") from exc
+    if not isinstance(version, str) or not version:
+        raise StoreError(
+            "sfdx-project.json has no sourceApiVersion; pass --source-api-version explicitly"
+        )
+    return version
+
+
+def command_entry_draft(args: argparse.Namespace) -> dict[str, Any]:
+    if args.namespace == "c":
+        raise StoreError("namespace literal 'c' is reserved (contract §2.1)")
+    assert_no_reparse_points()
+    metadata_type = args.metadata_type
+    adapter = ADAPTERS.get(metadata_type)
+    profile = PROFILES.get(metadata_type)
+    if adapter is None or profile is None:
+        raise StoreError(
+            f"unsupported metadata type {metadata_type!r}; profiled types: "
+            + ", ".join(sorted(PROFILES))
+        )
+    component = collector_component(metadata_type, args.full_name)
+    type_facts, intentional, assurance = adapter(component)
+    # Without an authored description the entry carries a sentinel: the facts are extracted,
+    # but the artifact cannot be approved until an agent has read the source and written what
+    # the component does. An empty body would look finished; a sentinel cannot be approved.
+    purpose = Path(args.purpose_file).read_text(encoding="utf-8") if args.purpose_file else ""
+    body = (
+        "## Purpose\n\n" + normalize_body(purpose)
+        if purpose.strip()
+        else "## Purpose\n\n<AGENT_DESCRIPTION>\n"
+    )
+    from scripts.force_app_knowledge import COLLECTOR_VERSION, file_digest
+
+    fragment_path = ROOT / component["path"]
+    fragments = [{"path": component["path"], "sourceDigest": f"sha256:{file_digest(fragment_path)}"}]
+    coverage = {
+        # Either truncation aggregate marks the section partial: referencesTruncated for
+        # capped edges, factsTruncated for capped fact arrays (contract §5, 2026-08-04).
+        "typeFacts": "partial"
+        if type_facts.get("referencesTruncated") or type_facts.get("factsTruncated")
+        else "full"
+    }
+    if intentional:
+        coverage["intentionalErrors"] = "full"
+        assurance = {**assurance, "intentionalErrors": "source-exact"}
+    frontmatter: dict[str, Any] = {
+        "schemaVersion": 1,
+        "subject": {"metadataType": metadata_type, "fullName": args.full_name, "namespace": args.namespace},
+        "profile": {
+            "id": profile["id"],
+            "version": profile["version"],
+            "digest": canonical_digest(load_schema(profile["schema"])),
+        },
+        "scope": {
+            "sourceApiVersion": args.source_api_version or project_source_api_version(),
+            "sourceTreeDigest": canonical_digest(sorted((f["path"], f["sourceDigest"]) for f in fragments)),
+            "packageVersionId": None,
+            # Dates a factsDigest move for a future auditor; lives in scope so a collector
+            # release alone never moves factsDigest or the reviewed digest.
+            "collectorVersion": COLLECTOR_VERSION,
+        },
+        "source": {"fragments": fragments},
+        "lifecycle": {"state": "draft", "contentDigest": "sha256:" + "0" * 64},
+        "typeFacts": type_facts,
+        "extractionCoverage": coverage,
+        "assurance": assurance,
+        "limitations": [],
+        "keywords": [],
+        "candidateKeywords": list(args.candidate_keyword or [])[:5],
+        "sensitivity": "internal-sanitized",
+        "approval": {"reviewedContentDigest": None, "reviewedBy": None, "reviewedAt": None, "mechanism": None},
+    }
+    if intentional:
+        frontmatter["intentionalErrors"] = intentional
+    # M-R4 carry-forward (contract §2.3): a redraft rebuilds this frontmatter wholesale and must
+    # not silently drop the digest-excluded org observation an earlier attach persisted.
+    carry_forward_org_usage(frontmatter, entry_path(metadata_type, args.namespace, args.full_name))
+    frontmatter["lifecycle"]["contentDigest"] = reviewed_content_digest(frontmatter, body)
+    problems = [
+        problem
+        for problem in validate_entry(frontmatter, body)
+        if "sentinel" not in problem or purpose.strip()
+    ]
+    if problems:
+        raise StoreError("draft validation failed: " + "; ".join(problems))
+    path = entry_path(metadata_type, args.namespace, args.full_name)
+    assert_no_casefold_collision(path)
+    atomic_write(path, render_entry(frontmatter, body))
+    return {
+        "outcome": "DRAFTED",
+        "identity": identity_of(metadata_type, args.namespace, args.full_name),
+        "path": relative_path(path),
+        "reviewedContentDigest": frontmatter["lifecycle"]["contentDigest"],
+    }
+
+
+def parse_pins(pins: list[str]) -> dict[str, str]:
+    parsed: dict[str, str] = {}
+    for pin in pins:
+        identity, _, digest = pin.rpartition(":sha256:")
+        if not identity or not digest:
+            raise StoreError(f"--entry must be <identity>:sha256:<digest>, got {pin!r}")
+        parsed[identity] = f"sha256:{digest}"
+    return parsed
+
+
+def reviewer_identity() -> str:
+    if not LOCAL_CONFIG.exists():
+        raise StoreError("config/harness.local.json with knowledge.chatReviewer is required for approval")
+    reviewer = json.loads(LOCAL_CONFIG.read_text(encoding="utf-8")).get("knowledge", {}).get("chatReviewer")
+    if not reviewer or reviewer.startswith("<"):
+        raise StoreError("knowledge.chatReviewer is not configured")
+    return reviewer
+
+
+def command_entry_approve(args: argparse.Namespace) -> dict[str, Any]:
+    assert_no_reparse_points()
+    pins = parse_pins(args.entry or [])
+    if not pins:
+        raise StoreError("at least one --entry <identity>:sha256:<digest> pin is required (contract §6.2)")
+    records = read_ledger()
+    latest = ledger_latest(records)
+    prose_count = 0
+    resolved: list[tuple[Path, dict[str, Any], str, str]] = []
+    for identity, pinned_digest in pins.items():
+        metadata_type, namespace_segment, full_name = identity.split(":", 2)
+        namespace = None if namespace_segment == "c" else namespace_segment
+        path = entry_path(metadata_type, namespace, full_name)
+        if not path.exists():
+            raise StoreError(f"{identity}: entry file missing at {path.relative_to(ROOT)}")
+        frontmatter, body = split_entry(path.read_text(encoding="utf-8"))
+        problems = validate_entry(frontmatter, body)
+        if problems:
+            raise StoreError(f"{identity}: validation failed: " + "; ".join(problems))
+        if "## Purpose" not in body:
+            raise StoreError(f"{identity}: approval requires a '## Purpose' section (contract §2.2)")
+        recomputed = reviewed_content_digest(frontmatter, body)
+        if recomputed != pinned_digest:
+            raise StoreError(
+                f"{identity}: digest pin mismatch (pinned {pinned_digest[:20]}…, recomputed {recomputed[:20]}…) — chunk rejected (contract §6.2)"
+            )
+        previous = latest.get(identity)
+        if previous is None or previous.get("semanticsDigest") != semantics_digest(body):
+            prose_count += 1
+        resolved.append((path, frontmatter, body, recomputed))
+    if prose_count and len(pins) > PROSE_CHUNK_LIMIT:
+        raise StoreError(f"chunks containing prose changes are capped at {PROSE_CHUNK_LIMIT} entries (contract §6.4.4)")
+    if len(pins) > MANIFEST_CHUNK_LIMIT:
+        raise StoreError(f"chunks are capped at {MANIFEST_CHUNK_LIMIT} entries (contract §6.4.4)")
+    reviewer = reviewer_identity()
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    chunk_id = canonical_digest(sorted(pins.items()))[7:19]
+    REVIEW_ARTIFACT_ROOT.mkdir(parents=True, exist_ok=True)
+    artifact_lines = [f"# Knowledge approval chunk {chunk_id}", ""]
+    ledger_entries = []
+    for path, frontmatter, body, digest in resolved:
+        subject = frontmatter["subject"]
+        identity = identity_of(subject["metadataType"], subject.get("namespace"), subject["fullName"])
+        artifact_lines += [f"## {identity}", "", f"- digest: `{digest}`", "", "### Full body", "", body or "(empty)", ""]
+        frontmatter["lifecycle"]["state"] = "approved"
+        frontmatter["approval"] = {
+            "reviewedContentDigest": digest,
+            "reviewedBy": reviewer,
+            "reviewedAt": now,
+            "mechanism": "copilot-chat-entry-confirmation",
+        }
+        atomic_write(path, render_entry(frontmatter, body))
+        ledger_entries.append(
+            {
+                "action": "approve",
+                "identity": identity,
+                "reviewedContentDigest": digest,
+                "semanticsDigest": semantics_digest(body),
+                "reviewedBy": reviewer,
+                "reviewedAt": now,
+                "mechanism": "copilot-chat-entry-confirmation",
+                "chunkId": chunk_id,
+            }
+        )
+        append_ledger([ledger_entries[-1]])  # per-file journaled stamping (contract §6.4.5)
+    with (REVIEW_ARTIFACT_ROOT / f"{chunk_id}.md").open("w", encoding="utf-8", newline="\n") as handle:
+        handle.write("\n".join(artifact_lines))
+    return {"outcome": "APPROVED", "chunkId": chunk_id, "entries": len(resolved)}
+
+
+def classify_chunk(resolved: list[tuple[str, dict[str, Any], str, str]], latest: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    """Split a chunk into prose-bearing and facts-only re-approvals (contract §6.4.4)."""
+    prose, facts_only = [], []
+    for identity, _front, body, _digest in resolved:
+        previous = latest.get(identity)
+        if previous is None or previous.get("semanticsDigest") != semantics_digest(body):
+            prose.append(identity)
+        else:
+            facts_only.append(identity)
+    return {"proseChanges": sorted(prose), "factsOnly": sorted(facts_only)}
+
+
+def command_entry_context(args: argparse.Namespace) -> dict[str, Any]:
+    """Everything needed to WRITE a description, in one read-only call.
+
+    A description is an analysis of the artifact, not a copy of its `description` element —
+    most real components have none. So this returns the artifact's own source, its extracted
+    facts, and how the rest of the package uses it, because "what this component does" is
+    usually only answerable from the definition plus its callers."""
+
+    assert_no_reparse_points()
+    metadata_type, namespace_segment, full_name = args.identity.split(":", 2)
+    namespace = None if namespace_segment == "c" else namespace_segment
+    path = entry_path(metadata_type, namespace, full_name)
+    if not path.is_file():
+        raise StoreError(f"no entry for {args.identity}; draft it first")
+    frontmatter, body = split_entry(path.read_text(encoding="utf-8"))
+
+    sources = []
+    for fragment in frontmatter["source"]["fragments"]:
+        source_path = ROOT / fragment["path"]
+        text = source_path.read_text(encoding="utf-8", errors="replace") if source_path.is_file() else ""
+        truncated = len(text) > args.max_source_chars
+        sources.append(
+            {
+                "path": fragment["path"],
+                "truncated": truncated,
+                "text": text[: args.max_source_chars],
+            }
+        )
+
+    # Reverse usage: who points at this artifact. An entry that only describes itself misses
+    # the half of "what it does" that lives in its callers.
+    identity = identity_of(metadata_type, namespace, full_name)
+    targets = {identity, full_name}
+    if "." in full_name:
+        targets.add(full_name.split(".", 1)[1])
+    latest = ledger_latest(read_ledger())
+    used_by: list[dict[str, Any]] = []
+    for other in all_entry_paths():
+        if other == path:
+            continue
+        try:
+            other_front, _ = split_entry(other.read_text(encoding="utf-8"))
+        except StoreError:
+            continue
+        other_subject = other_front["subject"]
+        other_identity = identity_of(
+            other_subject["metadataType"], other_subject.get("namespace"), other_subject["fullName"]
+        )
+        for edge in (other_front.get("typeFacts", {}).get("references") or []):
+            if edge.get("target") in targets:
+                used_by.append(
+                    {"source": other_identity, "kind": edge["kind"], "assurance": edge.get("assurance")}
+                )
+    return {
+        "outcome": "CONTEXT",
+        "identity": identity,
+        "describedYet": "<AGENT_" not in body,
+        "currentBody": body,
+        "typeFacts": frontmatter.get("typeFacts", {}),
+        "intentionalErrors": frontmatter.get("intentionalErrors", []),
+        "uses": frontmatter.get("typeFacts", {}).get("references", []),
+        "usedBy": sorted(used_by, key=lambda item: (item["source"], item["kind"])),
+        "source": sources,
+        "guidance": (
+            "Write 1-8 sentences stating what this component does, from the source above and "
+            "how it is used. Do not restate the facts, do not infer intent the source does not "
+            "support, and leave the gap visible if the source does not say why it exists."
+        ),
+    }
+
+
+def command_entry_describe(args: argparse.Namespace) -> dict[str, Any]:
+    """Write the agent-authored description into an existing entry.
+
+    The description is the one part of an entry a model produces rather than extracts, so it
+    is the one part a human must actually read. Structured facts are never touched here: this
+    command replaces only the attested body, recomputes the digests, and returns the entry to
+    `draft` — an approval bound to the previous text cannot survive new text (contract §5.5).
+
+    `--limitation` writes the one required, digest-bound field that had no write path at all.
+    `limitations` is inside `factsDigest`, printed to the approver, and read by six projection
+    sites — and it was `[]` on every entry of the first real store, because `entry-draft`
+    hardcodes it and no subcommand could set it. The caveats existed; they were stranded in
+    prose, where no consumer reads them. It rides this command because the invalidation
+    semantics a limitation needs are exactly the ones a new description already has.
+    """
+
+    assert_no_reparse_points()
+    metadata_type, namespace_segment, full_name = args.identity.split(":", 2)
+    namespace = None if namespace_segment == "c" else namespace_segment
+    path = entry_path(metadata_type, namespace, full_name)
+    if not path.is_file():
+        raise StoreError(f"no entry to describe: {args.identity}")
+    frontmatter, previous_body = split_entry(path.read_text(encoding="utf-8"))
+    description = normalize_body(Path(args.purpose_file).read_text(encoding="utf-8"))
+    if not description.strip():
+        raise StoreError("the description file is empty")
+    sentences = [part for part in re.split(r"(?<=[.!?])\s+", description.strip()) if part.strip()]
+    if not 1 <= len(sentences) <= 8:
+        raise StoreError(
+            f"a description must be 1-8 sentences, got {len(sentences)} — it states what the "
+            "component does, it is not a transcript of its source"
+        )
+    body = "## Purpose\n\n" + description
+    limitations = [str(item).strip() for item in (getattr(args, "limitation", None) or []) if str(item).strip()]
+    if limitations and getattr(args, "clear_limitations", False):
+        raise StoreError("--clear-limitations cannot be combined with --limitation")
+    if limitations:
+        # Replace rather than append: a limitation set is a statement about THIS text, and an
+        # append-only field would silently carry a caveat that the new description answered.
+        frontmatter["limitations"] = sorted(dict.fromkeys(limitations))
+    elif getattr(args, "clear_limitations", False):
+        frontmatter["limitations"] = []
+    problems = validate_entry(frontmatter, body)
+    if problems:
+        raise StoreError("description rejected: " + "; ".join(problems))
+    was_approved = frontmatter["lifecycle"]["state"] == "approved"
+    frontmatter["lifecycle"]["state"] = "draft"
+    frontmatter["approval"] = {
+        "reviewedContentDigest": None,
+        "reviewedBy": None,
+        "reviewedAt": None,
+        "mechanism": None,
+    }
+    frontmatter["lifecycle"]["contentDigest"] = reviewed_content_digest(frontmatter, body)
+    atomic_write(path, render_entry(frontmatter, body))
+    return {
+        "outcome": "DESCRIBED",
+        "identity": args.identity,
+        "limitations": frontmatter.get("limitations", []),
+        "path": relative_path(path),
+        "reviewedContentDigest": frontmatter["lifecycle"]["contentDigest"],
+        "previousApprovalInvalidated": was_approved,
+        "sentences": len(sentences),
+        "replacedSentinel": "<AGENT_" in previous_body,
+    }
+
+
+def command_entry_review(args: argparse.Namespace) -> dict[str, Any]:
+    """Render the executor-authored review surface a human approves against.
+
+    Contract §6.3: the diff a reviewer reads is produced here, never by the agent, and it
+    exists BEFORE the approval click. The printed command carries the exact digest set, so
+    any edit between review and approval fails the pin in entry-approve (§6.2).
+    """
+    assert_no_reparse_points()
+    latest = ledger_latest(read_ledger())
+    wanted = set(args.identity or [])
+    resolved: list[tuple[str, dict[str, Any], str, str]] = []
+    problems: list[str] = []
+    for path in all_entry_paths():
+        frontmatter, body = split_entry(path.read_text(encoding="utf-8"))
+        subject = frontmatter["subject"]
+        identity = identity_of(subject["metadataType"], subject.get("namespace"), subject["fullName"])
+        if wanted and identity not in wanted:
+            continue
+        if not wanted and frontmatter["lifecycle"]["state"] != "draft":
+            continue
+        entry_problems = validate_entry(frontmatter, body)
+        if "## Purpose" not in body:
+            entry_problems.append("approval requires a '## Purpose' section (contract §2.2)")
+        if entry_problems:
+            problems.extend(f"{identity}: {problem}" for problem in entry_problems)
+            continue
+        resolved.append((identity, frontmatter, body, reviewed_content_digest(frontmatter, body)))
+    if not resolved:
+        return {"outcome": "NOTHING_TO_REVIEW", "problems": problems}
+
+    classification = classify_chunk(resolved, latest)
+    chunk_id = canonical_digest(sorted((identity, digest) for identity, _f, _b, digest in resolved))[7:19]
+    lines = [
+        f"# Knowledge approval review — chunk {chunk_id}",
+        "",
+        f"Entries: {len(resolved)} (prose changes: {len(classification['proseChanges'])}, "
+        f"facts-only: {len(classification['factsOnly'])})",
+        "",
+        "Read every Purpose section below. Approving binds these exact digests; any edit "
+        "afterwards invalidates the pin and the chunk is rejected.",
+        "",
+    ]
+    for identity, frontmatter, body, digest in resolved:
+        previous = latest.get(identity)
+        change = "new approval" if previous is None else (
+            "prose changed" if previous.get("semanticsDigest") != semantics_digest(body) else "facts-only re-approval"
+        )
+        lines += [
+            f"## {identity}",
+            "",
+            f"- change: {change}",
+            f"- digest: `{digest}`",
+            f"- source: `{frontmatter['source']['fragments'][0]['path']}`",
+            f"- coverage: {json.dumps(frontmatter.get('extractionCoverage', {}), sort_keys=True)}",
+            f"- assurance: {json.dumps(frontmatter.get('assurance', {}), sort_keys=True)}",
+            f"- limitations: {json.dumps(frontmatter.get('limitations', []), sort_keys=True)}",
+            "",
+            "### Attested body (exactly what approval covers)",
+            "",
+            body.strip() or "(empty — cannot be approved)",
+            "",
+        ]
+        if frontmatter.get("intentionalErrors"):
+            lines += ["### Source-declared intentional errors", ""]
+            for error in frontmatter["intentionalErrors"]:
+                lines.append(
+                    f"- `{error['elementApiName']}` → {json.dumps(error.get('messageTemplate'))} "
+                    f"({error.get('presentation', {}).get('mode')})"
+                )
+            lines.append("")
+        if frontmatter.get("orgUsage"):
+            # Contract §14.3 / §5.7: org data is disclosed beside — never inside — what the
+            # click approves; expired/superseded values are withheld (expired means absent).
+            org = compute_org_lane(frontmatter, identity, org_ledger_latest())
+            lines += [
+                "### Observed org data — machine-attested, expiring, NOT covered by this approval",
+                "",
+            ]
+            for key, value in sorted(org["orgs"].items()):
+                if value.get("status") == "org-fresh":
+                    block = (frontmatter["orgUsage"].get("orgs") or {}).get(key, {})
+                    probe_labels = ", ".join(sorted(block.get("probes") or {}))
+                    record_count = None
+                    for probe in (block.get("probes") or {}).values():
+                        if probe.get("kind") == "object-shape":
+                            record_count = (probe.get("results") or {}).get("recordCount")
+                    summary = f"org-fresh; probes: {probe_labels or '(none)'}"
+                    if record_count is not None:
+                        summary += f"; recordCount {record_count}"
+                    lines.append(
+                        f"- `{key}` ({value.get('environment')}): {summary}; "
+                        f"observed {value['observedAt']}, expires {value['expiresAt']}"
+                    )
+                else:
+                    lines.append(
+                        f"- `{key}`: {value.get('status')} — values withheld "
+                        f"(observed {value.get('observedAt', 'unknown')})"
+                    )
+            lines.append("")
+    REVIEW_ARTIFACT_ROOT.mkdir(parents=True, exist_ok=True)
+    artifact = REVIEW_ARTIFACT_ROOT / f"{chunk_id}-review.md"
+    with artifact.open("w", encoding="utf-8", newline="\n") as handle:
+        handle.write("\n".join(lines))
+
+    pins = " ".join(f"--entry {identity}:{digest}" for identity, _f, _b, digest in resolved)
+    caps: list[str] = []
+    if classification["proseChanges"] and len(resolved) > PROSE_CHUNK_LIMIT:
+        caps.append(
+            f"chunk carries prose changes and exceeds the {PROSE_CHUNK_LIMIT}-entry cap — split it"
+        )
+    if len(resolved) > MANIFEST_CHUNK_LIMIT:
+        caps.append(f"chunk exceeds the {MANIFEST_CHUNK_LIMIT}-entry hard cap — split it")
+    return {
+        "outcome": "REVIEW_READY" if not caps else "CHUNK_TOO_LARGE",
+        "chunkId": chunk_id,
+        "reviewArtifact": relative_path(artifact),
+        "entries": len(resolved),
+        "classification": classification,
+        "capViolations": caps,
+        "problems": problems,
+        "approveCommand": f"python scripts/knowledge_store.py entry-approve {pins}",
+    }
+
+
+def command_entry_coverage(args: argparse.Namespace) -> dict[str, Any]:
+    """Per-metadata-type coverage of the entry store against force-app source.
+
+    This is the entry-layer answer to the collector's `coverage` report: which profiled
+    artifacts have an entry, which lane those entries are in, and which source components
+    still have none. Types without a profile are reported separately so their absence reads
+    as "no entry home yet", never as a coverage gap."""
+
+    from scripts.force_app_knowledge import ForceAppKnowledge
+
+    latest = ledger_latest(read_ledger())
+    lanes: dict[str, dict[str, int]] = {}
+    entry_names: dict[str, set[str]] = {}
+    for path in all_entry_paths():
+        lane = compute_lane(path, latest)
+        metadata_type, _namespace, full_name = lane["identity"].split(":", 2)
+        lanes.setdefault(metadata_type, {})
+        lanes[metadata_type][lane["lane"]] = lanes[metadata_type].get(lane["lane"], 0) + 1
+        entry_names.setdefault(metadata_type, set()).add(full_name)
+
+    source_counts: dict[str, int] = {}
+    gaps: dict[str, list[str]] = {}
+    try:
+        inventory = ForceAppKnowledge(ROOT).inventory()
+    except Exception as error:  # inventory is optional context, never a hard failure here
+        return {
+            "outcome": "COVERAGE",
+            "lanes": lanes,
+            "sourceComparison": f"unavailable: {error}",
+            "profiledTypes": sorted(PROFILES),
+        }
+    for component in inventory.get("components", []):
+        metadata_type = component["metadataType"]
+        source_counts[metadata_type] = source_counts.get(metadata_type, 0) + 1
+        if metadata_type in PROFILES and component["name"] not in entry_names.get(metadata_type, set()):
+            gaps.setdefault(metadata_type, []).append(component["name"])
+    return {
+        "outcome": "COVERAGE",
+        "profiledTypes": sorted(PROFILES),
+        "lanes": {key: dict(sorted(value.items())) for key, value in sorted(lanes.items())},
+        "sourceComponents": dict(sorted(source_counts.items())),
+        "missingEntries": {key: sorted(value)[:50] for key, value in sorted(gaps.items())},
+        "missingEntryCounts": {key: len(value) for key, value in sorted(gaps.items())},
+        "unprofiledTypes": sorted(set(source_counts) - set(PROFILES)),
+        "note": (
+            "Unprofiled types are the deliberate generic-bucket remainder (label-only "
+            "extraction) and stay inventory-only; that is disclosed scope, not a coverage "
+            "gap (docs/knowledge-one-file-contract.md §1)."
+        ),
+    }
+
+
+def command_entry_revoke(args: argparse.Namespace) -> dict[str, Any]:
+    latest = ledger_latest(read_ledger())
+    record = latest.get(args.identity)
+    if record is None or record["action"] == "revoke":
+        raise StoreError(f"{args.identity}: nothing to revoke")
+    reviewer = reviewer_identity()
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    append_ledger(
+        [
+            {
+                "action": "revoke",
+                "identity": args.identity,
+                "reviewedContentDigest": record["reviewedContentDigest"],
+                "reviewedBy": reviewer,
+                "reviewedAt": now,
+                "mechanism": "copilot-chat-entry-confirmation",
+                "chunkId": None,
+                "rationale": args.rationale,
+            }
+        ]
+    )
+    return {"outcome": "REVOKED", "identity": args.identity}
+
+
+def command_entry_status(args: argparse.Namespace) -> dict[str, Any]:
+    latest = ledger_latest(read_ledger())
+    org_latest = org_ledger_latest()
+    lanes = []
+    for path in all_entry_paths():
+        lane = compute_lane(path, latest)
+        if args.identity and lane["identity"] != args.identity:
+            continue
+        frontmatter, _body = split_entry(path.read_text(encoding="utf-8"))
+        if frontmatter.get("orgUsage") or org_latest.get(lane["identity"]):
+            org = compute_org_lane(frontmatter, lane["identity"], org_latest)
+            disclosed: dict[str, Any] = {
+                "section": org["section"],
+                "orgs": [
+                    {"orgKey": key, **value} for key, value in sorted(org["orgs"].items())
+                ],
+            }
+            if org.get("problems"):
+                disclosed["problems"] = org["problems"]
+            lane["orgUsage"] = disclosed
+        lanes.append(lane)
+    return {"outcome": "STATUS", "entries": lanes}
+
+
+def changed_entry_paths(ref: str) -> set[str] | None:
+    """Entry files git reports as changed since `ref`, or None if git cannot answer.
+
+    Git is the authority on what changed, which is what makes the narrow check safe. A stamp
+    manifest cannot do this job: one under `.cache/` is git-ignored so CI is always cold, one
+    keyed on mtime is inert because `git checkout` rewrites mtimes, and a committed one is
+    forgeable — an agent could mark a tampered entry unchanged and skip it past the gate.
+
+    Untracked files are counted as changed, and that is not a detail: `git diff` reports only
+    tracked paths, so a brand-new entry — the single most common thing to check — is invisible
+    to it. `--others` without `--exclude-standard` on purpose: an entry hidden behind a gitignore
+    rule must be checked, not excused. Either subprocess failing yields None, which degrades the
+    caller to a full check."""
+
+    import subprocess
+
+    relative = ARTIFACTS_ROOT.relative_to(ROOT).as_posix()
+    changed: set[str] = set()
+    for command in (
+        ["git", "diff", "--name-only", ref, "--", relative],
+        ["git", "ls-files", "--others", "--", relative],
+    ):
+        try:
+            completed = subprocess.run(
+                command, cwd=ROOT, text=True, capture_output=True, check=False, timeout=30,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return None
+        if completed.returncode != 0:
+            return None
+        changed |= {line.strip() for line in completed.stdout.splitlines() if line.strip()}
+    return changed
+
+
+PLAIN_SAFE_NAME_RE = re.compile(r"[A-Za-z0-9_-]+")
+
+
+def identity_from_entry_path(path: Path) -> str | None:
+    """The entry's identity read off its path alone, or None when the path cannot prove it.
+
+    `entry_path()` derives the path FROM the identity, so the mapping inverts whenever
+    `safe_name` had nothing to escape, truncate or disambiguate — the ordinary case, since
+    Salesforce API names are ASCII identifiers. A percent-escape, the 100-char cut or a
+    Windows-reserved stem all add or lose bytes, and returning None there is what keeps the
+    narrow check honest: an entry whose identity its path cannot prove is opened and parsed
+    rather than assumed."""
+
+    try:
+        parts = path.relative_to(ARTIFACTS_ROOT).parts
+    except ValueError:
+        return None
+    if parts and parts[0] == "objects":
+        if len(parts) == 4 and parts[3] == "object.md":
+            namespace, object_name = parts[1], parts[2]
+            if not PLAIN_SAFE_NAME_RE.fullmatch(object_name):
+                return None
+            metadata_type, full_name = "CustomObject", object_name
+        elif len(parts) == 5 and parts[4].endswith(".md"):
+            namespace, object_name, member_dir = parts[1], parts[2], parts[3]
+            member = parts[4][:-3]
+            metadata_type = OBJECT_TYPE_BY_MEMBER_DIR.get(member_dir)
+            # The reconstructed full name is Object.Member — validated per segment, because
+            # the dot the grammar itself inserts must never loosen the plain-name check.
+            if metadata_type is None or not PLAIN_SAFE_NAME_RE.fullmatch(object_name) \
+                    or not PLAIN_SAFE_NAME_RE.fullmatch(member):
+                return None
+            full_name = f"{object_name}.{member}"
+        else:
+            return None
+    elif len(parts) == 4 and parts[3].endswith(".md"):
+        family, metadata_type, namespace, full_name = parts[0], parts[1], parts[2], parts[3][:-3]
+        if FAMILY_BY_TYPE.get(metadata_type) != family or not PLAIN_SAFE_NAME_RE.fullmatch(full_name):
+            return None
+    else:
+        return None
+    try:
+        if entry_path(metadata_type, namespace, full_name) != path:
+            return None
+    except StoreError:
+        return None
+    return identity_of(metadata_type, namespace, full_name)
+
+
+def command_entry_verify_citations(args: argparse.Namespace) -> dict[str, Any]:
+    """Read-only verdicts for an envelope's entryRefs (or bare --entry-ref identities)."""
+
+    if bool(args.envelope) == bool(args.entry_ref):
+        raise StoreError("entry-verify-citations requires exactly one of --envelope or --entry-ref")
+    if args.envelope:
+        envelope_path = Path(args.envelope)
+        if not envelope_path.is_absolute():
+            envelope_path = ROOT / envelope_path
+        envelope_path = envelope_path.resolve()
+        try:
+            envelope_path.relative_to(ROOT)
+        except ValueError as exc:
+            raise StoreError(f"envelope path escapes repository root: {args.envelope}") from exc
+        if not envelope_path.is_file():
+            raise StoreError(f"envelope file does not exist: {args.envelope}")
+        try:
+            envelope = json.loads(envelope_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise StoreError(f"envelope is not valid JSON: {exc}") from exc
+        if not isinstance(envelope, dict):
+            raise StoreError("envelope must contain one JSON object")
+        raw = envelope.get("entryRefs") or []
+        refs = [item if isinstance(item, dict) else {"entryId": str(item)} for item in raw]
+    else:
+        refs = [{"entryId": spec} for spec in args.entry_ref]
+    citations = verify_entry_citations(ROOT, refs)
+    severities = [item["severity"] for item in citations]
+    return {
+        "citationCount": len(citations),
+        "counts": {
+            "ok": severities.count("ok"),
+            "warning": severities.count("warning"),
+            "invalid": severities.count("invalid"),
+        },
+        "citations": citations,
+    }
+
+
+def command_entry_check(args: argparse.Namespace) -> dict[str, Any]:
+    """Whole-corpus integrity gate. `--changed-since` narrows only the per-entry work.
+
+    The per-entry pass is the cost, and it is not where the first version of this command looked
+    for it. Profiled at 9 000 entries: `split_entry` (YAML) and `validate_entry` (jsonschema)
+    dominate, while `regenerate_fragment_digest` — the only thing the narrow mode used to skip —
+    does not reach the top frames at all. That mode saved 2 %, inside noise. `--changed-since
+    <ref>` therefore skips the WHOLE per-entry pass for entries git reports as untouched.
+
+    The cross-entry checks — identity collision and case-fold collision — still run over the
+    whole corpus; a per-entry skip would silently destroy them (§0.3). They need only an
+    identity and a path, and `identity_from_entry_path` reads the identity back off the path
+    without opening the file, which is what makes the wider skip possible.
+
+    What the skip rests on, stated because it is the whole safety argument: git — not a
+    forgeable manifest — says these bytes are the bytes at <ref>, and <ref> was itself checked
+    in full. An unanswerable ref degrades to a full check, never to a pass, and `--full` (no
+    flag) stays the default the nightly and CI runs use. Read-only either way."""
+
+    assert_no_reparse_points()
+    latest = ledger_latest(read_ledger())
+    ref = getattr(args, "changed_since", None)
+    changed = changed_entry_paths(ref) if ref else None
+    problems: list[str] = []
+    seen_identities: dict[str, str] = {}
+    seen_casefold: dict[str, str] = {}
+    skipped = 0
+    awaiting_description = 0
+    for path in all_entry_paths(include_case_twins=True):
+        relative = path.relative_to(ROOT).as_posix()
+        identity = (
+            identity_from_entry_path(path)
+            if changed is not None and relative not in changed
+            else None
+        )
+        if identity is not None:
+            skipped += 1
+        else:
+            lane = compute_lane(path, latest)
+            identity = lane["identity"]
+            for problem in lane["problems"]:
+                # Owner decision 2026-08-06 (F-3): an unfilled sentinel in a DRAFT entry is
+                # outstanding work, not an integrity failure — the same philosophy
+                # compute_lane already states for the draft lane. A freshly mass-drafted
+                # corpus must not turn the whole gate red. The sentinel stays a hard error
+                # in any other lane, and entry-approve/entry-describe still reject it.
+                if lane["lane"] == "draft" and problem.startswith("unfilled <AGENT_"):
+                    awaiting_description += 1
+                    continue
+                problems.append(f"{relative}: {problem}")
+        if identity in seen_identities:
+            problems.append(f"identity {identity} resolves to two files: {seen_identities[identity]} and {relative}")
+        seen_identities[identity] = relative
+        folded = relative.casefold()
+        if folded in seen_casefold and seen_casefold[folded] != relative:
+            problems.append(f"case-fold collision: {seen_casefold[folded]} vs {relative}")
+        seen_casefold[folded] = relative
+    if problems:
+        raise StoreError("entry-check failed:\n- " + "\n- ".join(problems))
+    result: dict[str, Any] = {
+        "outcome": "PASS",
+        "entries": len(seen_identities),
+        "ledgerRecords": len(read_ledger()),
+        "awaitingDescription": awaiting_description,
+    }
+    # Advisory org-lane disclosure (contract §14.3): counts + non-fresh attention list. CI
+    # never fails on expiry; the HARD tamper check (digest vs org ledger, containment) is
+    # validate_harness's. Gated on the org ledger existing so an org-free workspace pays
+    # nothing extra here.
+    if ORG_LEDGER_PATH.exists():
+        org_latest = org_ledger_latest()
+        org_counts: dict[str, int] = {}
+        org_attention: list[str] = []
+        for path in all_entry_paths():
+            frontmatter, _body = split_entry(path.read_text(encoding="utf-8"))
+            subject = frontmatter["subject"]
+            identity = identity_of(subject["metadataType"], subject.get("namespace"), subject["fullName"])
+            if not (frontmatter.get("orgUsage") or org_latest.get(identity)):
+                continue
+            org = compute_org_lane(frontmatter, identity, org_latest)
+            if org["section"] in ("org-not-effective",) and not org["orgs"]:
+                org_counts["org-not-effective"] = org_counts.get("org-not-effective", 0) + 1
+                org_attention.append(f"{identity}: org-not-effective ({'; '.join(org.get('problems', []))})")
+            for key, value in org["orgs"].items():
+                org_counts[value["status"]] = org_counts.get(value["status"], 0) + 1
+                if value["status"] != "org-fresh":
+                    org_attention.append(f"{identity} [{key}]: {value['status']}")
+        if org_counts:
+            result["orgUsage"] = {"counts": dict(sorted(org_counts.items())), "attention": sorted(org_attention)}
+    if ref:
+        result["changedSince"] = ref
+        result["entriesSkipped"] = skipped
+        if changed is None:
+            result["gap"] = f"git could not report changes since {ref}; every entry was checked in full"
+    return result
+
+
+# --- org-usage layer (contract v1.2 — §2.3 storage, §4 org lanes, §6.6 attach) ----------
+#
+# Everything here is digest-EXCLUDED: _canonical_facts and reviewed_content_digest enumerate
+# closed key sets that never mention orgUsage, so attach/detach provably cannot move an
+# approval (contract §5.7); both commands verify that invariant at runtime and refuse to
+# write when it would not hold. Authority is machine attestation — the parallel org ledger,
+# the sectionDigest, and the sealed receipt — never a human click (owner D-3, 2026-08-03).
+
+
+class ProbeDropped(Exception):
+    """One probe failed derivation; it is dropped and reported, never partially persisted."""
+
+
+ORG_ATTACH_METADATA_TYPES = frozenset({"CustomObject", "CustomField"})
+ORG_PROBE_KINDS = frozenset(
+    {
+        "object-shape",
+        "record-type-distribution",
+        "field-fill",
+        "field-cardinality",
+        "picklist-distribution",
+        "recency-window",
+        "lookup-shape",
+        "record-sample",
+    }
+)
+# Which probe kinds make sense per wave-1 entry type; the entry schema's kind enum is the
+# backstop (schemas/knowledge-entry.schema.json $defs.orgUsageProbe).
+PROBE_APPLICABILITY = {
+    "CustomObject": ORG_PROBE_KINDS,
+    "CustomField": frozenset(
+        {"field-fill", "field-cardinality", "picklist-distribution", "lookup-shape"}
+    ),
+}
+PROBE_LABEL_RE = re.compile(r"^[a-z][a-z0-9-]{2,40}$")
+ORG_API_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_.]{0,120}$")
+EXPLICIT_LIMIT_RE = re.compile(r"\bLIMIT\s+(\d+)\s*$", re.IGNORECASE)
+LAST_N_DAYS_RE = re.compile(r"LAST_N_DAYS\s*:\s*(\d+)", re.IGNORECASE)
+FROM_OBJECT_RE = re.compile(r"\bFROM\s+([A-Za-z][A-Za-z0-9_]*)", re.IGNORECASE)
+
+# Embedded probes-file schema (owner D-3: executor rigor without a registered schema file).
+# Labels are free slugs — owner D-5' 2026-08-03: several probes of one kind under different
+# WHERE criteria are legal and encouraged; the closed instrument is the kind enum plus the
+# per-kind results shapes in the entry schema.
+PROBES_FILE_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["probes"],
+    "properties": {
+        "probes": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 40,
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["label", "kind", "query"],
+                "properties": {
+                    "label": {"type": "string", "pattern": PROBE_LABEL_RE.pattern},
+                    "kind": {"enum": sorted(ORG_PROBE_KINDS)},
+                    "query": {"type": "string", "minLength": 15, "maxLength": 4000},
+                    "field": {"type": "string", "pattern": ORG_API_NAME_RE.pattern},
+                    "windowDays": {"type": "integer", "minimum": 1, "maximum": 3650},
+                    "targetObjects": {
+                        "type": "object",
+                        "additionalProperties": {
+                            "type": "string",
+                            "pattern": ORG_API_NAME_RE.pattern,
+                        },
+                    },
+                },
+            },
+        }
+    },
+}
+
+
+def org_usage_policy() -> dict[str, Any]:
+    """The orgUsage policy block; attach fails closed without it (contract §6.6)."""
+    if not KNOWLEDGE_POLICY_PATH.exists():
+        raise StoreError("config/knowledge-policy.json is missing; the orgUsage policy block is required")
+    block = json.loads(KNOWLEDGE_POLICY_PATH.read_text(encoding="utf-8")).get("orgUsage")
+    if not isinstance(block, dict):
+        raise StoreError("config/knowledge-policy.json has no orgUsage block (contract §6.6)")
+    return block
+
+
+def org_id_digest(expected_organization_id: str) -> str:
+    """sha256 of the CONFIGURED expectedOrganizationId — the raw 00D id is never stored."""
+    import hashlib
+
+    return "sha256:" + hashlib.sha256(expected_organization_id.encode("utf-8")).hexdigest()
+
+
+def configured_org(alias: str) -> dict[str, Any]:
+    if not LOCAL_CONFIG.exists():
+        raise StoreError("config/harness.local.json is required for org attach")
+    config = json.loads(LOCAL_CONFIG.read_text(encoding="utf-8"))
+    for org in config.get("salesforce", {}).get("orgs", []):
+        if org.get("alias") == alias:
+            return org
+    raise StoreError(f"org alias {alias!r} is not configured")
+
+
+def _origin_remote_urls() -> list[str]:
+    """Every git remote URL; ANY subprocess failure is a refusal, never a pass (§6.6)."""
+    import subprocess
+
+    try:
+        completed = subprocess.run(
+            ["git", "-C", str(ROOT), "remote", "-v"],
+            text=True, capture_output=True, timeout=30, check=False,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise StoreError("containment: git remote enumeration failed — refusing, never passing (gate 1)") from exc
+    if completed.returncode != 0:
+        raise StoreError("containment: git remote enumeration failed — refusing, never passing (gate 1)")
+    urls = set()
+    for line in completed.stdout.splitlines():
+        parts = line.split()
+        if len(parts) >= 2:
+            urls.add(parts[1])
+    return sorted(urls)
+
+
+def assert_containment(policy: dict[str, Any]) -> None:
+    """Gate 1 (owner D-1 2026-08-03): org-bearing entries live only in the private company
+    clone. Empty allowlist — the shipped default on the public origin — refuses everywhere
+    and is the standing kill switch. Zero remotes with a SUCCESSFUL enumeration is local-only
+    and passes; a failed enumeration never does."""
+    allowlist = policy.get("allowedOriginRemotes") or []
+    if not allowlist:
+        raise StoreError(
+            "containment: orgUsage.allowedOriginRemotes is empty — org attach is refused in "
+            "this workspace (gate 1; org-bearing entries live only in the company's private "
+            "enterprise repository)"
+        )
+    off_list = [url for url in _origin_remote_urls() if url not in allowlist]
+    if off_list:
+        raise StoreError("containment: git remote(s) outside the allowlist: " + ", ".join(off_list))
+
+
+def _utc_now_iso() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _parse_iso(value: str) -> datetime:
+    text = value.strip()
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    text = re.sub(r"([+-]\d{2})(\d{2})$", r"\1:\2", text)
+    moment = datetime.fromisoformat(text)
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=timezone.utc)
+    return moment.astimezone(timezone.utc)
+
+
+def _iso_or_none(value: Any, context: str) -> Any:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ProbeDropped(f"{context}: expected an ISO datetime, got {type(value).__name__}")
+    try:
+        return _parse_iso(value).strftime("%Y-%m-%dT%H:%M:%SZ")
+    except ValueError:
+        raise ProbeDropped(f"{context}: unparseable datetime {value!r}")
+
+
+def carry_forward_org_usage(frontmatter: dict[str, Any], path: Path) -> None:
+    """Preserve a digest-excluded orgUsage section across a wholesale frontmatter rebuild."""
+    if not path.is_file():
+        return
+    previous, _previous_body = split_entry(path.read_text(encoding="utf-8"))
+    if "orgUsage" in previous:
+        frontmatter["orgUsage"] = previous["orgUsage"]
+
+
+def load_probes_file(
+    path_text: str, metadata_type: str, object_api_name: str, policy: dict[str, Any]
+) -> list[dict[str, Any]]:
+    from jsonschema import Draft202012Validator
+
+    path = Path(path_text)
+    if not path.is_file():
+        raise StoreError(f"probes file not found: {path_text}")
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise StoreError(f"probes file is not valid JSON: {exc}") from exc
+    errors = sorted(e.message for e in Draft202012Validator(PROBES_FILE_SCHEMA).iter_errors(payload))
+    if errors:
+        raise StoreError("probes file failed validation: " + "; ".join(errors[:5]))
+    probes = payload["probes"]
+    labels = [probe["label"] for probe in probes]
+    if len(labels) != len(set(labels)):
+        raise StoreError("probes file has duplicate labels")
+    applicable = PROBE_APPLICABILITY.get(metadata_type, frozenset())
+    sample_rows_max = int(policy.get("sampleRowsMax", 50))
+    max_columns = int(policy.get("maxSampleColumns", 20))
+    for probe in probes:
+        label, kind = probe["label"], probe["kind"]
+        query = probe["query"].strip()
+        probe["query"] = query
+        if kind not in applicable:
+            raise StoreError(f"probe {label!r}: kind {kind!r} is not applicable to {metadata_type}")
+        limit_match = EXPLICIT_LIMIT_RE.search(query)
+        if not limit_match:
+            raise StoreError(
+                f"probe {label!r}: an explicit trailing LIMIT is required — the executed-query "
+                "digest must be recomputable from the submitted text (contract §6.6)"
+            )
+        limit = int(limit_match.group(1))
+        from_objects = FROM_OBJECT_RE.findall(query)
+        if len(from_objects) != 1 or from_objects[0] != object_api_name:
+            raise StoreError(
+                f"probe {label!r}: exactly one FROM naming the entry's object "
+                f"{object_api_name!r} is required"
+            )
+        upper = query.upper()
+        select_clause = query[: upper.find(" FROM ")] if " FROM " in upper else query
+        if any(item.count(".") > 2 for item in select_clause.split(",")):
+            raise StoreError(f"probe {label!r}: dotted parent paths deeper than 2 hops (D-NEST)")
+        if kind == "record-sample":
+            if limit > sample_rows_max:
+                raise StoreError(
+                    f"probe {label!r}: record-sample LIMIT {limit} exceeds sampleRowsMax {sample_rows_max}"
+                )
+            if select_clause.count(",") + 1 > max_columns:
+                raise StoreError(f"probe {label!r}: more than {max_columns} sample columns")
+        if kind == "recency-window" and not (probe.get("windowDays") or LAST_N_DAYS_RE.search(query)):
+            raise StoreError(f"probe {label!r}: recency-window needs LAST_N_DAYS in the query or windowDays")
+        if kind == "lookup-shape" and not probe.get("targetObjects"):
+            raise StoreError(f"probe {label!r}: lookup-shape needs a targetObjects mapping")
+    return probes
+
+
+def _scalar_row(facts: dict[str, Any], label: str) -> dict[str, Any]:
+    records = facts.get("records") or []
+    if len(records) != 1 or not isinstance(records[0], dict):
+        raise ProbeDropped(f"{label}: expected exactly one aggregate row")
+    return {key: value for key, value in records[0].items() if key != "attributes"}
+
+
+def _int_items(row: dict[str, Any]) -> list[tuple]:
+    return [
+        (key, value)
+        for key, value in row.items()
+        if isinstance(value, int) and not isinstance(value, bool)
+    ]
+
+
+def _derive_object_shape(facts, probe, policy):
+    row = _scalar_row(facts, probe["label"])
+    if not isinstance(row.get("recordCount"), int):
+        raise ProbeDropped(f"{probe['label']}: alias the count as recordCount (SELECT COUNT(Id) recordCount ...)")
+    results: dict[str, Any] = {"recordCount": row["recordCount"]}
+    for key in ("createdFirst", "createdLast", "lastModifiedMax"):
+        if key in row:
+            results[key] = _iso_or_none(row[key], f"{probe['label']}.{key}")
+    return results, []
+
+
+def _derive_distribution(facts, probe, policy):
+    floor = int(policy.get("usageGroupSuppressionFloor", 5))
+    groups: list[dict[str, Any]] = []
+    folded_groups = 0
+    folded_count = 0
+    for record in facts.get("records") or []:
+        if not isinstance(record, dict):
+            raise ProbeDropped(f"{probe['label']}: malformed GROUP BY row")
+        row = {key: value for key, value in record.items() if key != "attributes"}
+        ints = _int_items(row)
+        rest = [(key, value) for key, value in row.items() if (key, value) not in ints]
+        if len(ints) != 1 or len(rest) != 1:
+            raise ProbeDropped(f"{probe['label']}: each GROUP BY row must carry one group key and one count")
+        count = ints[0][1]
+        key_value = rest[0][1]
+        key = "(null)" if key_value is None else str(key_value)[:80]
+        if count < floor:
+            folded_groups += 1
+            folded_count += count
+        else:
+            groups.append({"key": key, "recordCount": count})
+    groups.sort(key=lambda item: (-item["recordCount"], item["key"]))
+    results: dict[str, Any] = {"groups": groups[:200], "suppressionFloor": floor}
+    if folded_groups:
+        results["otherBucket"] = {"suppressedGroups": folded_groups, "recordCount": folded_count}
+    if probe.get("field"):
+        results["field"] = probe["field"]
+    return results, []
+
+
+def _derive_fill_like(facts, probe, policy, value_key, target_objects=None):
+    row = _scalar_row(facts, probe["label"])
+    total = row.get("totalCount")
+    if not isinstance(total, int):
+        raise ProbeDropped(f"{probe['label']}: alias COUNT(Id) as totalCount")
+    fields = []
+    for key, value in sorted(row.items()):
+        if key == "totalCount" or not (isinstance(value, int) and not isinstance(value, bool)):
+            continue
+        entry: dict[str, Any] = {"field": key, value_key: value, "totalCount": total}
+        if target_objects is not None:
+            target = target_objects.get(key)
+            if not target:
+                raise ProbeDropped(f"{probe['label']}: no targetObjects mapping for field {key!r}")
+            entry["targetObject"] = target
+        fields.append(entry)
+    if not fields:
+        raise ProbeDropped(f"{probe['label']}: no per-field counts found (alias each COUNT(field) as the field name)")
+    return {"fields": fields[:200]}, []
+
+
+def _derive_field_fill(facts, probe, policy):
+    return _derive_fill_like(facts, probe, policy, "filledCount")
+
+
+def _derive_field_cardinality(facts, probe, policy):
+    return _derive_fill_like(facts, probe, policy, "distinctCount")
+
+
+def _derive_lookup_shape(facts, probe, policy):
+    return _derive_fill_like(facts, probe, policy, "filledCount", probe.get("targetObjects") or {})
+
+
+def _derive_recency_window(facts, probe, policy):
+    row = _scalar_row(facts, probe["label"])
+    count = row.get("recordCount")
+    if not isinstance(count, int):
+        raise ProbeDropped(f"{probe['label']}: alias COUNT(Id) as recordCount")
+    declared = probe.get("windowDays")
+    match = LAST_N_DAYS_RE.search(probe["query"])
+    parsed = int(match.group(1)) if match else None
+    if declared and parsed and declared != parsed:
+        raise ProbeDropped(f"{probe['label']}: windowDays {declared} disagrees with LAST_N_DAYS:{parsed}")
+    window = declared or parsed
+    return {"windows": [{"windowDays": window, "recordCount": count}]}, []
+
+
+def _flatten_record(record: dict[str, Any], prefix: str = "") -> dict[str, Any]:
+    out: dict[str, Any] = {}
+    for key, value in record.items():
+        if key == "attributes":
+            continue
+        path_key = f"{prefix}{key}"
+        if isinstance(value, dict):
+            out.update(_flatten_record(value, path_key + "."))
+        else:
+            out[path_key] = value
+    return out
+
+
+def _collect_structure(record: dict[str, Any], prefix: str, out: dict[str, dict[str, Any]]) -> None:
+    for key, value in record.items():
+        if key == "attributes":
+            continue
+        path_key = f"{prefix}{key}"
+        if isinstance(value, dict):
+            info = out.setdefault(path_key, {"types": set(), "populated": 0})
+            info["populated"] += 1
+            attributes = value.get("attributes")
+            if isinstance(attributes, dict) and isinstance(attributes.get("type"), str):
+                info["types"].add(attributes["type"])
+            _collect_structure(value, path_key + ".", out)
+
+
+def _derive_record_sample(facts, probe, policy):
+    records = [record for record in (facts.get("records") or []) if isinstance(record, dict)]
+    if not records:
+        raise ProbeDropped(f"{probe['label']}: zero rows sampled")
+    sample_size = len(records)
+    if sample_size > int(policy.get("sampleRowsMax", 50)):
+        raise ProbeDropped(f"{probe['label']}: sample of {sample_size} rows exceeds sampleRowsMax")
+    fill: dict[str, int] = {}
+    relationship: dict[str, dict[str, Any]] = {}
+    for record in records:
+        for path_key, value in _flatten_record(record).items():
+            populated = value is not None and value != ""
+            fill[path_key] = fill.get(path_key, 0) + (1 if populated else 0)
+        _collect_structure(record, "", relationship)
+    field_fill = [
+        {"field": key, "populatedCount": count, "sampleSize": sample_size}
+        for key, count in sorted(fill.items())
+        if ORG_API_NAME_RE.fullmatch(key)  # closed vocabulary: residual keys are dropped
+    ][:40]
+    if not field_fill:
+        raise ProbeDropped(f"{probe['label']}: no conforming sampled columns")
+    structure_rows = []
+    for prefix, info in sorted(relationship.items()):
+        types = sorted(info["types"])
+        if not types or not ORG_API_NAME_RE.fullmatch(types[0]) or not ORG_API_NAME_RE.fullmatch(prefix):
+            continue
+        structure_rows.append(
+            {
+                "path": prefix,
+                "targetObject": types[0],
+                "populated": f"{info['populated']}/{sample_size}",
+                "sampleSize": sample_size,
+                "polymorphicObservedType": types[1] if len(types) > 1 else None,
+            }
+        )
+    return {"sampleSize": sample_size, "fieldFill": field_fill}, structure_rows[:40]
+
+
+DERIVERS = {
+    "object-shape": _derive_object_shape,
+    "record-type-distribution": _derive_distribution,
+    "picklist-distribution": _derive_distribution,
+    "field-fill": _derive_field_fill,
+    "field-cardinality": _derive_field_cardinality,
+    "lookup-shape": _derive_lookup_shape,
+    "recency-window": _derive_recency_window,
+    "record-sample": _derive_record_sample,
+}
+
+
+def _facade_call(alias: str, tool: str, arguments: dict[str, Any]) -> dict[str, Any]:
+    """Facade subprocess client — the executor observes; the agent never carries attested
+    bytes (fabrication defense: agents cannot mint digests). Imported lazily because
+    work_record imports this module."""
+    try:
+        from scripts.work_record import call_salesforce_review_facade
+    except ModuleNotFoundError:  # invoked as a script
+        from work_record import call_salesforce_review_facade  # type: ignore
+    return call_salesforce_review_facade(ROOT, alias, tool, arguments)
+
+
+def org_ledger_latest() -> dict[str, dict[str, Any]]:
+    return ledger_latest(read_ledger(ORG_LEDGER_PATH))
+
+
+def compute_org_lane(
+    frontmatter: dict[str, Any],
+    identity: str,
+    org_latest: "dict[str, dict[str, Any]] | None" = None,
+    now: "datetime | None" = None,
+) -> dict[str, Any]:
+    """Read-time org lanes (contract §4) — parallel to compute_lane; never touches approval.
+
+    Freshness applies min(stored expiresAt, observedAt + CURRENT policy window): the stored
+    stamp is a ceiling, not a grant, so tightening the policy expires existing blocks
+    retroactively. A missing policy block behaves as a zero-day window — fail-closed to
+    org-expired, never to fresh."""
+    from datetime import timedelta
+
+    if org_latest is None:
+        org_latest = org_ledger_latest()
+    moment = now or datetime.now(timezone.utc)
+    section = frontmatter.get("orgUsage")
+    record = org_latest.get(identity)
+    if not section:
+        if record is not None and record.get("action") == "attach":
+            return {
+                "section": "org-not-effective",
+                "orgs": {},
+                "problems": ["orgUsage section missing while the latest org-ledger record is an attach"],
+            }
+        return {"section": "org-absent", "orgs": {}}
+    orgs = section.get("orgs") or {}
+    recomputed = canonical_digest(orgs)
+    problems: list[str] = []
+    if section.get("sectionDigest") != recomputed:
+        problems.append("orgUsage.sectionDigest does not recompute (hand-edit or corruption)")
+    if record is None:
+        problems.append("orgUsage present without any org-ledger record")
+    elif record.get("orgUsageDigest") != recomputed:
+        problems.append(
+            "orgUsage digest is not the latest org-ledger record (replay or crash — "
+            "recover forward with entry-org-attach or entry-org-detach, contract §6.6)"
+        )
+    if problems:
+        return {
+            "section": "org-not-effective",
+            "orgs": {key: {"status": "org-not-effective"} for key in orgs},
+            "problems": problems,
+        }
+    try:
+        max_age_days = int(org_usage_policy().get("maxOrgUsageAgeDays", 0))
+    except StoreError:
+        max_age_days = 0
+    config_orgs: dict[str, dict[str, Any]] = {}
+    if LOCAL_CONFIG.exists():
+        raw = json.loads(LOCAL_CONFIG.read_text(encoding="utf-8"))
+        config_orgs = {org.get("alias"): org for org in raw.get("salesforce", {}).get("orgs", [])}
+    lanes: dict[str, dict[str, Any]] = {}
+    for key, block in orgs.items():
+        observed = _parse_iso(block["observedAt"])
+        effective_expiry = min(_parse_iso(block["expiresAt"]), observed + timedelta(days=max_age_days))
+        configured = config_orgs.get(key)
+        status, reason = "org-fresh", None
+        if configured is None:
+            status, reason = "org-superseded", "alias is no longer configured"
+        elif (
+            not configured.get("expectedOrganizationId")
+            or org_id_digest(configured["expectedOrganizationId"]) != block.get("orgIdDigest")
+        ):
+            status, reason = "org-superseded", "configured org identity changed (sandbox refresh)"
+        elif configured.get("refreshedAt") and observed < _parse_iso(configured["refreshedAt"]):
+            status, reason = "org-superseded", "observed before the owner-declared sandbox refresh"
+        elif moment >= effective_expiry:
+            status = "org-expired"
+        lane: dict[str, Any] = {
+            "status": status,
+            "observedAt": block["observedAt"],
+            "expiresAt": effective_expiry.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "environment": block.get("environment"),
+        }
+        if "fullCopy" in block:
+            lane["fullCopy"] = block["fullCopy"]
+        if reason:
+            lane["reason"] = reason
+        lanes[key] = lane
+    return {"section": "org-effective", "orgs": lanes}
+
+
+def command_entry_org_attach(args: argparse.Namespace) -> dict[str, Any]:
+    """Machine-attested org attach (contract §6.6; click-free by owner D-3: the human
+    approved the INSTRUMENT — closed shapes, executor derivers, sanitization, expiry, the
+    containment allowlist — not each number). Fail-closed preconditions run in contract
+    order; ANY identity or environment mismatch mid-run aborts the WHOLE attach."""
+    import hashlib
+    from datetime import timedelta
+
+    assert_no_reparse_points()
+    policy = org_usage_policy()
+    assert_containment(policy)
+    metadata_type, namespace_segment, full_name = args.identity.split(":", 2)
+    if metadata_type not in ORG_ATTACH_METADATA_TYPES:
+        raise StoreError(
+            "org attach is wave-1 only ("
+            + ", ".join(sorted(ORG_ATTACH_METADATA_TYPES))
+            + f"); got {metadata_type!r}"
+        )
+    namespace = None if namespace_segment == "c" else namespace_segment
+    path = entry_path(metadata_type, namespace, full_name)
+    if not path.is_file():
+        raise StoreError(f"no entry for {args.identity}")
+    frontmatter, body = split_entry(path.read_text(encoding="utf-8"))
+    if frontmatter.get("sensitivity") == "public":
+        raise StoreError("org observations cannot attach to a public-sensitivity entry")
+    org = configured_org(args.org)
+    if org.get("environment") not in {"development", "qa", "uat"}:
+        raise StoreError(f"org {args.org!r}: environment {org.get('environment')!r} is not attachable")
+    expected_org_id = org.get("expectedOrganizationId")
+    if not expected_org_id:
+        raise StoreError(
+            "dynamic-lane refused (owner D-4): the alias has no configured expectedOrganizationId"
+        )
+    object_api_name = full_name.split(".", 1)[0]
+    probes = load_probes_file(args.probes_file, metadata_type, object_api_name, policy)
+
+    digest_before = reviewed_content_digest(frontmatter, body)
+    executed: dict[str, dict[str, Any]] = {}
+    receipt_probes: dict[str, dict[str, Any]] = {}
+    structure_rows: list[dict[str, Any]] = []
+    dropped: list[dict[str, str]] = []
+    for probe in probes:
+        label = probe["label"]
+        envelope = _facade_call(args.org, "review_soql_query", {"query": probe["query"]})
+        target = envelope.get("target") or {}
+        if (
+            target.get("environment") == "dynamic"
+            or target.get("nonProduction") is not True
+            or target.get("expectedOrgIdMatched") is not True
+            or target.get("environment") != org.get("environment")
+        ):
+            raise StoreError(
+                f"probe {label!r}: org identity/environment mismatch — the whole attach is "
+                "aborted and nothing is persisted (one attach is one org snapshot, contract §6.6)"
+            )
+        if envelope.get("status") != "VERIFIED" or (envelope.get("completeness") or {}).get("complete") is not True:
+            dropped.append({"label": label, "reason": f"status {envelope.get('status')}"})
+            continue
+        facts = (envelope.get("facts") or {}).get("soqlQuery") or {}
+        query_digest = hashlib.sha256(probe["query"].encode("utf-8")).hexdigest()
+        if facts.get("queryDigest") != query_digest:
+            raise StoreError(
+                f"probe {label!r}: QUERY_DIGEST_MISMATCH — the facade executed different text "
+                "than was submitted; refusing the whole attach"
+            )
+        if facts.get("fromObjects") != [object_api_name]:
+            raise StoreError(
+                f"probe {label!r}: envelope fromObjects {facts.get('fromObjects')!r} is not the entry's object"
+            )
+        try:
+            results, rows = DERIVERS[probe["kind"]](facts, probe, policy)
+        except ProbeDropped as reason:
+            dropped.append({"label": label, "reason": str(reason)})
+            continue
+        executed[label] = {
+            "kind": probe["kind"],
+            "queryDigest": f"sha256:{query_digest}",
+            "completeness": "complete",
+            "results": results,
+        }
+        structure_rows.extend(rows)
+        receipt_probes[label] = {
+            "queryText": probe["query"],
+            "queryDigest": f"sha256:{query_digest}",
+            "kind": probe["kind"],
+            "envelope": envelope,
+        }
+    if not executed:
+        raise StoreError("no probe completed — nothing to persist; dropped: " + json.dumps(dropped))
+
+    observed_at = _utc_now_iso()
+    max_age_days = int(policy.get("maxOrgUsageAgeDays", 0))
+    if max_age_days < 1:
+        raise StoreError("orgUsage.maxOrgUsageAgeDays must be a positive integer")
+    expires_at = (_parse_iso(observed_at) + timedelta(days=max_age_days)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    block: dict[str, Any] = {
+        "environment": org["environment"],
+        "orgIdDigest": org_id_digest(expected_org_id),
+        "observedAt": observed_at,
+        "expiresAt": expires_at,
+        "shapeVersion": 1,
+        "transport": "mcp-review-facade",
+        "assurance": "org-observed",
+        "probes": executed,
+    }
+    if isinstance(org.get("fullCopy"), bool):
+        block["fullCopy"] = org["fullCopy"]
+    if structure_rows:
+        seen_paths = set()
+        unique_rows = []
+        for row in structure_rows:
+            if row["path"] not in seen_paths:
+                seen_paths.add(row["path"])
+                unique_rows.append(row)
+        block["recordStructure"] = unique_rows[:40]
+
+    run_id = observed_at.replace("-", "").replace(":", "") + "-" + canonical_digest(
+        {"identity": args.identity, "orgKey": args.org, "queries": sorted(p["query"] for p in probes)}
+    )[7:15]
+    wrapper: dict[str, Any] = {
+        "schemaVersion": 1,
+        "runId": run_id,
+        "identity": args.identity,
+        "orgKey": args.org,
+        "attachedAt": observed_at,
+        "probes": receipt_probes,
+    }
+    receipt_digest = canonical_digest(wrapper)
+    wrapper["wrapperDigest"] = receipt_digest
+    block["receiptDigest"] = receipt_digest
+
+    orgs = dict((frontmatter.get("orgUsage") or {}).get("orgs") or {})
+    orgs[args.org] = block
+    frontmatter["orgUsage"] = {"sectionDigest": canonical_digest(orgs), "orgs": orgs}
+
+    problems = [
+        problem
+        for problem in validate_entry(frontmatter, body)
+        if "sentinel" not in problem  # a draft entry awaiting its description may still attach
+    ]
+    if problems:
+        raise StoreError("attach would leave an invalid entry: " + "; ".join(problems))
+    digest_after = reviewed_content_digest(frontmatter, body)
+    if digest_after != digest_before:
+        raise StoreError("INVARIANT BREACH: attach would move the approval digest — refusing (contract §5.7)")
+
+    receipt_path = ORG_USAGE_CACHE / safe_name(args.identity, args.identity) / f"{run_id}.json"
+    if len(relative_path(receipt_path)) > PATH_BUDGET:
+        raise StoreError(f"receipt path exceeds the {PATH_BUDGET}-char budget (contract §3)")
+    # Write ordering (contract §6.6): receipt -> entry -> org ledger. A crash between the last
+    # two leaves org-not-effective and a failing validate check; recovery is forward-only.
+    receipt_path.parent.mkdir(parents=True, exist_ok=True)
+    receipt_path.write_text(json.dumps(wrapper, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    atomic_write(path, render_entry(frontmatter, body))
+    append_ledger(
+        [
+            {
+                "action": "attach",
+                "identity": args.identity,
+                "orgKey": args.org,
+                "orgUsageDigest": frontmatter["orgUsage"]["sectionDigest"],
+                "observedAt": observed_at,
+                "expiresAt": expires_at,
+                "shapeVersion": 1,
+                "transport": "mcp-review-facade",
+                "receiptDigest": receipt_digest,
+            }
+        ],
+        ORG_LEDGER_PATH,
+    )
+    return {
+        "outcome": "ORG_ATTACHED",
+        "identity": args.identity,
+        "orgKey": args.org,
+        "probes": sorted(executed),
+        "dropped": dropped,
+        "observedAt": observed_at,
+        "expiresAt": expires_at,
+        "approvalDigestBefore": digest_before,
+        "approvalDigestAfter": digest_after,
+        "approvalPreserved": digest_after == digest_before,
+        "receipt": relative_path(receipt_path),
+    }
+
+
+def command_entry_org_detach(args: argparse.Namespace) -> dict[str, Any]:
+    """Remove one org's block; approvals are untouched by the same closed-key-set argument."""
+    assert_no_reparse_points()
+    metadata_type, namespace_segment, full_name = args.identity.split(":", 2)
+    namespace = None if namespace_segment == "c" else namespace_segment
+    path = entry_path(metadata_type, namespace, full_name)
+    if not path.is_file():
+        raise StoreError(f"no entry for {args.identity}")
+    frontmatter, body = split_entry(path.read_text(encoding="utf-8"))
+    org_usage = frontmatter.get("orgUsage") or {}
+    orgs = dict(org_usage.get("orgs") or {})
+    if args.org not in orgs:
+        raise StoreError(f"no org block for {args.org!r} on {args.identity}")
+    digest_before = reviewed_content_digest(frontmatter, body)
+    orgs.pop(args.org)
+    if orgs:
+        frontmatter["orgUsage"] = {"sectionDigest": canonical_digest(orgs), "orgs": orgs}
+        new_digest = frontmatter["orgUsage"]["sectionDigest"]
+    else:
+        frontmatter.pop("orgUsage", None)
+        new_digest = None
+    problems = [p for p in validate_entry(frontmatter, body) if "sentinel" not in p]
+    if problems:
+        raise StoreError("detach would leave an invalid entry: " + "; ".join(problems))
+    digest_after = reviewed_content_digest(frontmatter, body)
+    if digest_after != digest_before:
+        raise StoreError("INVARIANT BREACH: detach would move the approval digest — refusing (contract §5.7)")
+    atomic_write(path, render_entry(frontmatter, body))
+    append_ledger(
+        [
+            {
+                "action": "detach",
+                "identity": args.identity,
+                "orgKey": args.org,
+                "orgUsageDigest": new_digest,
+                "rationale": args.rationale,
+                "detachedAt": _utc_now_iso(),
+            }
+        ],
+        ORG_LEDGER_PATH,
+    )
+    return {
+        "outcome": "ORG_DETACHED",
+        "identity": args.identity,
+        "orgKey": args.org,
+        "remainingOrgs": sorted(orgs),
+        "approvalPreserved": digest_after == digest_before,
+    }
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="knowledge_store", description=__doc__)
+    commands = parser.add_subparsers(dest="command", required=True)
+
+    draft = commands.add_parser("entry-draft", help="derive and write a draft entry from source")
+    draft.add_argument("--metadata-type", required=True)
+    draft.add_argument("--full-name", required=True)
+    draft.add_argument("--namespace", default=None)
+    draft.add_argument("--purpose-file", default=None)
+    draft.add_argument(
+        "--source-api-version",
+        default=None,
+        help="defaults to sourceApiVersion from sfdx-project.json (F-5: a hardcoded default"
+             " silently drifted from the project's real version)",
+    )
+    draft.add_argument("--candidate-keyword", action="append", default=None)
+    draft.set_defaults(func=command_entry_draft)
+
+    approve = commands.add_parser("entry-approve", help="digest-pinned chat-approved promotion")
+    approve.add_argument("--entry", action="append", default=None, help="<identity>:sha256:<digest>")
+    approve.set_defaults(func=command_entry_approve)
+
+    context = commands.add_parser(
+        "entry-context", help="source, facts and reverse usage for writing a description"
+    )
+    context.add_argument("--identity", required=True)
+    context.add_argument("--max-source-chars", type=int, default=8000)
+    context.set_defaults(func=command_entry_context)
+
+    describe = commands.add_parser(
+        "entry-describe", help="write the agent-authored description into an existing entry"
+    )
+    describe.add_argument("--identity", required=True)
+    describe.add_argument("--purpose-file", required=True)
+    describe.add_argument("--limitation", action="append", default=None)
+    describe.add_argument("--clear-limitations", action="store_true")
+    describe.set_defaults(func=command_entry_describe)
+
+    review = commands.add_parser(
+        "entry-review", help="render the executor-authored review surface and the pinned command"
+    )
+    review.add_argument("--identity", action="append", default=None)
+    review.set_defaults(func=command_entry_review)
+
+    revoke = commands.add_parser("entry-revoke", help="append a revocation for an identity")
+    revoke.add_argument("--identity", required=True)
+    revoke.add_argument("--rationale", required=True)
+    revoke.set_defaults(func=command_entry_revoke)
+
+    status = commands.add_parser("entry-status", help="computed lanes for entries")
+    status.add_argument("--identity", default=None)
+    status.set_defaults(func=command_entry_status)
+
+    coverage = commands.add_parser(
+        "entry-coverage", help="entry coverage per metadata type against force-app source"
+    )
+    coverage.set_defaults(func=command_entry_coverage)
+
+    org_attach = commands.add_parser(
+        "entry-org-attach",
+        help="run governed SOQL probes and attach the derived orgUsage block (click-free; contract §6.6)",
+    )
+    org_attach.add_argument("--identity", required=True)
+    org_attach.add_argument("--org", required=True)
+    org_attach.add_argument("--probes-file", required=True)
+    org_attach.set_defaults(func=command_entry_org_attach)
+
+    org_detach = commands.add_parser(
+        "entry-org-detach", help="remove one org's usage block and append the detach to the org ledger"
+    )
+    org_detach.add_argument("--identity", required=True)
+    org_detach.add_argument("--org", required=True)
+    org_detach.add_argument("--rationale", required=True)
+    org_detach.set_defaults(func=command_entry_org_detach)
+
+    check = commands.add_parser("entry-check", help="CI validation of all entries and the ledger")
+    check.add_argument(
+        "--changed-since",
+        default=None,
+        help="git ref: re-digest source fragments only for entries changed since it "
+        "(collision checks always cover the whole corpus)",
+    )
+    check.set_defaults(func=command_entry_check)
+
+    verify = commands.add_parser(
+        "entry-verify-citations",
+        help="advisory verdicts for cited entries (an envelope's entryRefs or bare identities)",
+    )
+    verify.add_argument("--envelope", default=None, help="JSON envelope carrying an entryRefs array")
+    verify.add_argument(
+        "--entry-ref",
+        action="append",
+        default=[],
+        help="entry identity to verify (repeatable); no digest pin — envelopes carry those",
+    )
+    verify.set_defaults(func=command_entry_verify_citations)
+
+    fopen = commands.add_parser("feature-open", help="create or resume a Feature Knowledge draft")
+    fopen.add_argument("--slug", required=True)
+    fopen.add_argument("--name", default=None)
+    fopen.set_defaults(func=command_feature_open)
+
+    frecord = commands.add_parser("feature-record", help="apply one batch of typed feature operations")
+    frecord.add_argument("--slug", required=True)
+    frecord.add_argument("--expected-version", required=True, type=int)
+    frecord.add_argument("--operations-file", required=True)
+    frecord.set_defaults(func=command_feature_record)
+
+    fstatus = commands.add_parser("feature-status", help="lanes for every feature")
+    fstatus.add_argument("--slug", default=None)
+    fstatus.set_defaults(func=command_feature_status)
+
+    freview = commands.add_parser("feature-review", help="render the human review surface")
+    freview.add_argument("--slug", action="append", required=True)
+    freview.set_defaults(func=command_feature_review)
+
+    fapprove = commands.add_parser("feature-approve", help="digest-pinned approval of feature knowledge")
+    fapprove.add_argument("--feature", action="append", help="Feature:<slug>:sha256:<digest>")
+    fapprove.set_defaults(func=command_feature_approve)
+
+    frevoke = commands.add_parser("feature-revoke", help="revoke an approved feature")
+    frevoke.add_argument("--slug", required=True)
+    frevoke.add_argument("--rationale", required=True)
+    frevoke.set_defaults(func=command_feature_revoke)
+
+    fsearch = commands.add_parser("feature-search", help="discovery over approved features")
+    fsearch.add_argument("--text", default=None)
+    fsearch.add_argument("--artifact-id", default=None)
+    fsearch.add_argument("--layer", default=None)
+    fsearch.add_argument("--role", default=None)
+    fsearch.add_argument("--claim-type", default=None)
+    fsearch.add_argument("--top", type=int, default=10)
+    fsearch.set_defaults(func=command_feature_search)
+
+    fcontext = commands.add_parser("feature-context", help="the approved feature architecture in one read")
+    fcontext.add_argument("--slug", required=True)
+    fcontext.set_defaults(func=command_feature_context)
+
+    fverify = commands.add_parser(
+        "feature-verify-citations", help="claim-level citation verdicts and receipts"
+    )
+    fverify.add_argument("--slug", default=None)
+    fverify.add_argument("--claim", action="append", default=None)
+    fverify.add_argument("--envelope", default=None)
+    fverify.set_defaults(func=command_feature_verify_citations)
+
+    fcheck = commands.add_parser("feature-check", help="CI validation of features and their ledger")
+    fcheck.set_defaults(func=command_feature_check)
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    try:
+        result = args.func(args)
+    except StoreError as error:
+        print(json.dumps({"outcome": "ERROR", "reason": str(error)}, indent=2))
+        return 1
+    print(json.dumps(result, indent=2, sort_keys=True))
+    return 0
+
+
+# --- Feature Entries (contract §13) -----------------------------------------------------
+#
+# A Feature Entry approves a BOUNDARY RULE and a human description — never a member list.
+# That split is the whole design. Membership is a function of the rule AND of the package,
+# so storing it would mean every new artifact drifts every feature that could contain it,
+# and a reviewer would be re-approving a list they never read. Membership is recomputed on
+# demand and reported as an advisory; claim-level drift is feature-verify-citations' job.
+
+
+# --------------------------------------------------------------------------------------
+# Feature Knowledge v2 (contract §13): the curated, citable Feature document.
+# Domain logic lives in scripts/feature_knowledge.py; these commands own I/O and the
+# ledger. The corpus is directories: .ai/knowledge/features/<slug>/feature.md.
+# --------------------------------------------------------------------------------------
+
+
+def _fk():
+    try:
+        from scripts import feature_knowledge
+    except ImportError:
+        import feature_knowledge
+    return feature_knowledge
+
+
+def _feature_binding_resolver(entry_id: str) -> dict[str, Any]:
+    """A live receipt for an artifact binding — approved-current or refused. Bindings are
+    created only from the store's own lane computation, never assembled from search hits
+    or caller-pasted digests (master plan §9.3)."""
+    parts = (entry_id or "").split(":", 2)
+    if len(parts) != 3:
+        raise StoreError(f"binding target {entry_id!r} is not an Artifact identity")
+    metadata_type, namespace_segment, full_name = parts
+    namespace = None if namespace_segment == "c" else namespace_segment
+    path = entry_path(metadata_type, namespace, full_name)
+    if not path.is_file():
+        raise StoreError(f"binding target {entry_id} has no Knowledge Entry")
+    lane = compute_lane(path, ledger_latest(read_ledger()))
+    if lane.get("lane") != "approved-current":
+        raise StoreError(
+            f"binding target {entry_id} is {lane.get('lane')}; only approved-current entries bind"
+        )
+    return {
+        "reviewedContentDigest": lane["reviewedContentDigest"],
+        "factsDigest": lane["factsDigest"],
+        "sourceTreeDigest": lane["sourceTreeDigest"],
+        "profile": lane["profile"],
+    }
+
+
+def _write_feature(slug: str, frontmatter: dict[str, Any], body: str) -> Path:
+    fk = _fk()
+    path = fk.feature_path(slug)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    atomic_write(path, render_entry(frontmatter, body))
+    return path
+
+
+def _load_feature(slug: str) -> tuple[dict[str, Any], str, Path]:
+    fk = _fk()
+    path = fk.feature_path(slug)
+    if not path.is_file():
+        raise StoreError(f"no feature at {relative_path(path)}; run feature-open first")
+    frontmatter, body = split_entry(path.read_text(encoding="utf-8"))
+    return frontmatter, body, path
+
+
+def command_feature_open(args: argparse.Namespace) -> dict[str, Any]:
+    """Create a feature draft, or report the existing one (resume point §12.1)."""
+    fk = _fk()
+    assert_no_reparse_points(FEATURES_ROOT)
+    path = fk.feature_path(args.slug)
+    if path.is_file():
+        frontmatter, body = split_entry(path.read_text(encoding="utf-8"))
+        lane = fk.compute_feature_lane(path, ledger_latest(read_ledger(FEATURE_LEDGER_PATH)))
+        return {
+            "outcome": "RESUMED",
+            "identity": fk.feature_identity(args.slug),
+            "path": relative_path(path),
+            "lane": lane["lane"],
+            "draftVersion": frontmatter["draft"]["version"],
+            "problems": lane["problems"],
+        }
+    name = args.name or args.slug.replace("-", " ").title()
+    frontmatter = fk.new_feature_frontmatter(args.slug, name)
+    body = fk.initial_body(name)
+    _write_feature(args.slug, frontmatter, body)
+    return {
+        "outcome": "OPENED",
+        "identity": fk.feature_identity(args.slug),
+        "path": relative_path(path),
+        "draftVersion": 0,
+    }
+
+
+def command_feature_record(args: argparse.Namespace) -> dict[str, Any]:
+    """The single write path for feature content: one batch of typed operations from an
+    ignored proposal file. Fail-closed: a rejected batch changes nothing. Optimistic
+    concurrency on draft.version — a stale writer reloads instead of overwriting."""
+    fk = _fk()
+    assert_no_reparse_points(FEATURES_ROOT)
+    frontmatter, body, path = _load_feature(args.slug)
+    if int(args.expected_version) != int(frontmatter["draft"]["version"]):
+        raise StoreError(
+            f"stale draft version (expected {args.expected_version}, "
+            f"current {frontmatter['draft']['version']}); reload and retry"
+        )
+    operations_path = Path(args.operations_file)
+    if not operations_path.is_file():
+        raise StoreError(f"operations file does not exist: {args.operations_file}")
+    try:
+        payload = json.loads(operations_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise StoreError(f"operations file is not valid JSON: {exc}") from exc
+    operations = payload.get("operations") if isinstance(payload, dict) else None
+    frontmatter, body, applied = fk.apply_operations(
+        frontmatter, body, operations, _feature_binding_resolver
+    )
+    _write_feature(args.slug, frontmatter, body)
+    return {
+        "outcome": "RECORDED",
+        "identity": fk.feature_identity(args.slug),
+        "draftVersion": frontmatter["draft"]["version"],
+        "applied": applied,
+    }
+
+
+def command_feature_status(args: argparse.Namespace) -> dict[str, Any]:
+    fk = _fk()
+    latest = ledger_latest(read_ledger(FEATURE_LEDGER_PATH))
+    lanes = []
+    for path in fk.all_feature_paths():
+        lane = fk.compute_feature_lane(path, latest)
+        if args.slug and lane["identity"] != fk.feature_identity(args.slug):
+            continue
+        lanes.append(lane)
+    return {"outcome": "STATUS", "features": lanes}
+
+
+def command_feature_check(args: argparse.Namespace) -> dict[str, Any]:
+    """CI gate. F-3 posture from day one: a DRAFT's outstanding work (sentinel, empty core
+    sections) is counted as awaitingWork, never a failure; an APPROVED document with
+    problems, a duplicate identity, or a ledger approval with no file fails."""
+    fk = _fk()
+    assert_no_reparse_points(FEATURES_ROOT)
+    latest = ledger_latest(read_ledger(FEATURE_LEDGER_PATH))
+    problems: list[str] = []
+    seen: dict[str, str] = {}
+    awaiting_work = 0
+    for path in fk.all_feature_paths():
+        lane = fk.compute_feature_lane(path, latest)
+        identity = lane["identity"]
+        if identity in seen:
+            problems.append(f"identity {identity} resolves to two files: {seen[identity]} and {lane['path']}")
+        seen[identity] = lane["path"]
+        if lane["lane"] == "draft":
+            awaiting_work += 1 if lane["problems"] else 0
+            continue
+        for problem in lane["problems"]:
+            problems.append(f"{lane['path']}: {problem}")
+    for identity, record in latest.items():
+        if record.get("action") == "approve" and identity not in seen:
+            problems.append(f"ledger approves {identity} but no feature file exists")
+    if problems:
+        raise StoreError("feature-check failed:\n- " + "\n- ".join(problems))
+    return {
+        "outcome": "PASS",
+        "features": len(seen),
+        "awaitingWork": awaiting_work,
+        "ledgerRecords": len(read_ledger(FEATURE_LEDGER_PATH)),
+    }
+
+
+def command_feature_review(args: argparse.Namespace) -> dict[str, Any]:
+    """Render the exact human review package (§16.1) and the digest-pinned approve command.
+    The semantic delta against the last approved version is digest-level (changed /
+    unchanged per model and narrative) — the store keeps no prior approved copy."""
+    fk = _fk()
+    latest = ledger_latest(read_ledger(FEATURE_LEDGER_PATH))
+    rendered = []
+    pins = []
+    for slug in args.slug:
+        frontmatter, body, path = _load_feature(slug)
+        problems = fk.validate_feature(frontmatter, body)
+        identity = fk.feature_identity(slug)
+        record = latest.get(identity) or {}
+        digest = None if problems else fk.feature_reviewed_content_digest(frontmatter, body)
+        model = frontmatter["model"]
+        live = lambda items: [i for i in items if not i.get("tombstoned")]
+        lines = [
+            f"# Feature review — {identity}", "",
+            f"- name: {frontmatter['subject']['name']}",
+            f"- reviewedContentDigest: {digest or 'BLOCKED (see problems)'}",
+            f"- modelDigest: {fk.model_digest(frontmatter)}",
+            f"- vs last approved: model "
+            + ("unchanged" if record.get("modelDigest") == fk.model_digest(frontmatter) else "CHANGED")
+            + ", narrative "
+            + ("unchanged" if record.get("semanticsDigest") == semantics_digest(body) else "CHANGED"),
+            f"- nodes {len(live(model['nodes']))}, relations {len(live(model['relations']))}, "
+            f"claims {len(live(model['claims']))}, bindings {len(live(frontmatter['artifactBindings']))}, "
+            f"open questions {sum(1 for q in live(model['unresolved']) if not q.get('resolution'))}",
+            "",
+        ]
+        if problems:
+            lines += ["## Blocking problems", ""] + [f"- {p}" for p in problems] + [""]
+        lines += ["## Claims under approval", ""]
+        for claim in live(model["claims"]):
+            lines.append(
+                f"- {claim['id']} [{claim['type']}/{claim['authority']}/{claim['citationPolicy']}] "
+                f"{claim['text']}"
+            )
+        lines += ["", "## Topology under approval", ""]
+        for node in live(model["nodes"]):
+            lines.append(
+                f"- {node['id']} [{node['featureLayer']}/{node['role']}] "
+                f"{node.get('artifactId') or node.get('name') or ''}"
+            )
+        for relation in live(model["relations"]):
+            lines.append(
+                f"- {relation['id']} {relation['from']} -{relation['kind']}-> {relation['to']} "
+                f"[{relation['assurance']}] {relation['explanation']}"
+            )
+        for entry_point in model["entryPoints"]:
+            lines.append(f"- entry point: {entry_point['nodeId']} — {entry_point['description']}")
+        lines += ["", "## Artifact bindings (current?)", ""]
+        for binding in live(frontmatter["artifactBindings"]):
+            try:
+                receipt = _feature_binding_resolver(binding["entryId"])
+                current = receipt["reviewedContentDigest"] == binding["reviewedContentDigest"]
+                lines.append(
+                    f"- {binding['id']} {binding['entryId']}: "
+                    + ("current" if current else "DRIFTED (re-bind before approval)")
+                )
+            except StoreError as exc:
+                lines.append(f"- {binding['id']} {binding['entryId']}: UNAVAILABLE ({exc})")
+        lines += ["", "## Heuristic / unresolved (never citable)", ""]
+        for claim in live(model["claims"]):
+            if claim["authority"] in ("source-derived-heuristic", "unresolved"):
+                lines.append(f"- {claim['id']}: {claim['text']}")
+        lines += ["", "## Narrative under approval", "", body.strip()]
+        rendered.append((slug, digest, "\n".join(lines) + "\n"))
+        if digest:
+            pins.append(f"{identity}:{digest}")
+    chunk_source = canonical_digest([pin for pin in pins] or [slug for slug in args.slug])
+    chunk_id = chunk_source[7:19]
+    review_path = REVIEW_ARTIFACT_ROOT / f"{chunk_id}-feature-review.md"
+    review_path.parent.mkdir(parents=True, exist_ok=True)
+    atomic_write(review_path, "\n\n".join(text for _, _, text in rendered))
+    result: dict[str, Any] = {
+        "outcome": "REVIEW",
+        "chunkId": chunk_id,
+        "reviewArtifact": relative_path(review_path),
+    }
+    if pins:
+        result["approveCommand"] = (
+            "python scripts/knowledge_store.py feature-approve "
+            + " ".join(f'--feature "{pin}"' for pin in pins)
+        )
+    blocked = [slug for slug, digest, _ in rendered if not digest]
+    if blocked:
+        result["blocked"] = blocked
+    return result
+
+
+def command_feature_approve(args: argparse.Namespace) -> dict[str, Any]:
+    """Digest-pinned human approval (§16.2). Every §16.2 condition that is mechanical is
+    enforced here; the human's confirmation click is the one thing this command cannot
+    manufacture (SAFE-HUMAN-001 hook asks on it)."""
+    fk = _fk()
+    assert_no_reparse_points(FEATURES_ROOT)
+    if not LOCAL_CONFIG.is_file():
+        raise StoreError("config/harness.local.json with knowledge.chatReviewer is required for approval")
+    reviewer = json.loads(LOCAL_CONFIG.read_text(encoding="utf-8")).get("knowledge", {}).get("chatReviewer")
+    if not reviewer:
+        raise StoreError("knowledge.chatReviewer is not configured")
+    pins: dict[str, str] = {}
+    for raw in args.feature or []:
+        identity, separator, digest = raw.partition(":sha256:")
+        if not separator or not identity.startswith("Feature:"):
+            raise StoreError(f"--feature must be Feature:<slug>:sha256:<digest>, got {raw!r}")
+        pins[identity] = "sha256:" + digest
+    if not pins:
+        raise StoreError("at least one --feature Feature:<slug>:sha256:<digest> pin is required")
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    entries = []
+    for identity, pinned in pins.items():
+        slug = identity.split(":", 1)[1]
+        frontmatter, body, path = _load_feature(slug)
+        problems = fk.validate_feature(frontmatter, body)
+        if problems:
+            raise StoreError(f"{identity}: validation failed: " + "; ".join(problems[:5]))
+        digest = fk.feature_reviewed_content_digest(frontmatter, body)
+        if digest != pinned:
+            raise StoreError(
+                f"{identity}: digest pin mismatch (pinned {pinned[:20]}…, recomputed {digest[:20]}…)"
+            )
+        frontmatter["lifecycle"]["state"] = "approved"
+        frontmatter["approval"] = {
+            "reviewedContentDigest": digest,
+            "reviewedBy": reviewer,
+            "reviewedAt": now,
+            "mechanism": "copilot-chat-entry-confirmation",
+        }
+        _write_feature(slug, frontmatter, body)
+        entries.append({
+            "action": "approve",
+            "identity": identity,
+            "reviewedContentDigest": digest,
+            "modelDigest": fk.model_digest(frontmatter),
+            "semanticsDigest": semantics_digest(body),
+            "reviewedBy": reviewer,
+            "reviewedAt": now,
+            "mechanism": "copilot-chat-entry-confirmation",
+        })
+    append_ledger(entries, FEATURE_LEDGER_PATH)
+    return {"outcome": "APPROVED", "features": len(entries)}
+
+
+
+
+def command_feature_search(args: argparse.Namespace) -> dict[str, Any]:
+    """Discovery over APPROVED features — a direct scan of the canonical files (deliberate
+    v2.0 simplification: the corpus is dozens of documents, not thousands of entries; no
+    index generation, no cache to go stale — revisit past ~200 features). Results are
+    never citable; cite through feature-verify-citations."""
+    fk = _fk()
+    latest = ledger_latest(read_ledger(FEATURE_LEDGER_PATH))
+    needle = (args.text or "").lower()
+    hits = []
+    draft_count = 0
+    for path in fk.all_feature_paths():
+        lane = fk.compute_feature_lane(path, latest)
+        if lane["lane"] != "approved-current":
+            draft_count += lane["lane"] == "draft"
+            continue
+        frontmatter, body = split_entry(path.read_text(encoding="utf-8"))
+        model = frontmatter["model"]
+        live = lambda items: [i for i in items if not i.get("tombstoned")]
+        nodes = live(model["nodes"])
+        claims = live(model["claims"])
+        if args.artifact_id and not any(n.get("artifactId") == args.artifact_id for n in nodes):
+            continue
+        if args.layer and not any(n["featureLayer"] == args.layer for n in nodes):
+            continue
+        if args.role and not any(n["role"] == args.role for n in nodes):
+            continue
+        if args.claim_type and not any(c["type"] == args.claim_type for c in claims):
+            continue
+        haystack = " ".join(
+            [frontmatter["subject"]["name"], " ".join(frontmatter.get("keywords", [])),
+             " ".join(c["text"] for c in claims), body]
+        ).lower()
+        if needle and needle not in haystack:
+            continue
+        hits.append({
+            "featureId": lane["identity"],
+            "name": frontmatter["subject"]["name"],
+            "layers": sorted({n["featureLayer"] for n in nodes}),
+            "nodeCount": len(nodes),
+            "claimCount": len(claims),
+            "entryPoints": [ep["nodeId"] for ep in model["entryPoints"]],
+        })
+        if len(hits) >= max(1, int(args.top or 10)):
+            break
+    return {"outcome": "SEARCH", "hits": hits, "draftCount": draft_count,
+            "note": "hits are discovery only and never citable; cite via feature-verify-citations"}
+
+
+def command_feature_context(args: argparse.Namespace) -> dict[str, Any]:
+    """The approved Feature architecture in one read (§14.2). Not a citation receipt."""
+    fk = _fk()
+    latest = ledger_latest(read_ledger(FEATURE_LEDGER_PATH))
+    frontmatter, body, path = _load_feature(args.slug)
+    lane = fk.compute_feature_lane(path, latest)
+    if lane["lane"] != "approved-current":
+        return {"outcome": "NOT_APPROVED", "lane": lane["lane"], "problems": lane["problems"],
+                "note": "drafts are excluded from consumer reads; finish and approve first"}
+    model = frontmatter["model"]
+    live = lambda items: [i for i in items if not i.get("tombstoned")]
+    sections = fk._body_sections(body)
+    binding_health = {}
+    for binding in live(frontmatter["artifactBindings"]):
+        try:
+            receipt = _feature_binding_resolver(binding["entryId"])
+            binding_health[binding["id"]] = (
+                "current" if receipt["reviewedContentDigest"] == binding["reviewedContentDigest"]
+                else "drifted"
+            )
+        except StoreError:
+            binding_health[binding["id"]] = "unknown"
+    return {
+        "outcome": "CONTEXT",
+        "featureId": lane["identity"],
+        "name": frontmatter["subject"]["name"],
+        "purposeAndBoundary": sections.get("Purpose and boundary", ""),
+        "businessJourney": sections.get("Business journey", ""),
+        "nodes": live(model["nodes"]),
+        "relations": live(model["relations"]),
+        "entryPoints": model["entryPoints"],
+        "claims": [
+            {k: c.get(k) for k in ("id", "type", "layer", "authority", "text", "citationPolicy")}
+            for c in live(model["claims"])
+        ],
+        "unresolved": [q for q in live(model["unresolved"]) if not q.get("resolution")],
+        "limitations": frontmatter.get("limitations", []),
+        "bindingHealth": binding_health,
+        "modelDigest": lane["modelDigest"],
+        "reviewedContentDigest": lane["reviewedContentDigest"],
+        "note": "context is not a citation receipt; cite via feature-verify-citations",
+    }
+
+
+def command_feature_verify_citations(args: argparse.Namespace) -> dict[str, Any]:
+    """Read-only claim-level verdicts (§10.3). Direct mode (--slug --claim) verifies and
+    PRODUCES the citable receipt; envelope mode verifies every stored featureRef including
+    its pinned digests."""
+    fk = _fk()
+    latest = ledger_latest(read_ledger(FEATURE_LEDGER_PATH))
+    if bool(args.envelope) == bool(args.slug):
+        raise StoreError("feature-verify-citations requires exactly one of --envelope or --slug")
+    results = []
+    if args.slug:
+        frontmatter, body, _path = _load_feature(args.slug)
+        identity = fk.feature_identity(args.slug)
+        verdict = fk.verify_feature_citations(
+            frontmatter, body, latest.get(identity), list(args.claim or []),
+            _feature_binding_resolver,
+        )
+        results.append({"featureId": identity, **verdict})
+    else:
+        envelope_path = Path(args.envelope)
+        if not envelope_path.is_absolute():
+            envelope_path = ROOT / envelope_path
+        try:
+            envelope_path.resolve().relative_to(ROOT)
+        except ValueError as exc:
+            raise StoreError(f"envelope path escapes repository root: {args.envelope}") from exc
+        if not envelope_path.is_file():
+            raise StoreError(f"envelope file does not exist: {args.envelope}")
+        try:
+            envelope = json.loads(envelope_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise StoreError(f"envelope is not valid JSON: {exc}") from exc
+        for reference in envelope.get("featureRefs") or []:
+            slug = str(reference.get("featureId", "")).partition(":")[2]
+            try:
+                frontmatter, body, _path = _load_feature(slug)
+            except StoreError:
+                results.append({"featureId": reference.get("featureId"), "verdict": "missing"})
+                continue
+            verdict = fk.verify_feature_citations(
+                frontmatter, body, latest.get(reference.get("featureId")),
+                list(reference.get("claimIds") or []), _feature_binding_resolver,
+                requested_digests={
+                    "reviewedContentDigest": reference.get("reviewedContentDigest"),
+                    "modelDigest": reference.get("modelDigest"),
+                },
+            )
+            results.append({"featureId": reference.get("featureId"), **verdict})
+    counts = {"ok": 0, "warning": 0, "invalid": 0}
+    for row in results:
+        if row["verdict"] == "current":
+            counts["ok"] += 1
+        elif row["verdict"] == "degraded":
+            counts["warning"] += 1
+        else:
+            counts["invalid"] += 1
+    return {"outcome": "VERIFIED", "citationCount": len(results), "counts": counts,
+            "citations": results}
+
+
+def command_feature_revoke(args: argparse.Namespace) -> dict[str, Any]:
+    fk = _fk()
+    assert_no_reparse_points(FEATURES_ROOT)
+    frontmatter, body, path = _load_feature(args.slug)
+    identity = fk.feature_identity(args.slug)
+    if not args.rationale:
+        raise StoreError("a revocation requires --rationale")
+    append_ledger(
+        [{"action": "revoke", "identity": identity, "rationale": args.rationale,
+          "revokedAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}],
+        FEATURE_LEDGER_PATH,
+    )
+    return {"outcome": "REVOKED", "identity": identity}
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

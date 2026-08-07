@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sf-harness-brain-core/schemas/knowledge-profile-recordtype.schema.json",
+  "title": "Knowledge Entry profile \u2014 salesforce.record-type v1",
+  "description": "typeFacts carry the collector's extraction faithfully: an adapter passes every fact through except a documented exclusion, so a fact the profile does not declare fails validation loudly instead of vanishing from the entry.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "typeFacts"
+  ],
+  "properties": {
+    "typeFacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "object"
+      ],
+      "properties": {
+        "object": {
+          "type": "string"
+        },
+        "fullName": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "active": {
+          "type": "boolean"
+        },
+        "description": {
+          "type": "string"
+        },
+        "businessProcess": {
+          "type": "string"
+        },
+        "picklistScopes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "picklist"
+            ],
+            "properties": {
+              "picklist": {
+                "type": "string"
+              },
+              "valueCount": {
+                "type": "integer"
+              },
+              "defaults": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "description": "Per-picklist value scoping this record type declares. Declared because the adapter passes every collector fact through: an undeclared fact fails validation and blocks the draft."
+        },
+        "picklistValueSets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "references": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "target",
+              "assurance"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "pattern": "^[a-z][a-z-]{2,40}$"
+              },
+              "target": {
+                "type": "string",
+                "minLength": 1
+              },
+              "assurance": {
+                "enum": [
+                  "source-exact",
+                  "source-derived-heuristic"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "intentionalErrors": {
+      "type": "array",
+      "maxItems": 0
+    }
+  }
+}

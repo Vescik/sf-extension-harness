@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sf-harness-brain-core:force-app-knowledge-inventory.schema.json",
+  "title": "Sanitized force-app Knowledge inventory",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion", "kind", "generatedAt", "repositoryCommit", "sourceRoot",
+    "sourceTreeDigest", "workspaceStatus", "completeness", "coverage", "components", "genericFiles"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "kind": { "const": "force-app-knowledge-inventory" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "repositoryCommit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "sourceRoot": { "const": "force-app" },
+    "sourceTreeDigest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "workspaceStatus": {
+      "type": "object", "additionalProperties": false, "required": ["clean", "changes"],
+      "properties": {
+        "clean": { "type": "boolean" },
+        "changes": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+      }
+    },
+    "completeness": {
+      "type": "object", "additionalProperties": false,
+      "required": ["status", "filesScanned", "recognizedComponents", "genericFiles", "diagnostics"],
+      "properties": {
+        "status": { "enum": ["complete", "partial"] },
+        "filesScanned": { "type": "integer", "minimum": 0 },
+        "recognizedComponents": { "type": "integer", "minimum": 0 },
+        "genericFiles": { "type": "integer", "minimum": 0 },
+        "diagnostics": {
+          "type": "array",
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "required": ["severity", "path", "message"],
+            "properties": {
+              "severity": { "const": "error" },
+              "path": { "type": "string", "minLength": 1 },
+              "message": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      }
+    },
+    "coverage": {
+      "type": "object", "additionalProperties": { "type": "integer", "minimum": 0 }
+    },
+    "components": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "metadataType", "name", "path", "sha256", "facts", "references"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "metadataType": { "type": "string", "minLength": 1 },
+          "name": { "type": "string", "minLength": 1 },
+          "path": { "type": "string", "pattern": "^force-app/" },
+          "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "line": { "type": "integer", "minimum": 1 },
+          "facts": {
+            "description": "Source-derived structured facts, shape varies by metadataType. Automations/components additionally carry a usage registry: a Flow's referencedObjects/elementCounts, Apex soqlObjects/dmlOperations, validation-rule object/errorMessagePresent, permission-set object/field permission counts, layout object/fieldCount. Flows and validation rules may carry errorCatalog: declared error surfaces (component, kind, author-written error message text, optional $Label-resolved text, and the decision paths guarding them). Never contains credentials, record data, or business inference.",
+            "type": "object"
+          },
+          "references": {
+            "type": "array",
+            "items": {
+              "type": "object", "additionalProperties": false, "required": ["kind", "target"],
+              "properties": {
+                "kind": {
+                  "description": "Edge type. Object-relation/reference kinds: relationship, operates-on, object-token, schema. Usage-registry kinds (target is Object.Field for field kinds, a bare object for object kinds): reads-field, writes-field, references-field, places-field, grants-field-permission, grants-field-read, grants-field-edit, filters-field, picklist-dependency, queries-object, dml-object, grants-object-permission, grants-object-view-all, grants-object-modify-all, serves-object, soql-field, var-field-ref. Invocation kinds (target names another component): subflow, action, apex-method, apex-controller, invokes-apex, invokes-class, related-list, uses-value-set, sends-alert, uses-template, uses-named-credential, uses-workflow-action, uses-business-process, uses-matching-rule, uses-label, embeds-component, displays-component, launches-flow, overrides-view, grants-class-access, grants-custom-permission, grants-record-type, grants-flow-access, assigns-layout, assigns-to, uses-external-credential, references-auth-provider, grants-to-profile, grants-to-permission-set, references-custom-permission, includes-permission-set, mutes-permission-set, reports-to. External kinds also include grants-user-permission (system-permission string) and shares-with (org principal). External kinds (target outside the component graph): callout-endpoint (hostname). Canonical vocabulary: force_app_knowledge.ALL_REF_KINDS.",
+                  "type": "string", "minLength": 1
+                },
+                "target": { "type": "string", "minLength": 1 },
+                "heuristic": {
+                  "description": "True when this edge came from a source-token heuristic rather than structural parsing (for kinds emitted both ways); absent means the kind-level classification applies.",
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "genericFiles": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["path", "sha256", "category"],
+        "properties": {
+          "path": { "type": "string", "pattern": "^force-app/" },
+          "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "category": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}

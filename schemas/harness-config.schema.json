@@ -1,0 +1,329 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sf-harness-brain-core:harness-config.schema.json",
+  "title": "Brain-core local configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "ado",
+    "salesforce",
+    "safety",
+    "workspace",
+    "cache"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "knowledge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "chatReviewer"
+      ],
+      "properties": {
+        "chatReviewer": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "ado": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "organization",
+        "project",
+        "releaseQueryId",
+        "allowedHttpsOrigins"
+      ],
+      "properties": {
+        "organization": {
+          "type": "string",
+          "minLength": 1
+        },
+        "project": {
+          "type": "string",
+          "minLength": 1
+        },
+        "releaseQueryId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "allowedHttpsOrigins": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^https://"
+          }
+        }
+      }
+    },
+    "salesforce": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "orgs",
+        "review"
+      ],
+      "properties": {
+        "orgs": {
+          "type": "array",
+          "minItems": 0,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "alias",
+              "environment"
+            ],
+            "properties": {
+              "alias": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$"
+              },
+              "environment": {
+                "description": "production is a deny marker: the alias is refused everywhere (owner decisions 2026-07-31 and 2026-08-04).",
+                "enum": [
+                  "development",
+                  "qa",
+                  "uat",
+                  "production"
+                ]
+              },
+              "expectedInstanceHost": {
+                "type": "string",
+                "pattern": "^(?:[A-Za-z0-9][A-Za-z0-9-]*--[A-Za-z0-9][A-Za-z0-9-]*\\.sandbox\\.my\\.salesforce\\.com|[A-Za-z0-9][A-Za-z0-9-]*\\.scratch\\.my\\.salesforce\\.com|[A-Za-z0-9][A-Za-z0-9-]*\\.develop\\.my\\.salesforce\\.com)$"
+              },
+              "expectedOrganizationId": {
+                "type": "string",
+                "pattern": "^00D[A-Za-z0-9]{12}(?:[A-Za-z0-9]{3})?$"
+              },
+              "fullCopy": {
+                "type": "boolean",
+                "description": "Gate-4 owner fact (org-usage layer): true = full-copy sandbox, false = partial/developer. Labels orgUsage blocks so consumers can weigh representativeness; absent = unknown. Sandbox numbers answer shape/presence, never production volume."
+              },
+              "refreshedAt": {
+                "type": "string",
+                "format": "date-time",
+                "description": "Owner-set instant of the last sandbox refresh for this alias. Fallback refresh detector for the org-usage layer: orgUsage blocks observed before this instant are org-superseded even when the Organization Id survived the refresh (orgIdDigest alone cannot detect that case)."
+              }
+            },
+            "allOf": [
+              {
+                "description": "Identity pins are optional (owner 2026-08-04) but travel together: both present keeps the strict exact-org lane, both absent is the discovery lane, exactly one is a config error.",
+                "if": {
+                  "required": [
+                    "expectedInstanceHost"
+                  ]
+                },
+                "then": {
+                  "required": [
+                    "expectedOrganizationId"
+                  ]
+                }
+              },
+              {
+                "if": {
+                  "required": [
+                    "expectedOrganizationId"
+                  ]
+                },
+                "then": {
+                  "required": [
+                    "expectedInstanceHost"
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        "review": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "enabled",
+            "apiVersion",
+            "requireDualSource",
+            "allowedPackageNamespaces",
+            "maxFieldsPerObject",
+            "evidenceMaxAgeMinutes"
+          ],
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "deniedOrganizationIds": {
+              "description": "Owner decision 2026-08-04: organization IDs (00D…, 15 or 18 characters) that agents must never read, whatever alias resolves to them. Enforced at live identity proof time in the review facade (both transport legs) and by verify_salesforce_org.py. The org-level complement of the developer's-responsibility read-anywhere convention.",
+              "type": "array",
+              "maxItems": 50,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "pattern": "^00D[A-Za-z0-9]{12}(?:[A-Za-z0-9]{3})?$"
+              }
+            },
+            "apiVersion": {
+              "type": "string",
+              "pattern": "^[0-9]{2}\\.0$"
+            },
+            "requireDualSource": {
+              "const": true
+            },
+            "allowedPackageNamespaces": {
+              "description": "Namespaces of managed packages in review scope. An empty list means NO managed packages (correct for an org that has none — a Developer Edition or a clean sandbox); [\"*\"] means every installed package. An explicit list stays the tightest option and is preferred where the set is known.",
+              "type": "array",
+              "maxItems": 20,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "pattern": "^(\\*|[A-Za-z][A-Za-z0-9]{0,14})$"
+              }
+            },
+            "allowedObjectApiNames": {
+              "description": "Optional since the 2026-07-30 owner decision: an absent key means all objects (equivalent to [\"*\"]). An explicit list remains fully supported for orgs holding sensitive data.",
+              "type": "array",
+              "maxItems": 100,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "pattern": "^(\\*|[A-Za-z][A-Za-z0-9_]{0,79})$"
+              }
+            },
+            "maxFieldsPerObject": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500
+            },
+            "evidenceMaxAgeMinutes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 30
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "enabled": {
+                    "const": true
+                  }
+                },
+                "required": [
+                  "enabled"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "allowedObjectApiNames": {
+                    "minItems": 1
+                  }
+                }
+              },
+              "else": {
+                "properties": {
+                  "allowedPackageNamespaces": {
+                    "maxItems": 0
+                  },
+                  "allowedObjectApiNames": {
+                    "maxItems": 0
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "safety": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sharedSandboxWritesApproved",
+        "sharedSandboxApprovalRef"
+      ],
+      "properties": {
+        "sharedSandboxWritesApproved": {
+          "type": "boolean"
+        },
+        "sharedSandboxApprovalRef": {
+          "type": "string"
+        },
+        "autoApproveRetrieveWithReceipt": {
+          "description": "RETIRED (owner decision 2026-08-07): retrieve against a configured non-production alias now auto-approves whenever force-app is clean; this toggle is accepted for config compatibility and ignored.",
+          "type": "boolean"
+        },
+        "allowScopedEnumeration": {
+          "description": "Expose the review_configured_orgs facade listing ONLY the orgs configured in this file. Foreign enumeration tools stay denied. Default off.",
+          "type": "boolean"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "sharedSandboxWritesApproved": {
+                "const": true
+              }
+            },
+            "required": [
+              "sharedSandboxWritesApproved"
+            ]
+          },
+          "then": {
+            "properties": {
+              "sharedSandboxApprovalRef": {
+                "minLength": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+    "workspace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "salesforceRootName",
+        "manifestPath"
+      ],
+      "properties": {
+        "salesforceRootName": {
+          "const": "brain-core"
+        },
+        "manifestPath": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "cache": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "onStaleDefault"
+      ],
+      "properties": {
+        "wikiPageMaxAgeMinutes": {
+          "description": "Freshness window for cached wiki pages under .cache/ado-wiki/ (owner-set; onStaleDefault governs behavior past it).",
+          "type": "integer",
+          "minimum": 1
+        },
+        "onStaleDefault": {
+          "enum": [
+            "ask",
+            "refresh",
+            "use",
+            "fail"
+          ]
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,475 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sf-harness-brain-core/schemas/knowledge-entry.schema.json",
+  "title": "Knowledge One-File Entry frontmatter",
+  "description": "Envelope schema for the YAML frontmatter of one canonical Knowledge Entry per logical Salesforce artifact. typeFacts content is validated by the metadata-type profile schema referenced in profile.id/profile.version, not here. Contract: docs/knowledge-one-file-contract.md. Registered in validate_harness.py and enforced by knowledge_store.py at draft time (stale 'not registered' note removed 2026-08-03). The optional orgUsage section is digest-EXCLUDED machine-attested org observation (contract §2.3/§5.7/§6.6) and never enters any approval digest.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "subject",
+    "profile",
+    "scope",
+    "source",
+    "lifecycle",
+    "typeFacts",
+    "extractionCoverage",
+    "assurance",
+    "limitations",
+    "keywords",
+    "candidateKeywords",
+    "sensitivity",
+    "approval"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["metadataType", "fullName", "namespace"],
+      "properties": {
+        "metadataType": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9]{1,79}$" },
+        "fullName": { "type": "string", "minLength": 1, "maxLength": 240 },
+        "namespace": {
+          "type": ["string", "null"],
+          "pattern": "^[A-Za-z][A-Za-z0-9_]{0,14}$",
+          "not": { "const": "c" },
+          "description": "Package namespace; null for subscriber-owned (canonical id segment 'c'). The literal value 'c' is rejected: it is reserved as the subscriber sentinel and is Salesforce's default LWC namespace (contract §2.1, review R2-4)."
+        }
+      }
+    },
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "version", "digest"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^salesforce\\.[a-z][a-z0-9-]{1,60}$" },
+        "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+        "digest": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sourceApiVersion", "sourceTreeDigest", "packageVersionId", "collectorVersion"],
+      "properties": {
+        "sourceApiVersion": { "type": "string", "pattern": "^[0-9]{2,3}\\.[0-9]$" },
+        "collectorVersion": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+          "description": "force_app_knowledge.COLLECTOR_VERSION at draft time — dates a factsDigest move for an auditor. Deliberately outside the facts and reviewed digests."
+        },
+        "sourceTreeDigest": {
+          "$ref": "#/$defs/sha256",
+          "description": "Digest of the analysed source scope content. Never a commit SHA and never derived from the containing commit (contract §5.4)."
+        },
+        "packageVersionId": {
+          "type": ["string", "null"],
+          "pattern": "^04t[A-Za-z0-9]{12,15}$",
+          "description": "Exact package version when applicable; null means unversioned-source scope."
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fragments"],
+      "properties": {
+        "fragments": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "sourceDigest"],
+            "properties": {
+              "path": { "type": "string", "pattern": "^force-app/", "maxLength": 400 },
+              "sourceDigest": { "$ref": "#/$defs/sha256" }
+            }
+          }
+        }
+      }
+    },
+    "lifecycle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "contentDigest"],
+      "properties": {
+        "state": {
+          "enum": ["draft", "approved"],
+          "description": "User-facing state only. Effectiveness lanes (approved-current, approved-drifted, scope-mismatch, ...) are computed at read time and never stored (contract §4)."
+        },
+        "contentDigest": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "typeFacts": {
+      "type": "object",
+      "description": "Profile-validated structured facts. The envelope only requires an object; the profile schema for profile.id/profile.version defines and constrains its shape. A generic/unknown profile must yield extractionCoverage partial|generic, never a seemingly complete typeFacts.",
+      "minProperties": 1
+    },
+    "intentionalErrors": {
+      "type": "array",
+      "description": "Flow only; validated in detail by the Flow profile schema. kind AND originTag are pinned here: originTag is the structural discriminator verified by the executor against the flow XML's <customErrors> element class — a relabeled screen-validation or fault-path record fails it (contract §7, review R2-6).",
+      "items": {
+        "type": "object",
+        "required": ["kind", "originTag"],
+        "properties": {
+          "kind": { "const": "flow-custom-error" },
+          "originTag": { "const": "customErrors" }
+        }
+      }
+    },
+    "extractionCoverage": {
+      "type": "object",
+      "additionalProperties": { "enum": ["full", "partial", "generic"] },
+      "required": ["typeFacts"],
+      "description": "Per-section parser coverage keyed by frontmatter section name. Required for EVERY populated section (executor-enforced; typeFacts pinned here, intentionalErrors pinned via allOf below). Digest-bound inside factsDigest (contract §5.1, review R1-6)."
+    },
+    "assurance": {
+      "type": "object",
+      "additionalProperties": { "enum": ["source-exact", "source-derived-heuristic"] },
+      "required": ["typeFacts"],
+      "description": "Per-section assurance markers; section marker = weakest member; per-edge markers required inside references[] (profile schemas). Digest-bound inside factsDigest. Heuristic output must never be presented as observed or complete (reviews R1-6, R2-9)."
+    },
+    "limitations": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1, "maxLength": 500 },
+      "description": "ALL limitations are digest-bound (contract §5.1); no materiality sub-classes (review R1-7)."
+    },
+    "notes": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1, "maxLength": 500 },
+      "description": "Advisory, digest-EXCLUDED free text. Consumers must never present notes as approved content (review R1-7/R1-12)."
+    },
+    "keywords": {
+      "type": "array",
+      "maxItems": 10,
+      "items": { "type": "string", "minLength": 1, "maxLength": 60 },
+      "description": "Approved-taxonomy terms only; membership is validated by the executor against .ai/knowledge/keyword-taxonomy.md at draft time (not expressible in JSON Schema)."
+    },
+    "candidateKeywords": {
+      "type": "array",
+      "maxItems": 5,
+      "items": { "type": "string", "minLength": 1, "maxLength": 60 },
+      "description": "Advisory suggestions; excluded from established search ranking."
+    },
+    "sensitivity": { "enum": ["public", "internal-sanitized"] },
+    "approval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reviewedContentDigest", "reviewedBy", "reviewedAt", "mechanism"],
+      "properties": {
+        "reviewedContentDigest": {
+          "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }],
+          "description": "canonical_digest({identity, profileMajor, factsDigest, semanticsDigest, sensitivity}) captured at approval; null while draft. The in-file approval block is a MIRROR: the append-only ledger (.ai/knowledge/artifacts-ledger.jsonl) is authoritative, and approved-current additionally requires this digest to be the latest ledger record for the identity (contract §4, §6.1)."
+        },
+        "reviewedBy": { "type": ["string", "null"], "minLength": 3, "maxLength": 120 },
+        "reviewedAt": { "type": ["string", "null"], "format": "date-time" },
+        "mechanism": {
+          "oneOf": [{ "const": "copilot-chat-entry-confirmation" }, { "type": "null" }]
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "reviewedContentDigest": { "type": "string" } } },
+          "then": {
+            "properties": {
+              "reviewedBy": { "type": "string" },
+              "reviewedAt": { "type": "string" },
+              "mechanism": { "const": "copilot-chat-entry-confirmation" }
+            }
+          }
+        }
+      ]
+    },
+    "orgUsage": { "$ref": "#/$defs/orgUsage" }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "lifecycle": { "properties": { "state": { "const": "approved" } } } }
+      },
+      "then": {
+        "properties": {
+          "approval": {
+            "properties": { "reviewedContentDigest": { "type": "string" } }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "subject": { "properties": { "metadataType": { "not": { "const": "Flow" } } } } }
+      },
+      "then": {
+        "properties": { "intentionalErrors": { "maxItems": 0 } }
+      }
+    },
+    {
+      "if": {
+        "properties": { "subject": { "properties": { "metadataType": { "not": { "enum": ["CustomObject", "CustomField"] } } } } }
+      },
+      "then": {
+        "description": "Wave-1 pin (org-usage): only CustomObject and CustomField entries may carry org observations. Combined with $defs orgUsage minProperties 1 on orgs, this makes a populated orgUsage unrepresentable for every other type (clone of the Flow intentionalErrors pin above).",
+        "properties": { "orgUsage": { "properties": { "orgs": { "maxProperties": 0 } } } }
+      }
+    },
+    {
+      "if": {
+        "properties": { "intentionalErrors": { "minItems": 1 } },
+        "required": ["intentionalErrors"]
+      },
+      "then": {
+        "properties": {
+          "extractionCoverage": { "required": ["typeFacts", "intentionalErrors"] },
+          "assurance": { "required": ["typeFacts", "intentionalErrors"] }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "orgApiName": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_.]{0,120}$" },
+    "count": { "type": "integer", "minimum": 0 },
+    "orgUsage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sectionDigest", "orgs"],
+      "description": "Digest-EXCLUDED, expiring, machine-attested org observation (contract §2.3). Never inside factsDigest/semanticsDigest/reviewedContentDigest (§5.7); written only by the entry-org-attach executor against the append-only org ledger (§6.6); assurance is the const org-observed inside this section and can never appear in the shared assurance map. Consumers recompute expiry at read time; an expired block is presented as absent (§4).",
+      "properties": {
+        "sectionDigest": {
+          "$ref": "#/$defs/sha256",
+          "description": "canonical_digest over the orgs map; effective only while it equals the LATEST record for this identity in .ai/knowledge/artifacts-org-ledger.jsonl — the approval ledger is never involved."
+        },
+        "orgs": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": { "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$" },
+          "additionalProperties": { "$ref": "#/$defs/orgUsageOrg" }
+        }
+      }
+    },
+    "orgUsageOrg": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["environment", "orgIdDigest", "observedAt", "expiresAt", "shapeVersion", "transport", "assurance", "probes", "receiptDigest"],
+      "properties": {
+        "environment": { "enum": ["development", "qa", "uat"] },
+        "orgIdDigest": {
+          "$ref": "#/$defs/sha256",
+          "description": "sha256 of the configured expectedOrganizationId — sandbox-refresh detector; the raw 00D id is never stored."
+        },
+        "fullCopy": { "type": "boolean", "description": "Owner-supplied per-alias fact (harness config); absent = unknown. Sandbox numbers answer shape/presence, never production volume." },
+        "observedAt": { "type": "string", "format": "date-time" },
+        "expiresAt": { "type": "string", "format": "date-time" },
+        "shapeVersion": { "const": 1, "description": "Version of the persistable-shape instrument (this $defs family) the human approved (owner decision D-3 2026-08-03: schema-as-instrument, click-free attach)." },
+        "transport": { "const": "mcp-review-facade" },
+        "assurance": { "const": "org-observed" },
+        "probes": {
+          "type": "object",
+          "minProperties": 1,
+          "maxProperties": 40,
+          "propertyNames": { "pattern": "^[a-z][a-z0-9-]{2,40}$" },
+          "additionalProperties": { "$ref": "#/$defs/orgUsageProbe" },
+          "description": "Labels are free slugs chosen by the agent (owner decision D-5' 2026-08-03: several probes of one kind with different WHERE criteria are legal, e.g. record-sample-status-active); the closed instrument is the kind enum plus the per-kind results shape. Exact queryText lives only in the receipt; the entry keeps queryDigest."
+        },
+        "recordStructure": {
+          "type": "array",
+          "maxItems": 40,
+          "items": { "$ref": "#/$defs/orgUsageStructureRow" },
+          "description": "D-NEST persisted half: dotted-path shape summaries only; exemplar values stay live-only."
+        },
+        "receiptDigest": {
+          "$ref": "#/$defs/sha256",
+          "description": "Seals the gitignored receipt wrapper under .cache/org-usage/ (contract §3); survives cache loss as a seal, not as a resolvable reference."
+        }
+      }
+    },
+    "orgUsageProbe": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "queryDigest", "completeness", "results"],
+      "properties": {
+        "kind": { "enum": ["object-shape", "record-type-distribution", "field-fill", "field-cardinality", "picklist-distribution", "recency-window", "lookup-shape", "record-sample"] },
+        "queryDigest": { "$ref": "#/$defs/sha256" },
+        "completeness": { "const": "complete", "description": "Only complete probes persist; INCOMPLETE/BLOCKED results are dropped and reported, never stored." },
+        "results": { "type": "object" }
+      },
+      "allOf": [
+        { "if": { "properties": { "kind": { "const": "object-shape" } }, "required": ["kind"] }, "then": { "properties": { "results": { "$ref": "#/$defs/orgUsageResultsObjectShape" } } } },
+        { "if": { "properties": { "kind": { "const": "record-type-distribution" } }, "required": ["kind"] }, "then": { "properties": { "results": { "$ref": "#/$defs/orgUsageResultsDistribution" } } } },
+        { "if": { "properties": { "kind": { "const": "picklist-distribution" } }, "required": ["kind"] }, "then": { "properties": { "results": { "$ref": "#/$defs/orgUsageResultsDistribution" } } } },
+        { "if": { "properties": { "kind": { "const": "field-fill" } }, "required": ["kind"] }, "then": { "properties": { "results": { "$ref": "#/$defs/orgUsageResultsFieldFill" } } } },
+        { "if": { "properties": { "kind": { "const": "field-cardinality" } }, "required": ["kind"] }, "then": { "properties": { "results": { "$ref": "#/$defs/orgUsageResultsFieldCardinality" } } } },
+        { "if": { "properties": { "kind": { "const": "recency-window" } }, "required": ["kind"] }, "then": { "properties": { "results": { "$ref": "#/$defs/orgUsageResultsRecencyWindow" } } } },
+        { "if": { "properties": { "kind": { "const": "lookup-shape" } }, "required": ["kind"] }, "then": { "properties": { "results": { "$ref": "#/$defs/orgUsageResultsLookupShape" } } } },
+        { "if": { "properties": { "kind": { "const": "record-sample" } }, "required": ["kind"] }, "then": { "properties": { "results": { "$ref": "#/$defs/orgUsageResultsRecordSample" } } } }
+      ]
+    },
+    "orgUsageResultsObjectShape": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["recordCount"],
+      "properties": {
+        "recordCount": { "$ref": "#/$defs/count" },
+        "createdFirst": { "type": ["string", "null"], "format": "date-time" },
+        "createdLast": { "type": ["string", "null"], "format": "date-time" },
+        "lastModifiedMax": { "type": ["string", "null"], "format": "date-time" }
+      }
+    },
+    "orgUsageResultsDistribution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["groups", "suppressionFloor"],
+      "properties": {
+        "field": { "$ref": "#/$defs/orgApiName" },
+        "groups": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["key", "recordCount"],
+            "properties": {
+              "key": { "type": "string", "maxLength": 80, "description": "Sanitized group key ((null) for the null bucket); groups below the suppression floor are folded into otherBucket, executor-side." },
+              "recordCount": { "$ref": "#/$defs/count" }
+            }
+          }
+        },
+        "otherBucket": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["suppressedGroups", "recordCount"],
+          "properties": {
+            "suppressedGroups": { "$ref": "#/$defs/count" },
+            "recordCount": { "$ref": "#/$defs/count" }
+          }
+        },
+        "suppressionFloor": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "orgUsageResultsFieldFill": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fields"],
+      "properties": {
+        "fields": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 200,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["field", "filledCount", "totalCount"],
+            "properties": {
+              "field": { "$ref": "#/$defs/orgApiName" },
+              "filledCount": { "$ref": "#/$defs/count" },
+              "totalCount": { "$ref": "#/$defs/count" }
+            }
+          }
+        }
+      }
+    },
+    "orgUsageResultsFieldCardinality": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fields"],
+      "properties": {
+        "fields": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 200,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["field", "distinctCount", "totalCount"],
+            "properties": {
+              "field": { "$ref": "#/$defs/orgApiName" },
+              "distinctCount": { "$ref": "#/$defs/count" },
+              "totalCount": { "$ref": "#/$defs/count" }
+            }
+          }
+        }
+      }
+    },
+    "orgUsageResultsRecencyWindow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["windows"],
+      "properties": {
+        "windows": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 12,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["windowDays", "recordCount"],
+            "properties": {
+              "windowDays": { "type": "integer", "minimum": 1, "maximum": 3650 },
+              "recordCount": { "$ref": "#/$defs/count" }
+            }
+          }
+        }
+      }
+    },
+    "orgUsageResultsLookupShape": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fields"],
+      "properties": {
+        "fields": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 200,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["field", "targetObject", "filledCount", "totalCount"],
+            "properties": {
+              "field": { "$ref": "#/$defs/orgApiName" },
+              "targetObject": { "$ref": "#/$defs/orgApiName" },
+              "filledCount": { "$ref": "#/$defs/count" },
+              "totalCount": { "$ref": "#/$defs/count" }
+            }
+          }
+        }
+      }
+    },
+    "orgUsageResultsRecordSample": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sampleSize", "fieldFill"],
+      "properties": {
+        "sampleSize": { "type": "integer", "minimum": 1, "maximum": 50 },
+        "fieldFill": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 40,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["field", "populatedCount", "sampleSize"],
+            "properties": {
+              "field": { "$ref": "#/$defs/orgApiName" },
+              "populatedCount": { "$ref": "#/$defs/count" },
+              "sampleSize": { "type": "integer", "minimum": 1, "maximum": 50 }
+            }
+          }
+        }
+      }
+    },
+    "orgUsageStructureRow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "targetObject", "populated", "sampleSize"],
+      "properties": {
+        "path": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_.]{0,199}$" },
+        "targetObject": { "$ref": "#/$defs/orgApiName" },
+        "populated": { "type": "string", "pattern": "^[0-9]{1,5}/[0-9]{1,5}$" },
+        "sampleSize": { "type": "integer", "minimum": 1, "maximum": 50 },
+        "polymorphicObservedType": { "type": ["string", "null"] }
+      }
+    }
+  }
+}

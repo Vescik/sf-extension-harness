@@ -1,0 +1,53 @@
+{
+  "inputs": [
+    {
+      "id": "sf_read_org",
+      "type": "promptString",
+      "description": "Non-production Salesforce alias for read-only investigation (proven live per call)"
+    }
+  ],
+  "servers": {
+    "ado-readonly": {
+      "type": "stdio",
+      "command": "node",
+      "cwd": "${workspaceFolder}",
+      "args": [
+        "node_modules/@azure-devops/mcp/dist/index.js",
+        "${env:ADO_ORGANIZATION}",
+        "-d",
+        "work-items",
+        "wiki",
+        "test-plans",
+        "search"
+      ]
+    },
+    "salesforce-readonly": {
+      "type": "stdio",
+      "command": "node",
+      "cwd": "${workspaceFolder}",
+      "args": [
+        "scripts/start_salesforce_mcp.mjs",
+        "--mode",
+        "review",
+        "--org",
+        "${input:sf_read_org}"
+      ]
+    },
+    "knowledge": {
+      "type": "stdio",
+      "command": "node",
+      "cwd": "${workspaceFolder}",
+      "args": [
+        "scripts/knowledge_mcp_server.mjs"
+      ]
+    },
+    "solution-design": {
+      "type": "stdio",
+      "command": "node",
+      "cwd": "${workspaceFolder}",
+      "args": [
+        "scripts/solution_design_mcp_server.mjs"
+      ]
+    }
+  }
+}

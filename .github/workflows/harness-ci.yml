@@ -1,0 +1,104 @@
+name: Harness CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: harness-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate brain-core contracts (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    # Headroom for the windows-latest leg: NTFS + Defender make file IO and process spawns
+    # (the facade subprocess tests) several times slower than ubuntu-latest, and runner noise
+    # varies between runs. (The 3000-entry benchmark gate that once justified 30 minutes left
+    # CI on 2026-08-04; the benchmark itself was retired on 2026-08-05.)
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-dev.lock
+
+      - name: Install validation dependencies
+        # --require-hashes verifies every downloaded artifact against the pinned sha256 set,
+        # defeating index-substitution / version-hijack (matters most for the rpds-py binary wheel).
+        run: python -m pip install --disable-pip-version-check --require-hashes -r requirements-dev.lock
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+
+      - name: Install pinned Salesforce review runtime
+        run: npm ci --ignore-scripts
+
+      - name: Audit npm dependency tree
+        # Hard-fail on HIGH+ advisories in the production tree (tightened from critical on
+        # 2026-08-04 after the deps-hygiene lockfile refresh cleared every high). Known
+        # accepted residual: the moderate fast-xml-parser advisory on a 4.x copy nested in
+        # the MCP code-analyzer provider — unfixable in range from here, discovery
+        # 2026-08-04. Moderate stays non-blocking (it would flap on upstream churn).
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Compile Python controls
+        run: python -m compileall -q scripts tests
+
+      - name: Parse Salesforce MCP launcher
+        run: |
+          node --check scripts/start_salesforce_mcp.mjs
+          node --check scripts/salesforce_review_server.mjs
+          node --check scripts/knowledge_mcp_server.mjs
+
+      - name: Validate harness structure and contracts
+        run: python scripts/validate_harness.py
+
+      - name: Validate knowledge entry store and search index drift
+        # validate_harness.py already runs entry-check as a grounding check; the explicit step
+        # makes a knowledge-store failure attributable in the CI log instead of a generic error.
+        run: |
+          python scripts/knowledge_store.py entry-check
+          python scripts/knowledge_search.py build
+
+      - name: Run unit tests
+        run: python -m unittest discover -s tests -v
+
+      - name: Run deterministic safety evaluations
+        run: python scripts/run_evals.py
+
+      - name: Validate embedded Salesforce project tooling
+        run: |
+          npm run prettier:verify
+          npm run lint
+
+      - name: Confirm local and generated state is ignored
+        shell: bash
+        run: |
+          # git check-ignore exits 0 if ANY argument is ignored, so check each path individually
+          # to catch a single path that stops being ignored.
+          for path in \
+            config/harness.local.json \
+            config/harness.json \
+            .cache/ado-items/example.json \
+            output/handover/example.md \
+            .env \
+            force-app/main/default/lwc/jsconfig.json \
+            deploy-options.json; do
+            git check-ignore -q "$path" || { echo "NOT IGNORED: $path"; exit 1; }
+          done

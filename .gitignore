@@ -1,0 +1,62 @@
+# ─── Brain-core harness .gitignore ───────────────────────────────────────────
+# This repository versions the complete developer workspace: the harness and the
+# Salesforce DX project share the single repository root (the nested salesforce/
+# layout was retired; the validator rejects it).
+
+# ── Raw fetched data ──
+# Gitignored by design (blueprint §13 and §17). The folder structure itself stays
+# tracked via .gitkeep, so re-include directories and .gitkeep explicitly.
+.cache/**
+!.cache/**/
+!.cache/**/.gitkeep
+
+# ── Generated AI artifacts ──
+# output/ holds AI-generated content for human review / manual promotion (docs to the
+# wiki, DOCX/PDF export) — not curated
+# brain. PROVISIONAL: blueprint §13 says output/ git policy "depends on the subfolder"
+# and does not resolve which subfolders are committed. Until that is decided, ignore the
+# generated CONTENT but keep the folder structure (same pattern as .cache/). Without this,
+# the SETUP.md §4 sync ritual (git add -A) would silently commit every generated artifact.
+# Revisit per §13 (design-history record: flag 24, reachable via the design-history git tag).
+output/**
+!output/**/
+!output/**/.gitkeep
+
+# ── Salesforce metadata content ──
+# Org metadata is retrieved and deployed by humans (sf project retrieve / deploy) and kept local
+# only; it is not versioned here. Commit just the directory skeleton so the SFDX project, CI, and
+# harness validation still resolve (same keep-the-folders pattern as .cache/ and output/).
+force-app/main/default/**
+!force-app/main/default/**/
+!force-app/main/default/**/.gitkeep
+
+# ── OS noise ──
+.DS_Store
+
+# ── Salesforce local tooling state ──
+# The repository root is the Salesforce DX project. Ignore only local tooling/generated state;
+# never ignore manifest/ or sfdx-project.json.
+/.sfdx/
+/.sf/
+/.localdevserver/
+deploy-options.json
+coverage/
+.pmdCache
+.eslintcache
+**/lwc/jsconfig.json
+node_modules/
+logs/
+*.log
+
+# ── Local harness configuration and runtime state ──
+config/harness.local.json
+# Safety net: only harness.example.json (tracked) and harness.local.json (ignored) are real.
+# A stray config/harness.json invites name-confusion and could leak org values if committed.
+config/harness.json
+.env
+*.local.code-workspace
+.venv/
+__pycache__/
+*.pyc
+.coverage
+htmlcov/
