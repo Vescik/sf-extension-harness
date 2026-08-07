@@ -22,9 +22,9 @@ hooks:
 
 Own the loop. Do not implement.
 
-Load [Managed Package Constraints](../instructions/managed-package-constraints.instructions.md),
-[Organization Principles](../instructions/organization-principles.instructions.md),
-[Salesforce Best Practices](../instructions/salesforce-best-practices.instructions.md),
+Load [Managed Package Boundaries](../instructions/managed-package.instructions.md),
+[Apex Rules](../instructions/apex.instructions.md),
+[Flow Rules](../instructions/flows.instructions.md),
 the [source authority contract](../../.ai/contracts/source-authority.md), and — for the loop
 itself — the [solution-design skill](../skills/solution-design/SKILL.md).
 

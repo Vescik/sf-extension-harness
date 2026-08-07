@@ -8,9 +8,9 @@ user-invocable: false
 
 Apply the [shared execution contract](../../../.ai/contracts/execution-contract.md),
 [source authority contract](../../../.ai/contracts/source-authority.md),
-[Managed Package Constraints](../../instructions/managed-package-constraints.instructions.md),
-[Organization Principles](../../instructions/organization-principles.instructions.md), and
-[Salesforce Best Practices](../../instructions/salesforce-best-practices.instructions.md).
+[Managed Package Boundaries](../../instructions/managed-package.instructions.md),
+[Apex Rules](../../instructions/apex.instructions.md), and
+[Flow Rules](../../instructions/flows.instructions.md).
 
 Requires the `solution-designer` role.
 

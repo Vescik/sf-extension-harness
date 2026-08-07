@@ -1,19 +1,14 @@
 {
-  "$comment": "Deliverable H1 (rebuild plan §5): the static (artefact type × action) → rule-id table the verify checklist is computed from. Versioned next to the instructions files; load_rule_triggers() fails closed when this table and the live rule definitions drift in either direction. `always` rules sit on every checklist — a verdict of `n-a` with one sentence is cheap, and MP/ORG applicability depends on ownership and org context the matrix cannot see. The matrix scopes the eight SF craft rules by artefact type; `<Type>:*` matches every action.",
+  "$comment": "The static (artefact type × action) → rule-id table the verify checklist is computed from. Versioned next to the instructions files; load_rule_triggers() fails closed when this table and the live rule definitions drift in either direction. Context-first phase 1 (plan 2026-08-07): regenerated for the applyTo-split instruction files — boundary rules (MP-*, ORG-SBX-*) sit on every checklist; Apex craft rules scope to Apex artefacts, Flow rules to Flow. SAFE-* rules are hook/human-gate enforced and excluded by RULE_ID. This runtime is retirement-bound (plan §3.11/phase 5); the table is kept coherent, not extended.",
   "policyVersion": "sd-triggers-v1",
   "always": [
-    "MP-GEN-001", "MP-GEN-002", "MP-GEN-003", "MP-GEN-004", "MP-GEN-005", "MP-GEN-006",
-    "MP-OWN-001", "MP-EXT-001", "MP-AUTO-001", "MP-ABS-001", "MP-DRIFT-001", "MP-REG-001",
-    "MP-UNKNOWN-001",
-    "ORG-NAME-001", "ORG-REVIEW-001", "ORG-REVIEW-002", "ORG-DEC-001", "ORG-DEC-002",
-    "ORG-KNOW-001", "ORG-KNOW-002", "ORG-KNOW-003", "ORG-HAND-001", "ORG-HAND-002",
-    "ORG-SBX-001", "ORG-SBX-002",
-    "SF-AUTO-001", "SF-META-001", "SF-EVID-001", "SF-EVID-002", "SF-EVID-003", "SF-EVID-004"
+    "MP-NS-001", "MP-EXT-001", "MP-DESIGN-001", "MP-OWN-001", "MP-MAP-001",
+    "ORG-SBX-001", "ORG-SBX-002"
   ],
   "byArtefactAction": {
     "ApexClass:*": ["SF-BULK-001", "SF-LIMIT-001", "SF-SEC-001", "SF-SOQL-001", "SF-TEST-001", "SF-ERR-001", "SF-NAME-001"],
     "ApexTrigger:*": ["SF-BULK-001", "SF-LIMIT-001", "SF-TRIG-001", "SF-SEC-001", "SF-SOQL-001", "SF-TEST-001", "SF-ERR-001", "SF-NAME-001"],
-    "Flow:*": ["SF-BULK-001", "SF-LIMIT-001", "SF-SEC-001", "SF-ERR-001", "SF-NAME-001"],
+    "Flow:*": ["SF-FLOW-001", "SF-FLOW-002", "SF-FLOW-003", "SF-FLOW-004", "SF-FLOW-005"],
     "ValidationRule:*": ["SF-ERR-001", "SF-NAME-001"],
     "CustomObject:*": ["SF-SEC-001", "SF-NAME-001"],
     "CustomField:*": ["SF-SEC-001", "SF-NAME-001"],

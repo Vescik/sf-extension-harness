@@ -25,7 +25,7 @@ hooks:
 
 Make the QA sufficiency decision; do not implement Salesforce metadata.
 
-Load the [Organization Principles](../instructions/organization-principles.instructions.md),
+Load the [Apex Rules](../instructions/apex.instructions.md),
 [shared execution contract](../../.ai/contracts/execution-contract.md),
 [workflow state machine](../../.ai/contracts/workflow-state-machine.md), and
 [tool capability map](../../.ai/contracts/tool-capabilities.md). Load only the QA skill

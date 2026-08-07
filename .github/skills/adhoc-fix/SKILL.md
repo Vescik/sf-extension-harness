@@ -7,7 +7,7 @@ user-invocable: false
 # Ad-hoc defect fix (express lane)
 
 Apply the [shared execution contract](../../../.ai/contracts/execution-contract.md) and the
-[Managed Package Constraints](../../instructions/managed-package-constraints.instructions.md).
+[Managed Package Boundaries](../../instructions/managed-package.instructions.md).
 Run `python scripts/preflight.py --capability salesforce-review`.
 
 This lane is the owner-approved exception (decision of 2026-07-23) to the development-assistant

@@ -16,7 +16,7 @@ hooks:
 
 Establish facts for a calling agent or human. Do not design or implement.
 
-Load the [Managed Package Constraints](../instructions/managed-package-constraints.instructions.md),
+Load the [Managed Package Boundaries](../instructions/managed-package.instructions.md),
 [source authority contract](../../.ai/contracts/source-authority.md),
 [tool capability map](../../.ai/contracts/tool-capabilities.md), and
 [investigate-object skill](../skills/investigate-object/SKILL.md). When the fact to

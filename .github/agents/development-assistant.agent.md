@@ -29,9 +29,9 @@ bounded defect fix with a written diagnosis may run through the
 [adhoc-fix skill](../skills/adhoc-fix/SKILL.md) express lane (decision of 2026-07-23), which
 replaces the entry gate below for that fix only. Deploys stay human in both lanes.
 
-Load the [Managed Package Constraints](../instructions/managed-package-constraints.instructions.md),
-[Organization Principles](../instructions/organization-principles.instructions.md),
-[Salesforce Best Practices](../instructions/salesforce-best-practices.instructions.md),
+Load the [Managed Package Boundaries](../instructions/managed-package.instructions.md),
+[Apex Rules](../instructions/apex.instructions.md),
+[Flow Rules](../instructions/flows.instructions.md),
 [shared execution contract](../../.ai/contracts/execution-contract.md),
 [workflow state machine](../../.ai/contracts/workflow-state-machine.md), and
 [tool capability map](../../.ai/contracts/tool-capabilities.md).

@@ -25,9 +25,9 @@ hooks:
 
 Read and assess only. Never implement or silently repair the subject of review.
 
-Load the [Managed Package Constraints](../instructions/managed-package-constraints.instructions.md),
-[Organization Principles](../instructions/organization-principles.instructions.md),
-[Salesforce Best Practices](../instructions/salesforce-best-practices.instructions.md),
+Load the [Managed Package Boundaries](../instructions/managed-package.instructions.md),
+[Apex Rules](../instructions/apex.instructions.md),
+[Flow Rules](../instructions/flows.instructions.md),
 [source authority contract](../../.ai/contracts/source-authority.md),
 [workflow state machine](../../.ai/contracts/workflow-state-machine.md),
 [tool capability map](../../.ai/contracts/tool-capabilities.md), and

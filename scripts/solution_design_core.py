@@ -31,12 +31,13 @@ STATE_SCHEMA = HARNESS_ROOT / "schemas" / "solution-design-state.schema.json"
 LOOP_CONFIG_PATH = HARNESS_ROOT / "config" / "solution-design-loop.json"
 RULE_TRIGGERS_PATH = HARNESS_ROOT / "config" / "solution-design-rule-triggers.json"
 
-# The 39 loop rules live in these three files; SAFE-* rules in copilot-instructions.md are
-# enforced by hooks and the human gate, never by the verify checklist.
+# Context-first phase 1 (plan 2026-08-07): the loop rules live in the applyTo-scoped
+# instruction files. SAFE-* rules are enforced by hooks and the human gate, never by the
+# verify checklist (RULE_ID below filters them out of the trigger table).
 RULE_SOURCE_FILES = (
-    HARNESS_ROOT / ".github" / "instructions" / "managed-package-constraints.instructions.md",
-    HARNESS_ROOT / ".github" / "instructions" / "organization-principles.instructions.md",
-    HARNESS_ROOT / ".github" / "instructions" / "salesforce-best-practices.instructions.md",
+    HARNESS_ROOT / ".github" / "instructions" / "managed-package.instructions.md",
+    HARNESS_ROOT / ".github" / "instructions" / "apex.instructions.md",
+    HARNESS_ROOT / ".github" / "instructions" / "flows.instructions.md",
 )
 
 CANONICALIZER_VERSION = "sd-c14n-v1"

@@ -128,10 +128,10 @@ REQUIRED_SETTINGS = (
     "chat.useCustomAgentHooks",
     "chat.useCustomizationsInParentRepositories",
 )
+# Phase 1 of the context-first rebuild: the naming-convention, code-review, and
+# decision-format placeholders left with organization-principles and re-enter with
+# docs/design-guides.md in phase 2. Only the shared-sandbox rule remains always-on.
 EXPECTED_HUMAN_PLACEHOLDERS = {
-    "<TU_WSTAW_KONWENCJE_NAZEWNICZE_FIRMY>",
-    "<TU_WSTAW_ZASADY_CODE_REVIEW>",
-    "<TU_WSTAW_FORMAT_DOKUMENTOWANIA_DECYZJI>",
     "<TU_WSTAW_ZASADY_PRACY_NA_WSPOLDZIELONYM_SANDBOXIE>",
 }
 
@@ -507,13 +507,18 @@ def check_customizations(audit: Audit, root: Path = ROOT) -> None:
     for path in instruction_paths:
         data, _ = frontmatter(path, audit)
         audit.require(bool(data.get("description")), f"{relative(path)}: description is required")
-        audit.require("applyTo" not in data, f"{relative(path)}: detailed Principles must load explicitly by role, not automatically")
+        # Context-first architecture (plan 2026-08-07): instructions load contextually by
+        # path scope, not through role machinery. Every instruction file must say where it
+        # applies; managed-package boundaries must apply everywhere.
+        audit.require(bool(data.get("applyTo")), f"{relative(path)}: instructions must declare an applyTo scope")
+    mp_data, _ = frontmatter(ROOT / ".github/instructions/managed-package.instructions.md", audit)
+    audit.require(mp_data.get("applyTo") == "**", "managed-package.instructions.md must apply to every file (applyTo: \"**\")")
 
     all_agent_bodies = "\n".join(path.read_text(encoding="utf-8") for path in agent_paths)
     for required_link in (
         "source-authority.md",
         "workflow-state-machine.md",
-        "managed-package-constraints.instructions.md",
+        "managed-package.instructions.md",
     ):
         audit.require(required_link in all_agent_bodies, f"agents do not explicitly load required resource {required_link}")
     for path in agent_paths:
@@ -1153,8 +1158,11 @@ def check_grounding_contracts(audit: Audit) -> None:
     # host actually enforces the per-agent role guard — and that is exactly the compatibility
     # question this shim exists to answer.
     audit.require(len(agents_md.split()) <= 150, "AGENTS.md must remain a bounded compatibility shim")
-    for marker in ("SAFE-CLAIM-001", "SAFE-TOOL-001", "SAFE-CHAT-001", "SAFE-DRIFT-001"):
-        audit.require(marker in root_instructions, f"always-on grounding rule is missing: {marker}")
+    # Context-first phase 1: the kernel is orientation-only; the non-negotiable rules
+    # moved to managed-package.instructions.md, whose applyTo "**" keeps them always-on.
+    boundaries = required_text(ROOT / ".github/instructions/managed-package.instructions.md", audit)
+    for marker in ("MP-NS-001", "SAFE-ENV-001", "SAFE-UNTRUST-001", "SAFE-TOOL-001", "SAFE-HUMAN-001"):
+        audit.require(marker in boundaries, f"always-on boundary rule is missing: {marker}")
 
     principle_paths = [ROOT / ".github/copilot-instructions.md"] + sorted(
         (ROOT / ".github/instructions").glob("*.instructions.md")

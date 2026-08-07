@@ -55,7 +55,7 @@ SEAM_FIELD = """<?xml version="1.0" encoding="UTF-8"?>
 class WorkRecordTests(unittest.TestCase):
     record_id = "ADO-example-project-123"
     entry_id = "CustomObject:c:Account"
-    rule_ids = ["SAFE-EVID-001", "MP-OWN-001", "ORG-KNOW-001", "SF-BULK-001"]
+    rule_ids = ["MP-NS-001", "SAFE-ENV-001", "SF-BULK-001", "SF-FLOW-001"]
 
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory(prefix="work-record-v2-")
@@ -130,23 +130,30 @@ class WorkRecordTests(unittest.TestCase):
         for name in schema_names:
             shutil.copy2(ROOT / "schemas" / name, self.root / "schemas" / name)
 
+        # Context-first phase 1: files re-split by applyTo scope. The kernel declares no
+        # rules anymore; boundaries (MP/SAFE) are tier 1, Apex/Flow engineering tier 3.
         source_by_rule = {
-            "SAFE-EVID-001": ("kernel", ".github/copilot-instructions.md", "repository-policy", "global"),
-            "MP-OWN-001": (
+            "MP-NS-001": (
                 "1",
-                ".github/instructions/managed-package-constraints.instructions.md",
+                ".github/instructions/managed-package.instructions.md",
                 "managed-package-policy",
                 "managed-package",
             ),
-            "ORG-KNOW-001": (
-                "2",
-                ".github/instructions/organization-principles.instructions.md",
-                "organization-policy",
-                "organization",
+            "SAFE-ENV-001": (
+                "1",
+                ".github/instructions/managed-package.instructions.md",
+                "repository-policy",
+                "global",
             ),
             "SF-BULK-001": (
                 "3",
-                ".github/instructions/salesforce-best-practices.instructions.md",
+                ".github/instructions/apex.instructions.md",
+                "salesforce-platform-practice",
+                "salesforce-platform",
+            ),
+            "SF-FLOW-001": (
+                "3",
+                ".github/instructions/flows.instructions.md",
                 "salesforce-platform-practice",
                 "salesforce-platform",
             ),
@@ -157,10 +164,16 @@ class WorkRecordTests(unittest.TestCase):
             del tier, kind, scope  # tier derives from the file; the rest was registry-only
             path = self.root / source
             path.parent.mkdir(parents=True, exist_ok=True)
+            existing = path.read_text(encoding="utf-8") if path.is_file() else ""
             path.write_text(
-                f"- **{rule_id} — test canonical rule.** Test canonical rule source.\n",
+                existing + f"- **{rule_id} — test canonical rule.** Test canonical rule source.\n",
                 encoding="utf-8",
             )
+        # The kernel declares no rules (context-first phase 1) but rule resolution still
+        # requires every RULE_SOURCE_TIERS file to exist.
+        (self.root / ".github" / "copilot-instructions.md").write_text(
+            "orientation only — no rules declared\n", encoding="utf-8"
+        )
 
         config_dir = self.root / "config"
         config_dir.mkdir(parents=True)

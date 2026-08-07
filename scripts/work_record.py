@@ -38,11 +38,16 @@ VERIFICATION_POLICY_PATH = "config/verification-policy.json"
 # tier is a property of WHICH file declares the rule. (Owner decision 2026-08-04: the
 # rule-registry.yaml re-encoding of these files was retired — validate_harness pins that
 # every ID is declared exactly once across the four sources.)
+# Context-first phase 1 (plan 2026-08-07): instruction files were re-split by applyTo
+# scope. Boundary rules (MP/SAFE/ORG-SBX) all live in managed-package.instructions.md and
+# stay tier 1; the Apex/Flow engineering rules are tier 3. The former tier-2 organization
+# file was retired; its surviving policy content moves to docs/design-guides.md (phase 2),
+# outside rule-ID resolution.
 RULE_SOURCE_TIERS: tuple[tuple[str, str], ...] = (
     (".github/copilot-instructions.md", "kernel"),
-    (".github/instructions/managed-package-constraints.instructions.md", "1"),
-    (".github/instructions/organization-principles.instructions.md", "2"),
-    (".github/instructions/salesforce-best-practices.instructions.md", "3"),
+    (".github/instructions/managed-package.instructions.md", "1"),
+    (".github/instructions/apex.instructions.md", "3"),
+    (".github/instructions/flows.instructions.md", "3"),
 )
 
 AGENT_ROLES = {
@@ -1179,10 +1184,12 @@ def validate_record_semantics(root: Path, record: dict[str, Any], *, check_desig
         ):
             raise WorkRecordError("SAFE/complete state requires verified non-production environment evidence")
         assert_fresh_environment_receipt(root, record, evidence_by_path)
-        if not record["ruleRefs"] or not {"kernel", "1", "2", "3"}.issubset(
+        # Context-first phase 1: the kernel declares no rules and the tier-2 organization
+        # file was retired — boundary rules are tier 1, engineering rules tier 3.
+        if not record["ruleRefs"] or not {"1", "3"}.issubset(
             {item["tier"] for item in record["ruleRefs"]}
         ):
-            raise WorkRecordError("SAFE/complete state requires applicable rules from kernel and Tiers 1-3")
+            raise WorkRecordError("SAFE/complete state requires applicable boundary (Tier 1) and engineering (Tier 3) rules")
         if not record.get("entryRefs"):
             raise WorkRecordError(
                 "SAFE/complete state requires fresh approved Knowledge grounding (entries)"
@@ -2316,10 +2323,10 @@ def command_approve(args: argparse.Namespace) -> dict[str, Any]:
         raise WorkRecordError("human design approval is allowed only from design/awaiting_human")
     if open_question_ids(record):
         raise WorkRecordError("human approval is blocked by unresolved blocking questions")
-    if not record["ruleRefs"] or not {"kernel", "1", "2", "3"}.issubset(
+    if not record["ruleRefs"] or not {"1", "3"}.issubset(
         {item["tier"] for item in record["ruleRefs"]}
     ):
-        raise WorkRecordError("human approval requires applicable rules from kernel and Tiers 1-3")
+        raise WorkRecordError("human approval requires applicable boundary (Tier 1) and engineering (Tier 3) rules")
     if not record.get("entryRefs"):
         raise WorkRecordError(
             "human approval requires at least one approved Knowledge entry"

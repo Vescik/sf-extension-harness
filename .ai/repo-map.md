@@ -33,12 +33,12 @@ the deep directory tree lives in `docs/workspace-topology.md`.
 
 ## Roles (`.github/agents/`)
 
-- **config-investigator** — Read-only evidence collector for allowlisted …. Loads instructions: managed-package-constraints; contracts: source-authority, tool-capabilities; skills: inventory-force-app, investigate-config-records, investigate-object, selected-files-knowledge.
-- **development-assistant** — Implement a human-accepted Salesforce design …. Loads instructions: managed-package-constraints, organization-principles, salesforce-best-practices; contracts: execution-contract, tool-capabilities, workflow-state-machine; skills: adhoc-fix. Hands off to: guardrail-reviewer, solution-designer.
-- **guardrail-reviewer** — Independently review a design or …. Loads instructions: managed-package-constraints, organization-principles, salesforce-best-practices; contracts: source-authority, tool-capabilities, workflow-state-machine; skills: check-against-principles. Hands off to: development-assistant, solution-designer.
-- **knowledge-curator** — Maintains governed Knowledge from repository …. Loads instructions: managed-package-constraints; contracts: source-authority, workflow-state-machine; skills: approve-knowledge-drafts, search-knowledge.
-- **solution-designer** — Run the Solution Design loop …. Loads instructions: managed-package-constraints, organization-principles, salesforce-best-practices; contracts: source-authority; skills: solution-design. Hands off to: guardrail-reviewer.
-- **test-strategist** — Assess QA inventory freshness and …. Loads instructions: organization-principles; contracts: execution-contract, tool-capabilities, workflow-state-machine. Hands off to: development-assistant, guardrail-reviewer.
+- **config-investigator** — Read-only evidence collector for allowlisted …. Loads instructions: managed-package; contracts: source-authority, tool-capabilities; skills: inventory-force-app, investigate-config-records, investigate-object, selected-files-knowledge.
+- **development-assistant** — Implement a human-accepted Salesforce design …. Loads instructions: apex, flows, managed-package; contracts: execution-contract, tool-capabilities, workflow-state-machine; skills: adhoc-fix. Hands off to: guardrail-reviewer, solution-designer.
+- **guardrail-reviewer** — Independently review a design or …. Loads instructions: apex, flows, managed-package; contracts: source-authority, tool-capabilities, workflow-state-machine; skills: check-against-principles. Hands off to: development-assistant, solution-designer.
+- **knowledge-curator** — Maintains governed Knowledge from repository …. Loads instructions: managed-package; contracts: source-authority, workflow-state-machine; skills: approve-knowledge-drafts, search-knowledge.
+- **solution-designer** — Run the Solution Design loop …. Loads instructions: apex, flows, managed-package; contracts: source-authority; skills: solution-design. Hands off to: guardrail-reviewer.
+- **test-strategist** — Assess QA inventory freshness and …. Loads instructions: apex; contracts: execution-contract, tool-capabilities, workflow-state-machine. Hands off to: development-assistant, guardrail-reviewer.
 
 ## Skills (`.github/skills/`)
 
@@ -92,9 +92,9 @@ the deep directory tree lives in `docs/workspace-topology.md`.
 
 ## Instructions (`.github/instructions/`)
 
-- `managed-package-constraints` — Generic managed-package and closed-surface constraints
-- `organization-principles` — Company policy, review, naming, decision, …
-- `salesforce-best-practices` — General Salesforce engineering and evidence …
+- `apex` — Apex engineering rules — bulkification, …
+- `flows` — Flow engineering rules — bulk …
+- `managed-package` — Hard boundaries for a repository …
 
 ## Resume here
 

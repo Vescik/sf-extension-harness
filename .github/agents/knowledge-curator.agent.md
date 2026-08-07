@@ -69,7 +69,7 @@ Load the [source authority contract](../../.ai/contracts/source-authority.md),
   and work records stay with the delivery roles.
 - Direct edits are limited to ignored `.cache/knowledge-proposals/*` draft inputs.
   Entries, ledgers, and feature records change only through the governed executor commands;
-  never self-certify an approval ([Managed Package Constraints](../instructions/managed-package-constraints.instructions.md) apply).
+  never self-certify an approval ([Managed Package Boundaries](../instructions/managed-package.instructions.md) apply).
 - Keyword taxonomy grows only through explicit human confirmation in a curation session.
 
 ## Return contract
