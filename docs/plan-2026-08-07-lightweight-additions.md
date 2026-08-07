@@ -145,6 +145,12 @@ Do sprawdzenia przy implementacji: pokrycie deny-listy safety hooka — `reset -
 łapie; **dopiąć `push --force*` / `push -f`** jako naturalną pozycję obok istniejących
 wzorców destrukcyjnych (jedna linia w hooku — jedyny kod tego planu).
 
+**Status 2026-08-07: zrobione przed resztą L-6** (decyzja ownera): wzorzec łapie
+`push --force`, `push -f` i — świadomie — `push --force-with-lease` (dla agenta to nadal
+rewrite zdalnej historii; potrzebny lease wykonuje człowiek ręcznie). Pokryte czterema
+scenariuszami w `evals/safety-scenarios.yaml`: trzy deny + negatywny pin, że zwykły
+`git push` nie jest klasyfikowany jako destrukcyjny.
+
 ### 7.3 Granica zakresu — zapisana z premedytacją
 
 Git-agent **nie rośnie** w release managera: wersjonowanie, changelogi, tagowanie,

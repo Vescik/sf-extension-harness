@@ -383,3 +383,46 @@ scenarios:
       tool_input:
         command: python3 scripts/knowledge_store.py entry-org-attach --identity CustomObject:c:Invoice__c --org dev-sbx --probes-file .cache/org-usage/pending/probes.json
     expectedDecision: deny
+
+  - id: global-git-force-push-denied
+    guard: global
+    workingDirectory: repository
+    event:
+      tool_name: execute/runInTerminal
+      tool_input:
+        command: git push origin main --force
+    expectedDecision: deny
+    reasonContains: Destructive operation
+
+  - id: global-git-force-with-lease-push-denied
+    # Denied deliberately: safer for humans, still a remote-history rewrite for an agent
+    # (owner decision 2026-08-07, lightweight additions §7.2).
+    guard: global
+    workingDirectory: repository
+    event:
+      tool_name: execute/runInTerminal
+      tool_input:
+        command: git push --force-with-lease origin feature/242850-approval-notifications
+    expectedDecision: deny
+    reasonContains: Destructive operation
+
+  - id: global-git-short-force-push-denied
+    guard: global
+    workingDirectory: repository
+    event:
+      tool_name: execute/runInTerminal
+      tool_input:
+        command: git push -f
+    expectedDecision: deny
+    reasonContains: Destructive operation
+
+  - id: global-plain-git-push-not-destructive
+    # Negative pin for the force-push pattern: an ordinary push must not be classified
+    # as destructive (whether it is allowed at all stays a role/allowlist decision).
+    guard: global
+    workingDirectory: repository
+    event:
+      tool_name: execute/runInTerminal
+      tool_input:
+        command: git push origin main
+    expectedDecision: continue
