@@ -8,7 +8,7 @@ single ``"format": "uri"`` assertion were silently inert. To enforce them withou
 the external dependency surface, register standard-library checkers on a shared
 ``FormatChecker`` and have every validator use it.
 
-The ``date-time`` check mirrors ``work_record.parse_time``: normalize a trailing ``Z`` to
+The ``date-time`` check normalizes a trailing ``Z`` to
 ``+00:00`` and parse with ``datetime.fromisoformat`` (matches RFC 3339 timestamps the harness
 emits, and works on the supported Python floor).
 """

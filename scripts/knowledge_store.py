@@ -440,7 +440,7 @@ import contextlib
 
 @contextlib.contextmanager
 def rooted(root: Path):
-    """Bind module paths to a different repo root (work_record gates, unit tests)."""
+    """Bind module paths to a different repo root (external gates, unit tests)."""
     global ROOT, ARTIFACTS_ROOT, LEDGER_PATH, REVIEW_ARTIFACT_ROOT, LOCAL_CONFIG, TAXONOMY_PATH
     global FEATURES_ROOT, FEATURE_LEDGER_PATH, ORG_LEDGER_PATH, ORG_USAGE_CACHE, KNOWLEDGE_POLICY_PATH
     saved = (ROOT, ARTIFACTS_ROOT, LEDGER_PATH, REVIEW_ARTIFACT_ROOT, LOCAL_CONFIG, TAXONOMY_PATH,
@@ -556,7 +556,7 @@ def relative_path(path: Path) -> str:
 
     `relative_path(path)` renders backslashes on Windows, which is the team's only
     platform. Every path this executor emits is compared against, or pasted next to, a path
-    built elsewhere with `as_posix()` — `work_record.entry_relative_path` is one — so the two
+    built elsewhere with `as_posix()` — so the two
     forms silently stop matching there and nowhere else. Path separators are a rendering
     detail of the local filesystem; a citation is a record, and its form must not depend on
     which machine wrote it.
@@ -2439,12 +2439,11 @@ DERIVERS = {
 
 def _facade_call(alias: str, tool: str, arguments: dict[str, Any]) -> dict[str, Any]:
     """Facade subprocess client — the executor observes; the agent never carries attested
-    bytes (fabrication defense: agents cannot mint digests). Imported lazily because
-    work_record imports this module."""
+    bytes (fabrication defense: agents cannot mint digests)."""
     try:
-        from scripts.work_record import call_salesforce_review_facade
+        from scripts.salesforce_review_client import call_salesforce_review_facade
     except ModuleNotFoundError:  # invoked as a script
-        from work_record import call_salesforce_review_facade  # type: ignore
+        from salesforce_review_client import call_salesforce_review_facade  # type: ignore
     return call_salesforce_review_facade(ROOT, alias, tool, arguments)
 
 

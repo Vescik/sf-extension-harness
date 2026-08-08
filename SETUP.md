@@ -178,12 +178,12 @@ cached; `--force` re-runs everything (use it after re-authorizing an alias).
 The workspace pre-approves its own guarded scripts so agents run them without a confirmation
 click, via `chat.tools.terminal.autoApprove` in `.vscode/settings.json`:
 
-- Auto-approved: `preflight.py`, `work_record.py` (except `approve`), `knowledge_store.py`
+- Auto-approved: `preflight.py`, `knowledge_store.py`
   (except `entry-approve`/`feature-approve`/`entry-revoke`/`feature-revoke` — those stay on the
   chat-confirmation lane), `knowledge_search.py` (read-only), and `force_app_knowledge.py`. The
   regexes are anchored and reject shell metacharacters, so chained or redirected commands never
   auto-run.
-- Never auto-approved: `work_record.py approve` (human-only, SAFE-HUMAN-001) and raw
+- Never auto-approved: raw
   `sf`/`sfdx`/`rm`/`del` (explicitly denied — a deny always wins). Auto-approval only skips the
   click; the role guard and safety hook still enforce the real boundaries.
 - **Do not** enable `chat.tools.global.autoApprove` / `/yolo` — that blanket-approves everything,
@@ -247,20 +247,9 @@ owner decision of 2026-07-14.)
   `knowledge.chatReviewer` name from local config). Raw cache and unreviewed `output/` remain
   ignored.
 - Resume governed work from `recordId` and `handoffId`. Validate record revision, role, scope/design
-  hashes, approval, evidence, and repository commits; chat history is not workflow state.
-- Agents stop at `design/awaiting_human`. After reviewing the persisted record and design, a named
-  human may bind approval from a direct terminal outside Copilot with the exact guarded command:
-
-  ```bash
-  python scripts/work_record.py approve \
-    --record-id "$RECORD_ID" \
-    --expected-revision "$RECORD_REVISION" \
-    --expected-record-hash "$RECORD_HASH" \
-    --expected-design-hash "$DESIGN_HASH" \
-    --approver "$APPROVER" \
-    --mechanism human-terminal \
-    --approval-ref "$APPROVAL_REF"
-  ```
+  Work-record approvals were deleted with their lane (phase 5, owner decision
+  2026-08-08); human review now happens on the pull request, and knowledge approvals keep
+  their digest-pinned chat confirmation.
 
   The global Copilot hook always denies agent-originated invocation of this subcommand. Approval
   never comes from chat text, an agent confirmation, or a manually edited record. In the current

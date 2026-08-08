@@ -272,23 +272,6 @@ class GlobalSafetyHookTests(unittest.TestCase):
                 )
                 self.assertEqual(hook_decision(output), "deny")
 
-    def test_work_record_approval_module_form_is_denied(self) -> None:
-        for command in (
-            "python3 -m scripts.work_record approve --record-id CR-1",
-            "PYTHONPATH=scripts python3 -m work_record approve --record-id CR-1",
-            "python3 -mwork_record approve --record-id CR-1",  # no space after -m
-            "python3 -m 'work_record' approve --record-id CR-1",  # quoted module name
-        ):
-            with self.subTest(command=command):
-                output = run_hook(
-                    "copilot_safety_hook.py",
-                    {
-                        "tool_name": "execute/runInTerminal",
-                        "tool_input": {"command": command},
-                    },
-                )
-                self.assertEqual(hook_decision(output), "deny")
-
     def test_development_mcp_without_approval_is_denied(self) -> None:
         with tempfile.TemporaryDirectory() as name:
             root = Path(name)
@@ -437,7 +420,7 @@ class RoleGuardTests(unittest.TestCase):
         )
         self.assertFalse(
             role_guard.force_app_knowledge_command_allowed(
-                ["inventory"], "development-assistant"
+                ["inventory"], "developer"
             )
         )
         # The v1 drafting/worklist surface is retired: its commands are unknown to the
@@ -469,7 +452,7 @@ class RoleGuardTests(unittest.TestCase):
                 "tool_input": {"path": ".ai/memory/decisions-log.md"},
             },
             "--role",
-            "solution-designer",
+            "designer",
         )
         self.assertEqual(hook_decision(output), "deny")
 
@@ -482,7 +465,7 @@ class RoleGuardTests(unittest.TestCase):
                 "tool_input": {"path": ".cache/ado-items/1201.json"},
             },
             "--role",
-            "solution-designer",
+            "designer",
         )
         denied = run_hook(
             "copilot_role_guard.py",
@@ -492,7 +475,7 @@ class RoleGuardTests(unittest.TestCase):
                 "tool_input": {"path": ".cache/test-cases/701.json"},
             },
             "--role",
-            "solution-designer",
+            "designer",
         )
         self.assertEqual(hook_decision(allowed), "continue")
         self.assertEqual(hook_decision(denied), "deny")
@@ -504,11 +487,11 @@ class RoleGuardTests(unittest.TestCase):
         from scripts import copilot_role_guard as role_guard
 
         all_roles = (
-            "solution-designer",
+            "designer",
             "config-investigator",
-            "development-assistant",
+            "developer",
             "test-strategist",
-            "guardrail-reviewer",
+            "reviewer",
         )
         matrix: tuple[tuple[str, tuple[str, ...]], ...] = (
             ("python scripts/preflight.py", all_roles),
@@ -551,7 +534,7 @@ class RoleGuardTests(unittest.TestCase):
             "Get-Content README.md",
             "Get-ChildItem force-app",
         )
-        for role in ("solution-designer", "config-investigator", "guardrail-reviewer"):
+        for role in ("designer", "config-investigator", "reviewer"):
             for command in allowed:
                 with self.subTest(role=role, command=command):
                     self.assertTrue(role_guard.allowed_role_command(command, root, role))
@@ -581,7 +564,7 @@ class RoleGuardTests(unittest.TestCase):
         )
         for command in denied:
             with self.subTest(command=command):
-                self.assertFalse(role_guard.allowed_role_command(command, root, "solution-designer"))
+                self.assertFalse(role_guard.allowed_role_command(command, root, "designer"))
 
     def test_handover_render_check_accepts_only_one_contained_draft(self) -> None:
         from scripts import copilot_role_guard as role_guard
@@ -605,12 +588,12 @@ class RoleGuardTests(unittest.TestCase):
                     role_guard.allowed_role_command(command, ROOT, "test-strategist")
                 )
 
-    def test_development_assistant_may_request_project_retrieve(self) -> None:
+    def test_developer_may_request_project_retrieve(self) -> None:
         from scripts import copilot_role_guard as role_guard
 
         command = "sf project retrieve start --manifest manifest/package.xml --target-org dev-sbx"
-        self.assertTrue(role_guard.allowed_role_command(command, ROOT, "development-assistant"))
-        for role in ("solution-designer", "config-investigator", "test-strategist", "guardrail-reviewer"):
+        self.assertTrue(role_guard.allowed_role_command(command, ROOT, "developer"))
+        for role in ("designer", "config-investigator", "test-strategist", "reviewer"):
             with self.subTest(role=role):
                 self.assertFalse(role_guard.allowed_role_command(command, ROOT, role))
         for command in (
@@ -619,7 +602,7 @@ class RoleGuardTests(unittest.TestCase):
             "sf org list",
         ):
             with self.subTest(command=command):
-                self.assertFalse(role_guard.allowed_role_command(command, ROOT, "development-assistant"))
+                self.assertFalse(role_guard.allowed_role_command(command, ROOT, "developer"))
 
     def test_every_approval_command_is_chat_confirmed_and_authoring_is_not(self) -> None:
         """Master plan §8's "no agent self-approval", pinned where it is actually enforced.
@@ -671,7 +654,7 @@ class RoleGuardTests(unittest.TestCase):
         for role in ("config-investigator", "knowledge-curator"):
             with self.subTest(role=role):
                 self.assertTrue(role_guard.allowed_role_command(draft, ROOT, role))
-        for role in ("solution-designer", "development-assistant", "test-strategist", "guardrail-reviewer"):
+        for role in ("designer", "developer", "test-strategist", "reviewer"):
             with self.subTest(role=role):
                 self.assertFalse(role_guard.allowed_role_command(draft, ROOT, role))
                 self.assertTrue(role_guard.allowed_role_command(status, ROOT, role))
@@ -682,7 +665,7 @@ class RoleGuardTests(unittest.TestCase):
             ".ai/knowledge/Artifacts/Flow/c/RouterX.MD",
             ".ai/knowledge/artifacts-ledger.jsonl",
         ):
-            for role in ("config-investigator", "knowledge-curator", "development-assistant"):
+            for role in ("config-investigator", "knowledge-curator", "developer"):
                 with self.subTest(path=path, role=role):
                     output = run_hook(
                         "copilot_role_guard.py",
@@ -707,42 +690,38 @@ class RoleGuardTests(unittest.TestCase):
             with self.subTest(role=role):
                 self.assertFalse(role_guard.allowed_role_command(command, ROOT, role))
 
-    def test_designer_writes_the_design_case_narrative_and_not_a_second_lane(self) -> None:
+    def test_designer_writes_work_items_and_not_retired_lanes(self) -> None:
         allowed = run_hook(
             "copilot_role_guard.py",
             {
                 "cwd": str(ROOT),
                 "tool_name": "edit/editFiles",
-                "tool_input": {"path": ".ai/change-records/SD-2026-08-05-routing/design.md"},
+                "tool_input": {"path": "work-items/242850-approval-notifications/design.md"},
             },
             "--role",
-            "solution-designer",
+            "designer",
         )
         self.assertEqual(hook_decision(allowed), "continue")
-        # The record-free lane was retired with the Design Case rebuild (P2). A second
-        # creation path is a second truth, so it must no longer be a free write.
-        retired = run_hook(
-            "copilot_role_guard.py",
-            {
-                "cwd": str(ROOT),
-                "tool_name": "edit/editFiles",
-                "tool_input": {"path": "output/solution-design/12345-design.md"},
-            },
-            "--role",
-            "solution-designer",
-        )
-        self.assertNotEqual(hook_decision(retired), "continue")
-        denied = run_hook(
-            "copilot_role_guard.py",
-            {
-                "cwd": str(ROOT),
-                "tool_name": "edit/editFiles",
-                "tool_input": {"path": "output/handover/x.md"},
-            },
-            "--role",
-            "solution-designer",
-        )
-        self.assertEqual(hook_decision(denied), "deny")
+        # Retired lanes must not come back as free writes: the record-free
+        # output/solution-design lane (Design Case rebuild P2) and the deleted
+        # .ai/change-records tree (phase 5) are no designer surface.
+        for retired_path in (
+            "output/solution-design/12345-design.md",
+            ".ai/change-records/SD-2026-08-05-routing/design.md",
+            "output/handover/x.md",
+        ):
+            with self.subTest(path=retired_path):
+                retired = run_hook(
+                    "copilot_role_guard.py",
+                    {
+                        "cwd": str(ROOT),
+                        "tool_name": "edit/editFiles",
+                        "tool_input": {"path": retired_path},
+                    },
+                    "--role",
+                    "designer",
+                )
+                self.assertNotEqual(hook_decision(retired), "continue")
 
     def test_designer_cannot_edit_metadata(self) -> None:
         output = run_hook(
@@ -753,7 +732,7 @@ class RoleGuardTests(unittest.TestCase):
                 "tool_input": {"path": "force-app/classes/X.cls"},
             },
             "--role",
-            "solution-designer",
+            "designer",
         )
         self.assertEqual(hook_decision(output), "deny")
 
@@ -766,7 +745,7 @@ class RoleGuardTests(unittest.TestCase):
                 "tool_input": {"path": ".ai/memory/decisions-log.md.backup"},
             },
             "--role",
-            "solution-designer",
+            "designer",
         )
         self.assertEqual(hook_decision(output), "deny")
 
@@ -855,7 +834,7 @@ class RoleGuardTests(unittest.TestCase):
                 },
             },
             "--role",
-            "development-assistant",
+            "developer",
         )
         self.assertEqual(hook_decision(output), "continue")
 
@@ -868,7 +847,7 @@ class RoleGuardTests(unittest.TestCase):
                 "tool_input": {"path": "tests/e2e/example.spec.ts"},
             },
             "--role",
-            "development-assistant",
+            "developer",
         )
         denied = run_hook(
             "copilot_role_guard.py",
@@ -878,7 +857,7 @@ class RoleGuardTests(unittest.TestCase):
                 "tool_input": {"path": "tests/test_safety_hooks.py"},
             },
             "--role",
-            "development-assistant",
+            "developer",
         )
         self.assertEqual(hook_decision(allowed), "continue")
         self.assertEqual(hook_decision(denied), "deny")
@@ -892,7 +871,7 @@ class RoleGuardTests(unittest.TestCase):
                 "tool_input": {"path": ".github/copilot-instructions.md"},
             },
             "--role",
-            "development-assistant",
+            "developer",
         )
         self.assertEqual(hook_decision(output), "deny")
 
@@ -905,7 +884,7 @@ class RoleGuardTests(unittest.TestCase):
                 "tool_input": {"path": "output/documentation/example.md"},
             },
             "--role",
-            "development-assistant",
+            "developer",
         )
         self.assertEqual(hook_decision(output), "continue")
 
@@ -918,7 +897,7 @@ class RoleGuardTests(unittest.TestCase):
                 "tool_input": {"path": ".cache/ado-items/1201.json"},
             },
             "--role",
-            "development-assistant",
+            "developer",
         )
         denied = run_hook(
             "copilot_role_guard.py",
@@ -928,7 +907,7 @@ class RoleGuardTests(unittest.TestCase):
                 "tool_input": {"path": ".cache/test-cases/701.json"},
             },
             "--role",
-            "development-assistant",
+            "developer",
         )
         self.assertEqual(hook_decision(allowed), "continue")
         self.assertEqual(hook_decision(denied), "deny")
@@ -942,7 +921,7 @@ class RoleGuardTests(unittest.TestCase):
                 "tool_input": {"command": "sed -i s/a/b/ .github/copilot-instructions.md"},
             },
             "--role",
-            "development-assistant",
+            "developer",
         )
         allowed = run_hook(
             "copilot_role_guard.py",
@@ -954,7 +933,7 @@ class RoleGuardTests(unittest.TestCase):
                 },
             },
             "--role",
-            "development-assistant",
+            "developer",
         )
         self.assertEqual(hook_decision(denied), "deny")
         self.assertEqual(hook_decision(allowed), "continue")
@@ -972,7 +951,7 @@ class RoleGuardTests(unittest.TestCase):
                         },
                     },
                     "--role",
-                    "development-assistant",
+                    "developer",
                 )
                 self.assertEqual(hook_decision(output), "continue")
 
@@ -1202,96 +1181,6 @@ class SafetyClassificationTests(unittest.TestCase):
                     "config-investigator",
                 )
                 self.assertEqual(hook_decision(output), want)
-
-    def test_work_record_commands_are_role_bound_and_approval_is_never_allowed(self) -> None:
-        from scripts import copilot_role_guard as role_guard
-
-        # The Solution Designer holds no work-record grant at all since the rebuild (P2): its
-        # workflow state lives in the Design Case runtime, reached only through MCP tools. An
-        # empty grant set must deny every subcommand, including the previously allowed reads.
-        self.assertEqual(role_guard.WORK_RECORD_COMMANDS["solution-designer"], set())
-        for subcommand in ("context", "init", "transition", "create-handoff"):
-            with self.subTest(subcommand=subcommand):
-                self.assertFalse(
-                    role_guard.work_record_command_allowed(
-                        [subcommand, "--record-id", "WR-1", "--role", "solution-designer"],
-                        "solution-designer",
-                    )
-                )
-        self.assertFalse(
-            role_guard.work_record_command_allowed(
-                ["context", "--record-id", "WR-1", "--role", "development-assistant"],
-                "solution-designer",
-            )
-        )
-        self.assertTrue(
-            role_guard.work_record_command_allowed(
-                [
-                    "append-review",
-                    "--record-id",
-                    "WR-1",
-                    "--role",
-                    "guardrail-reviewer",
-                ],
-                "guardrail-reviewer",
-            )
-        )
-        # Completion authority: the reviewer may run `transition`; work_record.py itself
-        # restricts it to review/safe -> complete/complete via role_allows_transition.
-        self.assertTrue(
-            role_guard.work_record_command_allowed(
-                [
-                    "transition",
-                    "--record-id",
-                    "WR-1",
-                    "--role",
-                    "guardrail-reviewer",
-                ],
-                "guardrail-reviewer",
-            )
-        )
-        # The reviewer appends verdicts, not evidence, so it holds no digest grant.
-        self.assertFalse(
-            role_guard.work_record_command_allowed(
-                ["digest", "--path", "output/design.md"], "guardrail-reviewer"
-            )
-        )
-        # Evidence-producing roles mint sha256 receipts for append-evidence --artifact-sha256.
-        # The Solution Designer is deliberately absent since the rebuild (P2): the Design Case
-        # runtime authors its receipts, so the designer needs no digest verb at all.
-        for evidence_role in (
-            "config-investigator",
-            "development-assistant",
-            "test-strategist",
-        ):
-            with self.subTest(role=evidence_role):
-                self.assertTrue(
-                    role_guard.work_record_command_allowed(
-                        ["digest", "--path", "output/design.md"], evidence_role
-                    )
-                )
-        for role in role_guard.WORK_RECORD_COMMANDS:
-            with self.subTest(role=role):
-                self.assertFalse(
-                    role_guard.work_record_command_allowed(
-                        ["approve", "--record-id", "WR-1"], role
-                    )
-                )
-
-    def test_governed_work_record_json_cannot_be_edited_directly(self) -> None:
-        from scripts import copilot_role_guard as role_guard
-
-        self.assertTrue(
-            role_guard.is_governed_record_path(
-                ".ai/change-records/WR-1/record.json"
-            )
-        )
-        self.assertFalse(
-            role_guard.allowed(
-                ".ai/change-records/WR-1/record.json",
-                (".ai/change-records/",),
-            )
-        )
 
     def test_ado_scope_requires_matching_org_and_project(self) -> None:
         config = {

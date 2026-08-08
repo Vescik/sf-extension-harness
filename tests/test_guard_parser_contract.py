@@ -9,7 +9,6 @@ from scripts import copilot_role_guard as guard
 from scripts import force_app_knowledge
 from scripts import knowledge_search
 from scripts import knowledge_store
-from scripts import work_record
 
 
 # Subcommands that exist in the CLI parsers but are deliberately NOT reachable through the
@@ -19,20 +18,6 @@ INTENTIONALLY_UNGUARDED = {
     "force_app_knowledge": {},
     "knowledge_store": {},
     "knowledge_search": {},
-    "work_record": {
-        "approve": "human-terminal-only: SAFE-HUMAN-001 — in no role's command set; the "
-        "denial layers are the global safety hook and the in-process work_record backstop "
-        "(owner decision 2026-08-04: settings.json deny entry and the guard's explicit "
-        "special-case were removed as redundant third/fourth layers)",
-        "init": "no agent creates a governed record from a terminal any more: the Solution "
-        "Design rebuild (P2) moved case creation to design_open on the solution-design MCP "
-        "runtime and removed the Solution Designer's work-record grants",
-        "resolve-question": "the Design Case runtime closes questions through design_apply "
-        "with an eligible receipt; the terminal verb had only the Solution Designer as a "
-        "caller and was removed with its grants (rebuild P2)",
-        "bind-entry": "Knowledge references are bound through the Design Case runtime; the "
-        "terminal verb had only the Solution Designer as a caller (rebuild P2)",
-    },
 }
 
 # Parser flags the guard deliberately does not accept for a guarded subcommand.
@@ -129,39 +114,9 @@ class GuardParserContractTests(unittest.TestCase):
         self.assertFalse(hasattr(guard, "salesforce_read_command_allowed"))
         self.assertFalse(hasattr(guard, "SALESFORCE_READ_FLAGS"))
 
-    def test_work_record_guard_covers_parser_commands(self) -> None:
-        # The work_record guard validates command membership per role plus role-binding
-        # flags — it keeps no per-command flag allowlists, so the contract() flag diff
-        # does not apply. This is the command-set half: every parser subcommand must be
-        # granted to at least one role or declared INTENTIONALLY_UNGUARDED, and a role
-        # grant for a command the parser no longer defines fails in the other direction.
-        parsers = subcommand_parsers(work_record.build_parser())
-        granted = set().union(*guard.WORK_RECORD_COMMANDS.values())
-        unguarded = INTENTIONALLY_UNGUARDED["work_record"]
-        self.assertEqual(
-            set(),
-            granted & set(unguarded),
-            "work_record: a subcommand cannot be both role-granted and intentionally unguarded",
-        )
-        self.assertEqual(
-            set(parsers),
-            granted | set(unguarded),
-            "work_record: every parser subcommand needs a role grant or an "
-            "INTENTIONALLY_UNGUARDED declaration (and stale grants must be removed)",
-        )
-
-    def test_work_record_approve_stays_unreachable_for_every_role(self) -> None:
-        # `approve` is human-terminal-only (SAFE-HUMAN-001): the guard hard-denies it
-        # before consulting the role sets, independent of the global hook's own deny.
-        for role in guard.WORK_RECORD_COMMANDS:
-            with self.subTest(role=role):
-                self.assertFalse(
-                    guard.work_record_command_allowed(["approve", "--record", "rec-1"], role)
-                )
-
     def test_knowledge_search_is_read_only_for_every_role(self) -> None:
         # Search never mutates canonical Knowledge; `build` only writes the ignored cache.
-        for role in guard.WORK_RECORD_COMMANDS:
+        for role in guard.ALLOWED_PREFIXES:
             with self.subTest(role=role):
                 self.assertTrue(
                     guard.knowledge_search_command_allowed(["search", "--text", "x"], role)

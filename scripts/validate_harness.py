@@ -38,11 +38,6 @@ except ModuleNotFoundError:  # imported as scripts.validate_harness by unit test
     from scripts.knowledge_digest import canonical_digest
 
 try:
-    import solution_design_core
-except ModuleNotFoundError:  # imported as scripts.validate_harness by unit tests
-    from scripts import solution_design_core
-
-try:
     from validate_handover_output import template_fixed_texts
 except ModuleNotFoundError:  # imported as scripts.validate_harness by unit tests
     from scripts.validate_handover_output import template_fixed_texts
@@ -234,7 +229,6 @@ def check_required_files(audit: Audit) -> None:
         "requirements-dev.lock",
         "scripts/verify_salesforce_org.py",
         "scripts/salesforce_review_server.mjs",
-        "scripts/work_record.py",
         "scripts/force_app_knowledge.py",
         "scripts/render_repo_map.py",
         "config/repo-map-seed.json",
@@ -244,7 +238,6 @@ def check_required_files(audit: Audit) -> None:
         ".ai/contracts/execution-contract.md",
         ".ai/contracts/tool-capabilities.md",
         ".ai/contracts/source-authority.md",
-        ".ai/contracts/workflow-state-machine.md",
         "schemas/force-app-knowledge-inventory.schema.json",
         "schemas/force-app-knowledge-resolve.schema.json",
         "schemas/knowledge-entry.schema.json",
@@ -298,8 +291,6 @@ def check_required_files(audit: Audit) -> None:
         "scripts/knowledge_search.py",
         "scripts/validate_handover_output.py",
         "docs/knowledge-one-file-contract.md",
-        "schemas/change-record.schema.json",
-        "schemas/handoff-envelope.schema.json",
         "schemas/salesforce-org-review-evidence.schema.json",
         "config/knowledge-policy.json",
         "config/salesforce-review-policy.json",
@@ -520,7 +511,6 @@ def check_customizations(audit: Audit, root: Path = ROOT) -> None:
     all_agent_bodies = "\n".join(path.read_text(encoding="utf-8") for path in agent_paths)
     for required_link in (
         "source-authority.md",
-        "workflow-state-machine.md",
         "managed-package.instructions.md",
     ):
         audit.require(required_link in all_agent_bodies, f"agents do not explicitly load required resource {required_link}")
@@ -591,34 +581,6 @@ def check_settings_and_mcp(audit: Audit) -> None:
         if isinstance(auto, dict):
             for denied in ("sf", "sfdx", "rm", "del"):
                 audit.require(auto.get(denied) is False, f"terminal auto-approve must deny '{denied}'")
-            # Functionally evaluate the map against a canonical `work_record approve` command
-            # (VS Code semantics: deny wins). Substring checks are fooled by the negative
-            # lookahead `(?!approve...)` inside the allow patterns, so compile and match instead.
-            approve_cmds = (
-                "python scripts/work_record.py approve --record-id CR-1",
-                "py -3 scripts\\work_record.py approve --record-id CR-1",
-            )
-            allow_hits = False
-            deny_hits = False
-            for key, value in auto.items():
-                if not (key.startswith("/") and key.endswith("/") and len(key) > 2):
-                    continue  # literal subcommand key cannot match a full script command line
-                try:
-                    pattern = re.compile(key[1:-1])
-                except re.error as exc:
-                    audit.require(False, f"terminal auto-approve regex is invalid: {key} ({exc})")
-                    continue
-                if not any(pattern.search(cmd) for cmd in approve_cmds):
-                    continue
-                if value is True or (isinstance(value, dict) and value.get("approve") is True):
-                    allow_hits = True
-                if value is False or (isinstance(value, dict) and value.get("approve") is False):
-                    deny_hits = True
-            # Owner decision 2026-08-04 (SAFE-HUMAN layer dedup): the explicit deny entry was
-            # removed — the invariant is that NOTHING auto-approves the command (the lookahead
-            # in the allow patterns), leaving the click to the human while the safety hook and
-            # the in-process work_record backstop do the actual denying.
-            audit.require(not (allow_hits and not deny_hits), "terminal auto-approve must not auto-approve work_record.py approve (SAFE-HUMAN-001)")
     workspace_folders = workspace.get("folders", []) if isinstance(workspace, dict) else []
     folders = {
         (item.get("name"), item.get("path"))
@@ -638,7 +600,7 @@ def check_settings_and_mcp(audit: Audit) -> None:
     mcp = load_json(ROOT / ".vscode/mcp.json", audit)
     servers = mcp.get("servers", {}) if isinstance(mcp, dict) else {}
     audit.require(
-        set(servers) == {"ado-readonly", "salesforce-readonly", "knowledge", "solution-design"},
+        set(servers) == {"ado-readonly", "salesforce-readonly", "knowledge"},
         "MCP server set is unexpected",
     )
     ado = servers.get("ado-readonly", {})
@@ -700,21 +662,12 @@ def check_settings_and_mcp(audit: Audit) -> None:
         knowledge.get("args") == ["scripts/knowledge_mcp_server.mjs"],
         "knowledge: exactly the guarded wrapper, no extra args — it binds no org and takes no secrets",
     )
-    # Solution Design MCP (rebuild P2): the sole state-mutation surface over the Design Case
-    # runtime. It binds no org and takes no inputs, and it is registered in the VS Code host
-    # only — the human-bound elicitation surface the approval contract depends on does not
-    # exist in the CLI host.
-    solution_design = servers.get("solution-design", {})
+    # Phase 5 (owner decision 2026-08-08): the Solution Design runtime was deleted, not
+    # frozen. Its MCP server must stay gone — a re-registration would resurrect the retired
+    # process surface.
     audit.require(
-        solution_design.get("command") == "node", "solution-design: wrapper must run with node"
-    )
-    audit.require(
-        solution_design.get("args") == ["scripts/solution_design_mcp_server.mjs"],
-        "solution-design: exactly the guarded wrapper, no extra args",
-    )
-    audit.require(
-        solution_design.get("cwd") == "${workspaceFolder}",
-        "solution-design: wrapper must start in the workspace root",
+        "solution-design" not in servers,
+        ".vscode/mcp.json must not register the retired solution-design server",
     )
 
     cli_mcp = load_json(ROOT / ".github/mcp.json", audit)
@@ -1003,7 +956,7 @@ def check_skill_commands(audit: Audit) -> None:
     first command. Fail closed here so the skill text and the guard can never drift apart again.
     """
 
-    guarded = "preflight|work_record|force_app_knowledge|validate_handover_output"
+    guarded = "preflight|force_app_knowledge|validate_handover_output"
     bare = re.compile(r"`\s*scripts/(?:" + guarded + r")\.py(?:\s|`)")
     backslash = re.compile(r"`[^`]*(?:scripts\\|\.venv\\)")
     for skill in sorted((ROOT / ".github/skills").glob("*/SKILL.md")):
@@ -1174,10 +1127,9 @@ def check_grounding_contracts(audit: Audit) -> None:
     for path in principle_paths:
         source_ids.update(re.findall(r"\*\*((?:SAFE|MP|ORG|SF)-[A-Z0-9-]+)\s+—", required_text(path, audit)))
 
-    # Owner decision 2026-08-04: the rule-registry.yaml re-encoding of these sources was
-    # retired. The invariant that keeps `work_record init --rule-id` resolution unambiguous
-    # is that every rule ID is DECLARED EXACTLY ONCE across the Principle sources — the tier
-    # is a property of which file declares it (work_record.RULE_SOURCE_TIERS).
+    # Owner decision 2026-08-04 (kept after the work-record lane deletion, phase 5): every
+    # rule ID is DECLARED EXACTLY ONCE across the Principle sources, so a rule citation is
+    # always unambiguous.
     declarations: list[str] = []
     for path in principle_paths:
         declarations.extend(
@@ -1201,8 +1153,6 @@ def check_grounding_contracts(audit: Audit) -> None:
         audit.require(not errors, f"{data_name}: schema failure: {errors[0].message if errors else ''}")
 
     for schema_name in (
-        "change-record.schema.json",
-        "handoff-envelope.schema.json",
         "salesforce-org-review-evidence.schema.json",
         "force-app-knowledge-inventory.schema.json",
         "knowledge-extraction.schema.json",
@@ -1459,67 +1409,6 @@ def check_dependency_admissions(audit: Audit, root: Path = ROOT) -> None:
             )
 
 
-def check_design_cases(audit: Audit, root: Path = ROOT) -> None:
-    """Tracked Design Cases must hold their own bindings.
-
-    Loop-state invariants CI can prove without touching an org: the state validates against
-    the v2 schema; the candidate's narrative digest recomputes from the candidate document;
-    every approval receipt binds the digest the state points at; and a submitted case has an
-    approval receipt to show for it.
-    """
-    cases_root = root / ".ai" / "change-records"
-    if not cases_root.is_dir():
-        return
-    core = solution_design_core
-    for case_directory in sorted(cases_root.iterdir()):
-        record_path = case_directory / "record.json"
-        if not record_path.is_file():
-            continue
-        record = load_json(record_path, audit)
-        if not isinstance(record, dict) or "solutionDesign" not in record:
-            continue
-        state = record["solutionDesign"]
-        try:
-            schema = json.loads(core.STATE_SCHEMA.read_text(encoding="utf-8"))
-            from jsonschema import Draft202012Validator
-
-            errors = [e.message for e in Draft202012Validator(schema).iter_errors(state)]
-            audit.require(not errors, f"{relative(record_path)}: state schema: {'; '.join(errors[:3])}")
-        except OSError as exc:
-            audit.require(False, f"{relative(record_path)}: cannot validate state ({exc})")
-            continue
-        candidate = state.get("candidate") or {}
-        if candidate:
-            candidate_dir = case_directory / "candidates" / str(candidate.get("id"))
-            document = candidate_dir / "design.md"
-            audit.require(
-                document.is_file(),
-                f"{relative(case_directory)}: candidate {candidate.get('id')} has no document",
-            )
-            if document.is_file():
-                recomputed = core.narrative_digest(document.read_text(encoding="utf-8"))
-                audit.require(
-                    recomputed == candidate.get("narrativeDigest"),
-                    f"{relative(case_directory)}: candidate narrative digest does not recompute "
-                    f"from the candidate document",
-                )
-        approvals = sorted((case_directory / "approvals").glob("AP-*.json"))
-        for approval_path in approvals:
-            approval = load_json(approval_path, audit)
-            if not isinstance(approval, dict):
-                continue
-            audit.require(
-                approval.get("narrativeDigest") == candidate.get("narrativeDigest"),
-                f"{relative(approval_path)}: approval binds a digest that is not the current "
-                f"candidate",
-            )
-        if state.get("status") == "submitted":
-            audit.require(
-                bool(approvals),
-                f"{relative(case_directory)}: submitted without an approval receipt",
-            )
-
-
 def check_retired_surfaces(audit: Audit, root: Path = ROOT) -> None:
     """A replacement phase removes its predecessor; this proves the old name is unreachable.
 
@@ -1710,7 +1599,6 @@ def main() -> int:
             check_knowledge_consumer_sets,
             check_org_usage,
             check_retired_surfaces,
-            check_design_cases,
             check_dependency_admissions,
         ),
     )

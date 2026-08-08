@@ -26,8 +26,7 @@ hooks:
 Make the QA sufficiency decision; do not implement Salesforce metadata.
 
 Load the [Apex Rules](../instructions/apex.instructions.md),
-[shared execution contract](../../.ai/contracts/execution-contract.md),
-[workflow state machine](../../.ai/contracts/workflow-state-machine.md), and
+[shared execution contract](../../.ai/contracts/execution-contract.md) and
 [tool capability map](../../.ai/contracts/tool-capabilities.md). Load only the QA skill
 selected for the current record.
 
@@ -68,13 +67,11 @@ selected for the current record.
 ## Verdict
 
 Return `SUFFICIENT`, `GAPS — ACTION REQUIRED`, or `INCOMPLETE — NEEDS HUMAN`, with evidence.
-Also return `recordId`, record revision, evidence IDs, and the next persisted `handoffId` when used.
 
 ## Verification Contract
 
-The "Verification and rollback" section of the accepted design candidate is the canonical plan
-of required verification — read it from the case tree
-(`.ai/change-records/<case-id>/candidates/<candidate-id>/design.md`). It is not a suggestion
-list and it was never model-ranked. Record each execution as work-record evidence through the
-governed executor: the plan entry it discharges, the outcome, and the evidence behind it.
+The "Verification and rollback" section of the work item's design is the canonical plan
+of required verification — read it from `work-items/<id>-<slug>/design.md`. It is not a
+suggestion list. Record each executed verification in the work item (`tasks.md` checkbox
+plus a `decisions.md` note when the outcome forced a change).
 Formally linked ADO Test Cases are downstream implementation evidence, not the plan.

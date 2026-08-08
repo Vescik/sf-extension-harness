@@ -15,13 +15,6 @@ from typing import Any, Iterable
 
 
 ALLOWED_PREFIXES = {
-    # The Solution Designer writes exactly two things: the ignored ADO cache and the Design
-    # Case narrative (allowed by role_path_allowed). The record-free `output/solution-design/`
-    # lane was retired with the Design Case rebuild — a second creation path is a second truth.
-    "solution-designer": (
-        ".cache/ado-items/",
-        ".cache/ado-wiki/",
-    ),
     "config-investigator": (
         ".cache/knowledge-proposals/",
         # Agent-authored org-usage probes-files only (contract §6.6). Receipts in the same
@@ -44,14 +37,8 @@ ALLOWED_PREFIXES = {
         ".cache/ado-wiki/",
         ".cache/test-cases/",
     ),
-    "development-assistant": (
-        "output/documentation/",
-        ".cache/ado-items/",
-        ".cache/ado-wiki/",
-    ),
-    "guardrail-reviewer": (),
-    # Context-first roles (plan 2026-08-07 phase 3). The legacy role entries above stay as
-    # the frozen work-record lane's vocabulary until phase 5 decides their removal.
+    # Context-first roles (plan 2026-08-07 phase 3); the legacy work-record roles
+    # were deleted with their lane (phase 5, owner decision 2026-08-08).
     "designer": (
         ".cache/ado-items/",
         ".cache/ado-wiki/",
@@ -83,59 +70,6 @@ PREFLIGHT_CAPABILITIES = frozenset(
         "salesforce-review",
     }
 )
-
-WORK_RECORD_COMMANDS = {
-    # The Solution Designer has NO work-record command grant. Its workflow state lives in the
-    # Design Case runtime, reached only through the solution-design MCP tools; the agent no
-    # longer holds execute/runInTerminal for workflow at all. An empty set here is the point:
-    # `command not in WORK_RECORD_COMMANDS.get(role, set())` denies every subcommand.
-    "solution-designer": set(),
-    "config-investigator": {
-        "validate",
-        "context",
-        "accept-handoff",
-        "append-evidence",
-        "digest",
-        "add-question",
-        "capture-org-review",
-        "create-handoff",
-    },
-    "development-assistant": {
-        "validate",
-        "context",
-        "transition",
-        "accept-handoff",
-        "append-evidence",
-        "digest",
-        "capture-repository",
-        "run-verification",
-        "create-handoff",
-    },
-    "test-strategist": {
-        "validate",
-        "context",
-        "transition",
-        "accept-handoff",
-        "append-evidence",
-        "digest",
-        "capture-repository",
-        "run-verification",
-        "create-handoff",
-    },
-    # `transition` mirrors work_record.py role_allows_transition, which limits the reviewer to
-    # review/safe -> complete/complete — without the grant, completion had no agent entry point.
-    "guardrail-reviewer": {
-        "validate",
-        "context",
-        "transition",
-        "accept-handoff",
-        "capture-repository",
-        "capture-org-review",
-        "run-verification",
-        "append-review",
-        "create-handoff",
-    },
-}
 
 # Knowledge maintenance does not require the org-facing investigator surface.
 KNOWLEDGE_MUTATION_ROLES = frozenset({"config-investigator", "knowledge-curator"})
@@ -392,34 +326,6 @@ def flag_values(parts: list[str], flag: str) -> list[str]:
     return values
 
 
-def work_record_command_allowed(parts: list[str], role: str) -> bool:
-    if not parts or "--root" in parts or any(part.startswith("--root=") for part in parts):
-        return False
-    command = parts[0]
-    # `approve` is deliberately in NO role's command set (SAFE-HUMAN-001); the denial layers
-    # are the global safety hook and the in-process work_record backstop — this guard only
-    # contributes ordinary set membership (owner decision 2026-08-04, layer dedup).
-    if command not in WORK_RECORD_COMMANDS.get(role, set()):
-        return False
-    if command in {
-        "context",
-        "transition",
-        "append-evidence",
-        "accept-handoff",
-        "append-review",
-        "bind-entry",
-        "add-question",
-        "resolve-question",
-        "capture-repository",
-        "capture-org-review",
-        "run-verification",
-    }:
-        return flag_values(parts[1:], "--role") == [role]
-    if command == "create-handoff":
-        return flag_values(parts[1:], "--from-role") == [role]
-    return command in {"init", "validate", "digest"}
-
-
 def handover_draft_path_allowed(raw: str, root: Path) -> bool:
     """Rendered handover drafts only: containment mirror of manifest_input_path_allowed."""
     path = Path(raw)
@@ -593,7 +499,7 @@ def allowed_role_command(command: str, root: Path, role: str) -> bool:
         return True
     executable = Path(parts[0]).name.lower()
     if (
-        role in {"development-assistant", "developer"}
+        role == "developer"
         and executable.removesuffix(".exe").removesuffix(".cmd") == "sf"
         and [part.lower() for part in parts[1:4]] == ["project", "retrieve", "start"]
     ):
@@ -613,7 +519,6 @@ def allowed_role_command(command: str, root: Path, role: str) -> bool:
         script = root / script
     script = script.resolve(strict=False)
     preflight = (root / "scripts/preflight.py").resolve()
-    work_record = (root / "scripts/work_record.py").resolve()
     force_app_knowledge = (root / "scripts/force_app_knowledge.py").resolve()
     validate_harness = (root / "scripts/validate_harness.py").resolve()
     run_evals = (root / "scripts/run_evals.py").resolve()
@@ -652,8 +557,6 @@ def allowed_role_command(command: str, root: Path, role: str) -> bool:
                 continue
             return False
         return True
-    if script == work_record:
-        return work_record_command_allowed(remainder, role)
     if script == (root / "scripts/knowledge_store.py").resolve():
         return knowledge_store_command_allowed(remainder, role)
     if script == (root / "scripts/knowledge_search.py").resolve():
@@ -677,7 +580,7 @@ def resolve_candidate(raw: str, resolution_root: Path) -> Path | None:
     return candidate.resolve(strict=False)
 
 
-def development_edit_allowed(raw: str, resolution_root: Path, role: str = "development-assistant") -> bool:
+def development_edit_allowed(raw: str, resolution_root: Path, role: str = "developer") -> bool:
     candidate = resolve_candidate(raw, resolution_root)
     if candidate is None:
         return True
@@ -740,29 +643,17 @@ def allowed(relative_path: str, prefixes: tuple[str, ...]) -> bool:
 
 
 def role_path_allowed(relative_path: str, role: str) -> bool:
-    if role == "solution-designer" and re.fullmatch(
-        r"\.ai/change-records/[^/]+/design\.md", relative_path
-    ):
-        return True
     return allowed(relative_path, ALLOWED_PREFIXES[role])
 
 
 def is_governed_record_path(relative_path: str) -> bool:
     # The one-file entry patterns match case-folded so NTFS case variants (Foo.MD, .AI/...)
     # cannot slip past the governed boundary (contract §3, review R1-10).
+    # The work-record/Design-Case arms were deleted with their lane (phase 5, owner
+    # decision 2026-08-08); only the Knowledge governed boundary remains.
     lowered = relative_path.casefold()
     return bool(
-        re.fullmatch(r"\.ai/change-records/[^/]+/record\.json", relative_path)
-        or re.fullmatch(r"\.ai/change-records/[^/]+/handoffs/[^/]+\.json", relative_path)
-        or re.fullmatch(r"\.ai/change-records/[^/]+/evidence/[^/]+\.json", relative_path)
-        # Design Case authority written only by the Solution Design runtime. Without these arms
-        # an agent could edit a candidate bundle or an approval receipt through the ordinary
-        # write path, and the digest binding would never see it.
-        or re.fullmatch(r"\.ai/change-records/[^/]+/candidates/[^/]+/[^/]+", relative_path)
-        or re.fullmatch(r"\.ai/change-records/[^/]+/approvals/[^/]+\.json", relative_path)
-        or re.fullmatch(r"\.ai/change-records/[^/]+/reviews/[^/]+\.json", relative_path)
-        or re.fullmatch(r"\.ai/change-records/[^/]+/divergences/[^/]+\.json", relative_path)
-        or re.fullmatch(r"\.ai/knowledge/artifacts/.+\.md", lowered)
+        re.fullmatch(r"\.ai/knowledge/artifacts/.+\.md", lowered)
         or lowered == ".ai/knowledge/artifacts-ledger.jsonl"
         # Feature Entries and their ledger. The FILE needs its own arm, not just the ledger:
         # without it an agent could rewrite an approved boundary rule through the ordinary
@@ -814,7 +705,7 @@ def main() -> int:
                         "deny",
                         f"{args.role}: this exact command is outside the terminal allowlist. "
                         "Allowed families: guarded harness scripts (scripts/preflight.py, "
-                        "validate_harness.py, run_evals.py, work_record.py, "
+                        "validate_harness.py, run_evals.py, "
                         "force_app_knowledge.py, "
                         "validate_handover_output.py), "
                         "read-only git (status/diff/log/show/ls-files), file reads "
@@ -832,7 +723,7 @@ def main() -> int:
         return 0
 
     raw_paths = list(collect_paths(event.get("tool_input", {})))
-    if args.role in {"development-assistant", "developer"}:
+    if args.role == "developer":
         if not raw_paths:
             print(
                 json.dumps(

@@ -294,10 +294,39 @@ treści, na końcu zamrożenie i walidacja.
   `copilot_role_guard.py`, fasada SF read-only — potwierdzić, że fazy 1–3 niczego w nich
   nie naruszyły (diff pusty w tych ścieżkach).
 
-### Faza 5 — Zamrożenie starego procesu (~1 h)
-- `solution_design_*.{py,mjs}`, lane SD w work_record, schematy SD — oznaczone jako
-  frozen, **nie kasowane**. Usunięcie to osobny PR po miesiącu obserwacji.
-- **Wyłączenie:** handover feature (§3.12) nie podlega zamrożeniu — zostaje aktywny.
+### Faza 5 — Usunięcie starego procesu (decyzja ownera 2026-08-08: delete, nie freeze)
+
+Pierwotnie faza zakładała zamrożenie. Zmiana i jej uzasadnienie: to repo jest świeżym,
+publicznym produktem, który Copilot czyta jako własną konfigurację — martwy runtime to
+nie balast, tylko aktywna konfuzja dla konsumujących agentów i userów; odwracalność,
+która uzasadniała freeze, żyje w archiwum ownera (poprzednie repo z pełną historią),
+więc usunięcie tutaj niczego nie traci; a każdy martwy plik płaci podatek spójności
+przy każdej zmianie (zapłacony realnie w fazach 1/3: tabela triggerów, tiery, fixture'y).
+
+**5a — usunięcie runtime'u SD (bez konsumentów poza światem SD, zweryfikowane grepem):**
+`solution_design{,_core,_worker}.py`, `solution_design_mcp_server.mjs`,
+`ado_requirement_adapter.mjs`, `governed_state.py`, `repository_evidence_adapter.py`,
+`sampling_derivers.py`; config `solution-design-*.json`; schemat
+`solution-design-state`; wyrejestrowanie serwera `solution-design` z `.vscode/mcp.json`;
+`tests/test_solution_design_loop.py`; kontrakty `.ai/contracts/solution-design-runtime.md`
+i `workflow-state-machine.md`; katalog `.ai/change-records/`.
+
+**5b — usunięcie lane work-record:** ekstrakcja trzech współdzielonych funkcji
+(`parse_time`, `entry_relative_path`, `call_salesforce_review_facade`) i stałej
+`RULE_SOURCE_TIERS` do miejsc, które ich faktycznie używają (knowledge_store,
+schema_format, validate_harness) — potem kasacja `work_record.py`, schematów lane
+(change-record, handoff-envelope, work-evidence, verification-*, dependency-admission),
+fixture'ów handoff, `test_work_record.py` i testów bramek receiptowych; czyszczenie
+słownika legacy ról w role guardzie i safety-scenarios (stare wpisy zastępują piny
+nowych ról); aktualizacja checków walidatora mówiących językiem records/handoffs.
+
+**Zostaje nietknięte:** warstwa knowledge z całą ścieżką kuratorską, lane QA/handover
+(C-4; test-strategist jest entrypointem release-handover), lane ADO-read, hooki i fasady.
+Odwołania do work-recordów w prozie pozostałych lane'ów są przycinane do formy bez bramek
+rekordowych — treść lane zostaje, proces znika.
+
+Menu punktowych mechanizmów (§8) wskazuje od tej decyzji wyłącznie archiwum warsztatowe
+ownera — w tym repo nie ma już nic do „odmrożenia".
 
 ### Faza 6 — Walidatory, CI i higiena evali (~1–2 h)
 - Aktualizacja pinów `validate_harness.py` (liczby promptów/skilli/flag zmieniają się

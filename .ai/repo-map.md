@@ -10,7 +10,6 @@ the deep directory tree lives in `docs/workspace-topology.md`.
 | `.ai` | Governed agent state: contracts, knowledge, work records, memory, QA |
 | `.ai/contracts` | Normative execution/knowledge/workflow/tooling contracts, loaded per role |
 | `.ai/knowledge` | One-file Knowledge Entries + approval ledgers, feature entries, keyword taxonomy |
-| `.ai/change-records` | Durable work records; record.json is authoritative state |
 | `.ai/memory` | Human-curated decisions-log.md |
 | `.ai/qa` | QA test-case index synced from Azure Test Plans |
 | `.ai/templates` | Document templates |
@@ -38,9 +37,9 @@ the deep directory tree lives in `docs/workspace-topology.md`.
 - **designer** — Design subscriber-owned extensions of the …. Loads skills: org-discovery, solution-design.
 - **developer** — Implement a designed work item …. Loads skills: development, git-workflow.
 - **git-agent** — Routine git operations by the …. Loads skills: git-workflow.
-- **knowledge-curator** — Maintains governed Knowledge from repository …. Loads instructions: managed-package; contracts: source-authority, workflow-state-machine; skills: approve-knowledge-drafts, search-knowledge.
+- **knowledge-curator** — Maintains governed Knowledge from repository …. Loads instructions: managed-package; contracts: source-authority; skills: approve-knowledge-drafts, search-knowledge.
 - **reviewer** — Challenge a design or implementation …. Loads skills: check-against-principles.
-- **test-strategist** — Assess QA inventory freshness and …. Loads instructions: apex; contracts: execution-contract, tool-capabilities, workflow-state-machine. Hands off to: developer, reviewer.
+- **test-strategist** — Assess QA inventory freshness and …. Loads instructions: apex; contracts: execution-contract, tool-capabilities. Hands off to: developer, reviewer.
 
 ## Skills (`.github/skills/`)
 
@@ -90,10 +89,8 @@ the deep directory tree lives in `docs/workspace-topology.md`.
 ## Contracts (`.ai/contracts/`)
 
 - `execution-contract` — Every skill must apply this …
-- `solution-design-runtime` — This contract defines the Solution …
 - `source-authority` — Source authority depends on the …
 - `tool-capabilities` — Exact dispatcher input schemas come …
-- `workflow-state-machine` — > **Solution Design moved.** Since …
 
 ## Instructions (`.github/instructions/`)
 
@@ -103,8 +100,8 @@ the deep directory tree lives in `docs/workspace-topology.md`.
 
 ## Resume here
 
-- Resume work from the persisted record: `python scripts/work_record.py` with explicit recordId/handoffId — chat is never workflow truth.
 - Knowledge coverage: `python scripts/force_app_knowledge.py inventory` then `entry-readiness` (derived, cannot drift).
 - Decisions: `.ai/memory/decisions-log.md`; QA test-case index: `.ai/qa/test-cases/`.
 - Search Knowledge first: the `knowledge_context` / `knowledge_search` MCP tools over the entry index (`knowledge_resolve` maps names/paths to identities); terminal fallback lives in the search-knowledge skill's command menu.
 - Deep tree: `docs/workspace-topology.md`; setup: `docs/setup-zero-to-first-prompt.md`.
+- Resume work from work-items/<id>-<slug>/: design.md is the intent, tasks.md the state, decisions.md the deviations — chat is never workflow truth

@@ -12,8 +12,6 @@ from scripts.schema_format import FORMAT_CHECKER
 ROOT = Path(__file__).resolve().parents[1]
 ENVELOPE_SCHEMAS = (
     "output-envelope.schema.json",
-    "change-record.schema.json",
-    "handoff-envelope.schema.json",
 )
 
 

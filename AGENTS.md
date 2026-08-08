@@ -4,8 +4,7 @@ Use `.github/copilot-instructions.md` as the canonical always-on safety and grou
 Governed work must run through the checked-in workspace and a checked-in custom agent. Treat
 `brain-core` (`.`) as the only named workspace folder and the only SFDX root; never search a
 subfolder, parent, sibling, or second checkout for metadata. Salesforce writes remain bounded to
-the authorized root subpaths, not to harness policy or governed-state files. Load the persisted
-work record before acting on governed work; documenting existing state is record-free. Load
+the authorized root subpaths, not to harness policy or governed-state files. Load
 detailed Principles, contracts, Knowledge, and skills only through the active role. Orient in the generated atlas `.ai/repo-map.md` first.
 Built-in/default Agent mode and arbitrary terminal workflows are not supported for external
 systems or governed state changes.

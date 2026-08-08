@@ -61,7 +61,7 @@ class RepoMapRenderTests(unittest.TestCase):
         self.assertEqual(7, len(first["agents"]))
         self.assertEqual(21, len(first["skills"]))
         self.assertEqual(18, len(first["prompts"]))
-        self.assertEqual(5, len(first["contracts"]))
+        self.assertEqual(3, len(first["contracts"]))
 
     def test_word_budget_is_enforced(self) -> None:
         with mock.patch.object(render_repo_map, "WORD_BUDGET", 50):

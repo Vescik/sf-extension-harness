@@ -67,8 +67,7 @@
       "handoffs": [],
       "loads": {
         "contracts": [
-          "source-authority",
-          "workflow-state-machine"
+          "source-authority"
         ],
         "instructions": [
           "managed-package"
@@ -103,8 +102,7 @@
       "loads": {
         "contracts": [
           "execution-contract",
-          "tool-capabilities",
-          "workflow-state-machine"
+          "tool-capabilities"
         ],
         "instructions": [
           "apex"
@@ -123,12 +121,6 @@
       "title": "Shared Skill Execution Contract"
     },
     {
-      "name": "solution-design-runtime",
-      "path": ".ai/contracts/solution-design-runtime.md",
-      "summary": "This contract defines the Solution Design loop. `scripts/solution_design_core.py` is the single implementation of every rule below; agent-facing text may explain it but never redefines it.",
-      "title": "Solution Design Runtime Contract"
-    },
-    {
       "name": "source-authority",
       "path": ".ai/contracts/source-authority.md",
       "summary": "Source authority depends on the assertion being made. There is no universal ranking, and multiple records derived from the same underlying source are not independent corroboration.",
@@ -139,12 +131,6 @@
       "path": ".ai/contracts/tool-capabilities.md",
       "summary": "Exact dispatcher input schemas come from the running server and must be captured in sanitized fixtures. The server organization comes only from `ADO_ORGANIZATION`, which must equal local configuration; the global hook rejects calls without the configured project or with a mismatched project/ADO URL. The local stdio server has no server-side read-only mode, and its domains do include write-capable tools; agents are policy-bound to the read actions listed above (owner decision 2026-07-14 — no hook denylist on ADO writes yet; revisit if governed ADO writes become desirable).",
       "title": "Tool Capability Map"
-    },
-    {
-      "name": "workflow-state-machine",
-      "path": ".ai/contracts/workflow-state-machine.md",
-      "summary": "> **Solution Design moved.** Since the 2026-08-06 loop rebuild, a Design Case owns its own state > machine, versioning, gates, human approval and handoff — see > [`solution-design-runtime.md`](solution-design-runtime.md). The `(phase, status)` pairs below > still govern the work-record lane used by Development, QA and Review, and a Design Case keeps a > schema-valid `record.json` so those consumers continue to resolve; but the Design Case's > authority is `record.json.solutionDesign`, its transitions are the runtime's, and `approve` is > not its approval path. Do not read design readiness from the table below.",
-      "title": "Governed Work-Record State Machine"
     }
   ],
   "directories": [
@@ -159,10 +145,6 @@
     {
       "path": ".ai/knowledge",
       "purpose": "One-file Knowledge Entries + approval ledgers, feature entries, keyword taxonomy"
-    },
-    {
-      "path": ".ai/change-records",
-      "purpose": "Durable work records; record.json is authoritative state"
     },
     {
       "path": ".ai/memory",
@@ -392,11 +374,11 @@
     }
   ],
   "resumeHere": [
-    "Resume work from the persisted record: `python scripts/work_record.py` with explicit recordId/handoffId — chat is never workflow truth.",
     "Knowledge coverage: `python scripts/force_app_knowledge.py inventory` then `entry-readiness` (derived, cannot drift).",
     "Decisions: `.ai/memory/decisions-log.md`; QA test-case index: `.ai/qa/test-cases/`.",
     "Search Knowledge first: the `knowledge_context` / `knowledge_search` MCP tools over the entry index (`knowledge_resolve` maps names/paths to identities); terminal fallback lives in the search-knowledge skill's command menu.",
-    "Deep tree: `docs/workspace-topology.md`; setup: `docs/setup-zero-to-first-prompt.md`."
+    "Deep tree: `docs/workspace-topology.md`; setup: `docs/setup-zero-to-first-prompt.md`.",
+    "Resume work from work-items/<id>-<slug>/: design.md is the intent, tasks.md the state, decisions.md the deviations — chat is never workflow truth"
   ],
   "schemaVersion": 1,
   "skills": [
@@ -507,18 +489,16 @@
     }
   ],
   "sourceDigests": {
-    ".ai/contracts/execution-contract.md": "sha256:b35f0551d24fea7a000489e8d0dcee9797ab0ba42fc0e2dcb9a9bd404782bff9",
-    ".ai/contracts/solution-design-runtime.md": "sha256:e524cd86d09922375c69cc068ad57785eab1045935ac05b21c47a5f2de9c599f",
+    ".ai/contracts/execution-contract.md": "sha256:31ec967a6828902e9a58577a2b3ccc4d9e146e06ea12c68c3f881ec86bbb5840",
     ".ai/contracts/source-authority.md": "sha256:21f45190131347752c36ced221855635b5a60126c11c67fe29b564de446d1af3",
-    ".ai/contracts/tool-capabilities.md": "sha256:5e2e59b381234c95fbdacdea25e8bae73ea119b04be36a624f29149c9adc84ca",
-    ".ai/contracts/workflow-state-machine.md": "sha256:e5bb2075051daf1a8f75cd8883443b2d18795c02f6e9cf846a90d61eb2380918",
+    ".ai/contracts/tool-capabilities.md": "sha256:47bd9bd98819b12694b1744aac4c7931cf5cba27fc998a9d6144f680118e9cf6",
     ".github/agents/config-investigator.agent.md": "sha256:7578d8a60141cef326b55a05a0bcb9f5acee2ebd9d48c32c5158378e9652b4a1",
     ".github/agents/designer.agent.md": "sha256:2a277c6fbfed24cec8320a03bb3d0c2fde837b24347c79e6504c569ea41ce203",
     ".github/agents/developer.agent.md": "sha256:4b6ccbd760b39e79adb668cf166397af70a6a3c9f174bdf03fb480a97123df6f",
     ".github/agents/git-agent.agent.md": "sha256:1ec54fe0d4ad399d5dcd61f4d5d148c14b119666ee7142af85ada66f51a200b2",
-    ".github/agents/knowledge-curator.agent.md": "sha256:5143967cc12bfa288ba99693dd143be1fdb04af5413b5c8b67ef721a1d95966b",
+    ".github/agents/knowledge-curator.agent.md": "sha256:e3be5f163c5d3c33aca20be7ead9ea645772cd5546b937cc8b7ebee79b673c3c",
     ".github/agents/reviewer.agent.md": "sha256:3a4af43c2617aa2bbd284e9c7c87d1af3bfa171e49a2a86ba445f6ef4c322bea",
-    ".github/agents/test-strategist.agent.md": "sha256:7b5e09d4543739266c0830c0e9905a54aa0c2cf20a9c087a659af4730716daf3",
+    ".github/agents/test-strategist.agent.md": "sha256:c99ca16758ae92a05a7ff016bfb1ee26a397225a2b5381a5e1415a02e2501011",
     ".github/instructions/apex.instructions.md": "sha256:d28260c9247d670c71353f0cdaa22195f2490d4bb1b5bf11d403861602cda5b3",
     ".github/instructions/flows.instructions.md": "sha256:63c560e27041a9bf6e89342f0df491310f6a6fb3dc3d70d1a56f6c61d5788adc",
     ".github/instructions/managed-package.instructions.md": "sha256:da8fefab4523168244bb8532d3a6adc35138d19b9a5e8e9640990d49fde738a4",
@@ -543,7 +523,7 @@
     ".github/skills/adhoc-fix/SKILL.md": "sha256:a14e20e5874b9524ff9c4a174c331f211b4b34a45d880be3cec2542eae6d1014",
     ".github/skills/approve-knowledge-drafts/SKILL.md": "sha256:62c19d16c522bf0dd79ba9baca40838a9636079c8d8ae92b0df9488842506090",
     ".github/skills/author-feature/SKILL.md": "sha256:bf360e7e7b2933bebd378c5724d973c7e613539eabea4871b68cd05abb5f2dbc",
-    ".github/skills/check-against-principles/SKILL.md": "sha256:0acdc64486e91a5884f028e67efb5f2e311d7d65465ad7b22e051a8fa1911b8b",
+    ".github/skills/check-against-principles/SKILL.md": "sha256:cc53dc88a64e691206e56f4262eb34e9d2320ca13ccc8dc748096ad8fe86e28c",
     ".github/skills/check-feature-coverage/SKILL.md": "sha256:e9397e6e5379fc13604cbab4b94c351c8e9169c4ba881479cd3c71c4774b1561",
     ".github/skills/development/SKILL.md": "sha256:40c2fb8d364e8983f8af535f05d3268c242c508aeca89a66303a454607b0ae99",
     ".github/skills/fetch-ado-item/SKILL.md": "sha256:02ad5d68ff86e39c27e6acd29058b617483c0b7d07cd69b007acbae2e88104c8",
@@ -552,7 +532,7 @@
     ".github/skills/generate-technical-documentation/SKILL.md": "sha256:2c2dd0737d57bb8a1aabd0aee2d2a77746773ccfcba56c7eceba8a108cc70a92",
     ".github/skills/git-workflow/SKILL.md": "sha256:8f32f7e2658d4aa90763e09995c4a311416ad51efadf907238145f0655ebe4f6",
     ".github/skills/inventory-force-app/SKILL.md": "sha256:516ea22ac3cd2cdb8a5b470c0ab36fe137da0576fc3042c8b9434a5ae47d8454",
-    ".github/skills/investigate-config-records/SKILL.md": "sha256:9191d0c4568231a255b591473c4dc5ecb1fcdafac2517cd12bbac219dd42acea",
+    ".github/skills/investigate-config-records/SKILL.md": "sha256:ea5485512b50e8c8ab3f0c62c13888801695a377e341d41f9f823bffe4d67963",
     ".github/skills/investigate-object/SKILL.md": "sha256:2ed19778fdd0e9fae6eeefb32dbf9b4e09f5ebe2e9eb5c29b9024f91dfcb33e8",
     ".github/skills/org-discovery/SKILL.md": "sha256:9315de635adb9b3d49305ca5fbe0293f68df3bcb921368da1c4d2c313451c43f",
     ".github/skills/search-ado/SKILL.md": "sha256:4c6a1e155d7cf3b2079953837681ebd89e6226b4ff98f8ae30f079640b788cc7",
@@ -561,7 +541,7 @@
     ".github/skills/solution-design/SKILL.md": "sha256:70f458b98d736a2d8ee427081e6f4b76d4b123a7f04102fb58d1d91df3e0b491",
     ".github/skills/sync-test-cases/SKILL.md": "sha256:86b1af1a8415d07f548e7160a565933be7dfede396e55341345fe76ffccfe529",
     ".github/skills/tune-test-case-keywords/SKILL.md": "sha256:bf9e6961b03bf3ff00903dcef31c9ccb4ac41cb974bc32e20f4d1e10ae1e3fce",
-    "config/repo-map-seed.json": "sha256:e27d830a7d95ad9c005987a3f1ac0595a15dea780944977aa2cd0ac8d961cefc"
+    "config/repo-map-seed.json": "sha256:f3af73b3080c66802abb0483b79851cfd0c1ed708989f2810bea9f4b2898d09c"
   },
-  "wordCount": 813
+  "wordCount": 785
 }

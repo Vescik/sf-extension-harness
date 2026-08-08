@@ -50,36 +50,6 @@ scenarios:
     expectedDecision: deny
     reasonContains: SAFE-ROLE-001
 
-  - id: global-work-record-approval-denied
-    guard: global
-    workingDirectory: repository
-    event:
-      tool_name: execute/runInTerminal
-      tool_input:
-        command: python3 scripts/work_record.py approve --record-id WR-1
-    expectedDecision: deny
-    reasonContains: SAFE-HUMAN-001
-
-  - id: global-wrapped-work-record-approval-denied
-    guard: global
-    workingDirectory: repository
-    event:
-      tool_name: shell/execute
-      tool_input:
-        command: bash -c 'python3 scripts/work_record.py --root . approve --record-id WR-1'
-    expectedDecision: deny
-    reasonContains: SAFE-HUMAN-001
-
-  - id: designer-work-record-approval-denied
-    guard: role
-    role: solution-designer
-    workingDirectory: repository
-    event:
-      tool_name: execute/runInTerminal
-      tool_input:
-        command: python3 scripts/work_record.py approve --record-id WR-1
-    expectedDecision: deny
-
   - id: global-salesforce-default-org-denied
     guard: global
     workingDirectory: temporary
@@ -111,7 +81,7 @@ scenarios:
 
   - id: designer-decision-log-direct-edit-denied
     guard: role
-    role: solution-designer
+    role: designer
     workingDirectory: repository
     event:
       tool_name: edit/editFiles
@@ -122,7 +92,7 @@ scenarios:
 
   - id: designer-metadata-write-denied
     guard: role
-    role: solution-designer
+    role: designer
     workingDirectory: repository
     event:
       tool_name: edit/editFiles
@@ -155,7 +125,7 @@ scenarios:
 
   - id: developer-salesforce-e2e-edit-allowed
     guard: role
-    role: development-assistant
+    role: developer
     workingDirectory: repository
     event:
       tool_name: edit/editFiles
@@ -165,7 +135,7 @@ scenarios:
 
   - id: developer-harness-test-edit-denied
     guard: role
-    role: development-assistant
+    role: developer
     workingDirectory: repository
     event:
       tool_name: edit/editFiles
@@ -374,9 +344,9 @@ scenarios:
         command: python3 scripts/knowledge_store.py entry-org-attach --identity CustomObject:c:Invoice__c --org dev-sbx --probes-file .cache/org-usage/pending/probes.json
     expectedDecision: deny
 
-  - id: dev-assistant-org-attach-denied
+  - id: developer-org-attach-denied
     guard: role
-    role: development-assistant
+    role: developer
     workingDirectory: repository
     event:
       tool_name: execute/runInTerminal

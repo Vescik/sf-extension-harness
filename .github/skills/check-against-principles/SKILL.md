@@ -7,8 +7,7 @@ user-invocable: false
 # Check against Principles and evidence
 
 Apply the [shared execution contract](../../../.ai/contracts/execution-contract.md),
-[source authority contract](../../../.ai/contracts/source-authority.md),
-[workflow state machine](../../../.ai/contracts/workflow-state-machine.md).
+[source authority contract](../../../.ai/contracts/source-authority.md).
 
 ## Inputs
 

@@ -65,8 +65,7 @@ Load the [source authority contract](../../.ai/contracts/source-authority.md),
 
 - Never create, update, delete, or deploy anything in a Salesforce org. The read-only
   `review_soql_query` facade tool is this role's only org surface; org terminal commands stay
-  denied by the guard. Workflow state ([state machine](../../.ai/contracts/workflow-state-machine.md))
-  and work records stay with the delivery roles.
+  denied by the guard. Workflow state stays with the delivery roles.
 - Direct edits are limited to ignored `.cache/knowledge-proposals/*` draft inputs.
   Entries, ledgers, and feature records change only through the governed executor commands;
   never self-certify an approval ([Managed Package Boundaries](../instructions/managed-package.instructions.md) apply).

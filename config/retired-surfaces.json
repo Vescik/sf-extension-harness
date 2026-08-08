@@ -20,6 +20,38 @@
         "docs/knowledge-one-file-impact-map.md",
         "tests/test_repo_map.py"
       ]
+    },
+    {
+      "name": "solution-design-runtime-and-work-record-lane",
+      "retiredIn": "context-first phase 5",
+      "retiredOn": "2026-08-08",
+      "replacement": "content-first design in work-items/ (design.md, tasks.md, decisions.md) with human review on the pull request; safety stays in the hooks",
+      "tokens": [
+        "work_record",
+        "solution_design",
+        "governed_state",
+        ".ai/change-records"
+      ],
+      "historicalAllowlist": [
+        "config/retired-surfaces.json",
+        ".ai/memory/decisions-log.md",
+        "docs/discovery-2026-08-07-phase0-baseline.md",
+        "docs/plan-2026-08-07-context-first-architecture.md",
+        "docs/plan-2026-08-07-lightweight-additions.md",
+        "docs/evidence-analysis-2026-07-24.md",
+        "docs/evidence-to-analyse.md",
+        "docs/handoff-plan-2026-07-29.md",
+        "docs/knowledge-completion-audit-2026-07-25.md",
+        "docs/knowledge-master-plan-2026-07-25.md",
+        "docs/knowledge-one-file-contract.md",
+        "docs/knowledge-one-file-impact-map.md",
+        "docs/knowledge-thread-2026-07-27.md",
+        "docs/solution-design-runtime-v2-design.md",
+        "docs/solution-design-product-goal.md",
+        "docs/spec-p5-attested-claim-lane-2026-07-27.md",
+        "tests/test_knowledge_contract.py",
+        "tests/test_safety_hooks.py"
+      ]
     }
   ]
 }

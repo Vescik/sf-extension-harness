@@ -15,10 +15,6 @@
       "purpose": "One-file Knowledge Entries + approval ledgers, feature entries, keyword taxonomy"
     },
     {
-      "path": ".ai/change-records",
-      "purpose": "Durable work records; record.json is authoritative state"
-    },
-    {
       "path": ".ai/memory",
       "purpose": "Human-curated decisions-log.md"
     },
@@ -100,10 +96,10 @@
     }
   ],
   "resumeHere": [
-    "Resume work from the persisted record: `python scripts/work_record.py` with explicit recordId/handoffId \u2014 chat is never workflow truth.",
     "Knowledge coverage: `python scripts/force_app_knowledge.py inventory` then `entry-readiness` (derived, cannot drift).",
     "Decisions: `.ai/memory/decisions-log.md`; QA test-case index: `.ai/qa/test-cases/`.",
     "Search Knowledge first: the `knowledge_context` / `knowledge_search` MCP tools over the entry index (`knowledge_resolve` maps names/paths to identities); terminal fallback lives in the search-knowledge skill's command menu.",
-    "Deep tree: `docs/workspace-topology.md`; setup: `docs/setup-zero-to-first-prompt.md`."
+    "Deep tree: `docs/workspace-topology.md`; setup: `docs/setup-zero-to-first-prompt.md`.",
+    "Resume work from work-items/<id>-<slug>/: design.md is the intent, tasks.md the state, decisions.md the deviations \u2014 chat is never workflow truth"
   ]
 }

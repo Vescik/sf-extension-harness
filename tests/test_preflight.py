@@ -93,16 +93,11 @@ class PreflightValidationTests(unittest.TestCase):
         # server-side read-only mode, so ADO read-only is harness policy, not construction
         # (owner decision 2026-07-14).
         mcp = json.loads((ROOT / ".vscode/mcp.json").read_text(encoding="utf-8"))
-        # solution-design joined on 2026-08-05 (Design Case rebuild P2). It binds no org, takes
-        # no inputs, and its only side effect is the governed case tree — read-only towards
-        # Salesforce by construction, like knowledge.
+        # The solution-design server was deleted with its runtime (phase 5, owner
+        # decision 2026-08-08) and must stay gone.
         self.assertEqual(
             set(mcp["servers"]),
-            {"ado-readonly", "salesforce-readonly", "knowledge", "solution-design"},
-        )
-        self.assertEqual(
-            ["scripts/solution_design_mcp_server.mjs"],
-            mcp["servers"]["solution-design"]["args"],
+            {"ado-readonly", "salesforce-readonly", "knowledge"},
         )
         knowledge = mcp["servers"]["knowledge"]
         self.assertEqual(["scripts/knowledge_mcp_server.mjs"], knowledge["args"])

@@ -12,8 +12,6 @@ upgrade.
 | Scoped enumeration of configured org aliases (requires `safety.allowScopedEnumeration`) | `salesforce-readonly/review_configured_orgs` | investigator |
 | Composed read-only SOQL incl. record reads (verbatim, Salesforce MCP transport only, unredacted single-source rows) | `salesforce-readonly/review_soql_query` | investigator, design, development, knowledge curation |
 | Salesforce non-production source retrieve into the project (per-invocation human confirmation; the only direct `sf` command not denied) | `sf project retrieve start` guarded terminal command | development only |
-| Solution Design loop state (four tools: open, record, check, submit) | `solution-design/*` local stdio MCP (`scripts/solution_design_mcp_server.mjs` over one persistent internal worker) | design (guardrail-reviewer holds `design_check` read) |
-| Human approval of a design candidate | the elicitation inside `solution-design/design_submit` (native VS Code MCP elicitation; digest-bound, single-use nonce) | named humans only |
 | Interactive human confirmation | `vscode/askQuestions` | prompts and approval gates |
 | Subagent delegation | `agent` plus explicit `agents` allowlist | Designer, Developer |
 
@@ -52,22 +50,17 @@ and vendor payloads are not exposed to an agent.
 
 ## Solution Design runtime
 
-`solution-design` is registered in `.vscode/mcp.json` only. `.github/mcp.json` stays
 Knowledge-only because the human-bound approval surface this runtime depends on is native VS Code
 MCP elicitation, which the CLI host does not provide.
 
 Model-facing tools — exactly four: `design_open`, `design_record`, `design_check`,
-`design_submit`. The loop runtime advises and never refuses a write; the single hard gate is
-the human elicitation inside `design_submit`.
 
 The request tools carry **no** answer, approval, decision or status field. They initiate an
 elicitation; the client response selects the internal operation. The internal operations —
 `record-human-input`, `confirm-candidate`, `request-candidate-revision`, `transfer-case-writer` —
-are not tools and are never granted. A `solution-design/*` wildcard grant is a contract failure
 and the validator rejects it.
 
 The Node wrapper never computes a `caseVersion` or a `candidateDigest`: the Python core is the
-single digest authority. See `.ai/contracts/solution-design-runtime.md` for the state machine,
 closure authority and gate semantics. MCP/CLI agreement is transport corroboration from
 the same org, not independent truth.
 

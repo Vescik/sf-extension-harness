@@ -302,8 +302,10 @@ class SeparationTests(unittest.TestCase):
             "$defs"]["entryRef"]["properties"]["entryId"]["pattern"]
         self.assertIsNone(re.match(pattern, "Feature:invoice-finance"))
 
-    def test_feature_ref_defs_exist_in_all_three_envelopes(self) -> None:
-        for name in ("output-envelope", "handoff-envelope", "change-record"):
+    def test_feature_ref_defs_exist_in_every_envelope(self) -> None:
+        # change-record and handoff-envelope were deleted with the work-record lane
+        # (phase 5, owner decision 2026-08-08); output-envelope is the surviving envelope.
+        for name in ("output-envelope",):
             schema = json.loads((ROOT / f"schemas/{name}.schema.json").read_text())
             defs = schema.get("$defs") or schema.get("definitions")
             self.assertIn("featureRef", defs, name)

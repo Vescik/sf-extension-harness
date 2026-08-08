@@ -456,29 +456,6 @@ class KnowledgeStoreTests(unittest.TestCase):
                 self.assertIn(metadata_type, store.ADAPTERS)
                 self.assertTrue((self.temp / "schemas" / profile["schema"]).is_file())
 
-    def test_work_record_entry_refs_validate_and_track_lanes(self) -> None:
-        from scripts import work_record
-
-        drafted = self.draft()
-        self.approve([f"{drafted['identity']}:{drafted['reviewedContentDigest']}"])
-        lane = store.lane_for_identity(self.temp, drafted["identity"])
-        reference = {
-            "entryId": drafted["identity"],
-            "reviewedContentDigest": lane["reviewedContentDigest"],
-            "factsDigest": lane["factsDigest"],
-            "sourceTreeDigest": lane["sourceTreeDigest"],
-            "profile": lane["profile"],
-        }
-        work_record.validate_entry_refs(self.temp, [reference], require_current=True)
-        tampered = dict(reference, reviewedContentDigest="sha256:" + "f" * 64)
-        with self.assertRaises(work_record.WorkRecordError):
-            work_record.validate_entry_refs(self.temp, [tampered], require_current=True)
-        flow = self.temp / "force-app/main/default/flows/HarnessAlphaRouter.flow-meta.xml"
-        flow.write_text(FLOW_XML.replace("Active", "Draft"), encoding="utf-8")
-        with self.assertRaises(work_record.WorkRecordError):  # drifted is not current
-            work_record.validate_entry_refs(self.temp, [reference], require_current=True)
-        work_record.validate_entry_refs(self.temp, [reference], require_current=False)
-
     # --- remaining adversarial-review evals (R-09..R-24) ---------------------------
 
     def test_r09_reparse_point_under_knowledge_fails_closed(self) -> None:

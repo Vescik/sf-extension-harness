@@ -212,15 +212,6 @@ SHELL_BINARY_TOOL_NAMES = frozenset({
     "bash", "sh", "zsh", "fish", "dash", "ksh", "pwsh", "powershell", "cmd",
 })
 SALESFORCE_OBJECT_API_NAME = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,79}$")
-WORK_RECORD_SCRIPT = re.compile(
-    r"(?:^|[\s\"';&|()])(?:[A-Za-z]:)?/?(?:[^\s\"';&|()]+/)*"
-    r"work_record\.py(?=$|[\s\"';&|()])",
-    re.IGNORECASE,
-)
-WORK_RECORD_MODULE = re.compile(
-    r"(?:^|[\s\"';&|()])-m\s*(?:scripts\.)?work_record(?=$|[\s\"';&|()])",
-    re.IGNORECASE,
-)
 # A standalone `sf` invocation token. `\b` alone treats hyphens/dots as word boundaries, so the
 # workspace's own path (`sf-harness-brain-core`) or a file like `sf.py` matched and every command
 # or path mentioning the repository directory was denied as a "wrapped Salesforce command"
@@ -477,32 +468,6 @@ def is_terminal_tool(tool_name: str) -> bool:
     )
 
 
-def is_work_record_approval_command(command: str) -> bool:
-    """Detect human-only work-record approval, including wrapped and Windows forms."""
-
-    # Fold line continuations, normalize Windows path separators, then drop quotes so
-    # `-m 'work_record'` and `python3 -m"work_record"` splices cannot hide the module name.
-    normalized = re.sub(r"\\\r?\n", " ", command).replace("\\", "/")
-    normalized = normalized.replace("'", "").replace('"', "")
-    matches = list(WORK_RECORD_SCRIPT.finditer(normalized)) + list(
-        WORK_RECORD_MODULE.finditer(normalized)
-    )
-    for match in matches:
-        # Approval may follow global parser flags, but not a later shell command.
-        same_command = re.split(r"[;&|\r\n]", normalized[match.end() :], maxsplit=1)[0]
-        if re.search(r"[$`*?\[]", same_command):
-            # The resulting subcommand cannot be proven before shell expansion.
-            return True
-        lexical_command = same_command.replace('"', "").replace("'", "")
-        if re.search(
-            r"(?:^|\s)approve(?=$|\s|[()])",
-            lexical_command,
-            re.IGNORECASE,
-        ):
-            return True
-    return False
-
-
 def target_orgs(parts: list[str]) -> list[str]:
     targets: list[str] = []
     for index, part in enumerate(parts):
@@ -685,18 +650,6 @@ def main() -> int:
     # Salesforce commands (observed live on the Windows pilot). Non-command surfaces are still
     # covered by the `text` checks (destructive/production patterns) and tool classification.
     command = terminal_command(tool_input) if is_terminal_tool(tool_name) else ""
-
-    if is_terminal_tool(tool_name) and is_work_record_approval_command(command):
-        print(
-            json.dumps(
-                hook_response(
-                    "deny",
-                    "SAFE-HUMAN-001: Copilot cannot invoke work-record approval; "
-                    "a named human must run it directly outside Copilot.",
-                )
-            )
-        )
-        return 0
 
     if is_terminal_tool(tool_name) and re.search(
         r"knowledge_store\.py", dequote(command).replace("\\", "/")

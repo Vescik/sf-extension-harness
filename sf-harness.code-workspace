@@ -23,10 +23,6 @@
         "approve": true,
         "matchCommandLine": true
       },
-      "/^(?:\\S*[\\\\/])?(?:python3?|py)(?:\\.exe)?(?:\\s+-3)?\\s+(?:\\S*[\\\\/])?scripts[\\\\/]work_record\\.py\\s+(?!approve\\b)[^\\n\\r;&|<>`$()]*$/": {
-        "approve": true,
-        "matchCommandLine": true
-      },
       "/^(?:\\S*[\\\\/])?(?:python3?|py)(?:\\.exe)?(?:\\s+-3)?\\s+(?:\\S*[\\\\/])?scripts[\\\\/]knowledge_store\\.py\\s+(?!(?:entry|feature)-(?:approve|revoke)\\b)[^\\n\\r;&|<>`$()]*$/": {
         "approve": true,
         "matchCommandLine": true

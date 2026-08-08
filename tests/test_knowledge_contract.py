@@ -42,14 +42,15 @@ class KnowledgeSchemaTests(unittest.TestCase):
         # Principle sources; rules now resolve straight from the declaration lines. The
         # resolution stays unambiguous only while every ID is declared exactly once across
         # the four sources — and the registry (plus its schema) must not quietly return.
-        from scripts.work_record import RULE_SOURCE_TIERS
-
+        # The work-record lane (and its RULE_SOURCE_TIERS constant) was deleted in
+        # phase 5; the declare-once invariant now scans the Principle sources directly.
+        sources = [ROOT / ".github/copilot-instructions.md"] + sorted(
+            (ROOT / ".github/instructions").glob("*.instructions.md")
+        )
         declarations: list[str] = []
         pattern = re.compile(r"\*\*((?:SAFE|MP|ORG|SF)-[A-Z0-9-]+)\s+—")
-        for source_file, _tier in RULE_SOURCE_TIERS:
-            declarations.extend(
-                pattern.findall((ROOT / source_file).read_text(encoding="utf-8"))
-            )
+        for source in sources:
+            declarations.extend(pattern.findall(source.read_text(encoding="utf-8")))
         self.assertTrue(declarations)
         self.assertEqual(sorted(declarations), sorted(set(declarations)))
         self.assertFalse((ROOT / ".github/instructions/rule-registry.yaml").exists())

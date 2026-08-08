@@ -92,9 +92,8 @@ effective windows, who maintains them — not from how many there are.
    the `contentDigest`, a `sanitization` note naming the stripped surfaces, and limitations —
    above all that the values drift without any repository signal and expire with the org's
    refresh cadence.
-10. When the caller provided `recordId`, attach the snapshot as work-record evidence with
-   `python scripts/work_record.py append-evidence --record-id <ID> ...` (the report file is the
-   artifact); otherwise the investigation is a standalone read.
+10. The investigation is a standalone read; link the report from the relevant
+   `work-items/<id>-<slug>/` folder when one exists.
 
 ## Prohibitions
 

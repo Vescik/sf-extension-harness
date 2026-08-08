@@ -40,7 +40,7 @@
   "verification": [
     "Validated the independent review."
   ],
-  "artifactPath": ".ai/change-records/ADO-example-project-1201/record.json",
+  "artifactPath": "work-items/1201-example/design.md",
   "entryRefs": [
     {
       "entryId": "Flow:c:DemoRouting",

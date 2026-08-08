@@ -16,8 +16,8 @@
 
   // Pre-approve the workspace's own guarded scripts so agents run them without a click.
   // matchCommandLine regexes are anchored and forbid shell metacharacters (; & | > < ` $),
-  // so chained/redirected commands never auto-run. The human-only `work_record.py approve`
-  // and the knowledge promote/review commands are excluded by lookahead (denial itself lives
+  // so chained/redirected commands never auto-run. The knowledge promote/review commands
+  // are excluded by lookahead (denial itself lives
   // in the safety hook + the executor backstop, owner decision 2026-08-04); raw sf/sfdx
   // and destructive commands stay denied (false always wins). This only skips the approval
   // click — the role guard and safety hook still enforce the actual boundaries.
@@ -26,10 +26,6 @@
   // Approval" (workspace scope). See SETUP.md.
   "chat.tools.terminal.autoApprove": {
     "/^(?:\\S*[\\\\/])?(?:python3?|py)(?:\\.exe)?(?:\\s+-3)?\\s+(?:\\S*[\\\\/])?scripts[\\\\/]preflight\\.py(?:\\s+[^\\n\\r;&|<>`$()]*)?$/": {
-      "approve": true,
-      "matchCommandLine": true
-    },
-    "/^(?:\\S*[\\\\/])?(?:python3?|py)(?:\\.exe)?(?:\\s+-3)?\\s+(?:\\S*[\\\\/])?scripts[\\\\/]work_record\\.py\\s+(?!approve\\b)[^\\n\\r;&|<>`$()]*$/": {
       "approve": true,
       "matchCommandLine": true
     },
