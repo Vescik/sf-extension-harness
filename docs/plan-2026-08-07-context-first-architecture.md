@@ -277,6 +277,10 @@ treści, na końcu zamrożenie i walidacja.
 - Usunięcie „do not announce phases" wszędzie, gdzie występuje.
 
 ### Faza 2 — Rdzeń wartości: `docs/` (~1 dzień pracy treściowej, częściowo SME/owner)
+
+**Status 2026-08-08: delegowana w całości do ownera i tym samym zamknięta po stronie
+buildera** — pełna specyfikacja czterech plików (format, minima, rytuały zasilania,
+stemple L-1/L-5) czeka w `docs/CONTENT-TODO.md`; owner wypełnia treść i usuwa TODO.
 - `package-concept.md` — min. 50 linii, obszar najbliższego ticketa (docelowy limit
   200–300 linii, potem wydzielanie do `areas/`).
 - `package-constraints.md` — min. 10 wpisów z dotychczasowych oparzeń
