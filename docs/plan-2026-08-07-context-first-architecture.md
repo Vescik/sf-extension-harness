@@ -358,8 +358,17 @@ knowledge/QA/handover, protokół pomiaru §7 w nagłówku pliku. **Przebieg por
 (syntetyczny ticket 243101 za zgodą ownera; raport:
 `harness-lab/docs/report-2026-08-08-phase7-leg-a.md`): zero konfabulacji, ale też zero
 weryfikacji — discovery przez fasadę SF pominięte mimo prozy (ryzyko §5 zaobserwowane
-na żywo), 0 rund doprecyzowań, design chat-only. **Otwarte:** noga B (czeka na treść
-docs/ — CONTENT-TODO), kwestia fidelity zapisu plików w lane CLI, przegląd po miesiącu.
+na żywo), 0 rund doprecyzowań, design chat-only. **Przebieg porównawczy WYKONANY w całości 2026-08-08**
+(noga A re-run po naprawie configu + noga B na mock docs z brancha `phase7-mock-docs`;
+wyniki: `harness-lab/docs/report-2026-08-08-phase7-ab.md`). **Werdykt §7: wyraźna
+różnica — treść płaci.** Noga B: 0 zmyśleń, ~6 trafionych constraints, ostrzeżenie L-1
+zadziałało; noga A: sondowanie zmyślonych nazw `VendorNS__*` i projekt łamiący
+constraint #1 (trigger na save). Discovery działało w OBU nogach po naprawie fasady —
+ryzyko §5 „model pomija discovery" nie potwierdziło się; wartość docs siedzi
+w constraints (jedyna warstwa, która zapobiegła bugowi) i słowniku. **Otwarte:**
+prawdziwa treść docs/ od ownera (mock nie wchodzi na main), finding fidelity zapisu
+plików w lane CLI (3× reprodukowany — do weryfikacji w lane VS Code), drugi werdykt
+E4 + spot-audit, przegląd po miesiącu.
 - Przepisanie `agent-scenarios.yaml` pod nową strukturę — scenariusze formułowane razem
   z kryteriami pomiaru (discovery przez MCP przed propozycją; zmiany `VendorNS__`
   w osobnej sekcji z dowodem z orga; konflikt docs↔org → wygrywa org + zgłoszenie
