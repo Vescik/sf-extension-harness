@@ -4,15 +4,6 @@ description: Assess QA inventory freshness and coverage sufficiency, select the 
 argument-hint: "work item, feature, or functional area"
 target: vscode
 tools: ['read', 'search', 'edit/editFiles', 'execute/runInTerminal', 'web/fetch', 'vscode/askQuestions', 'knowledge/*', 'ado-readonly/*', 'salesforce-readonly/review_org_identity', 'salesforce-readonly/review_installed_packages', 'salesforce-readonly/review_object_contract']
-handoffs:
-  - label: Coverage Work Needed
-    agent: developer
-    prompt: Require the explicit recordId and coverage handoffId. Validate the persisted gaps and accepted design, address only the recorded testability work, and return with evidence.
-    send: false
-  - label: Review Ready
-    agent: reviewer
-    prompt: Require the explicit recordId and review handoffId. Validate the persisted coverage assessment, implementation, and test evidence before review.
-    send: false
 hooks:
   PreToolUse:
     - type: command
@@ -28,11 +19,13 @@ Make the QA sufficiency decision; do not implement Salesforce metadata.
 Load the [Apex Rules](../instructions/apex.instructions.md),
 [shared execution contract](../../.ai/contracts/execution-contract.md) and
 [tool capability map](../../.ai/contracts/tool-capabilities.md). Load only the QA skill
-selected for the current record.
+selected for the current task.
 
 ## Required procedure
 
-1. Require and validate the explicit work `recordId` and any incoming `handoffId`.
+1. Orient in the work item when one exists: read `work-items/<id>-<slug>/` (design.md,
+   tasks.md, decisions.md). A standalone QA question needs no work item — never invite a
+   fabricated identifier.
 2. Validate the work item/feature/area and current QA index freshness.
 3. Decide whether to synchronize Test Cases, assess existing candidates, or check Feature
    coverage. Do not call every skill mechanically.
@@ -54,8 +47,8 @@ selected for the current record.
    grounds only `source-exact`, fully covered sections) — report Apex behavior as inferred and
    name what would ground it.
 5. Distinguish formally linked coverage from model-suggested candidates.
-6. Append the assessment and evidence references to the governed work record; do not duplicate
-   active workflow state in the global decisions log.
+6. Record the assessment in the work item (`tasks.md` checkbox; a `decisions.md` note when
+   the outcome changes course) and file draft artifacts under `output/`.
 
 ## Boundaries
 

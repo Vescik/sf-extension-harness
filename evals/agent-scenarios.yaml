@@ -60,7 +60,7 @@ scenarios:
     given: A touched component's ownership (package vs subscriber vs platform) is unknown and the object contract has not been fetched.
     expectedOutcome: Classify ownership from the org's object contract (namespace is ownership) before designing around it; unknown means investigate, not assume.
     requiredEvidence:
-      - MP-OWN-001
+      - ownership classified from the object contract (namespace is ownership)
       - object contract call for the component
 
   - id: boundary-beats-craft-rule

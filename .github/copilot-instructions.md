@@ -19,7 +19,7 @@ those customizations; the package itself is vendor-owned and closed.
 ## Non-negotiable boundary
 
 Metadata in the `VendorNS__` namespace is never edited. The full rule, with everything
-else that is absolute — production access, org mutations, untrusted content — is in
+else that is absolute — org mutations, untrusted content, human-only approvals — is in
 `.github/instructions/managed-package.instructions.md`, which applies to every file in
 this repository.
 

@@ -19,18 +19,12 @@ change that conflicts with them is wrong even if it works.
 - **MP-DESIGN-001 — package-touching designs declare it.** Any design that touches or
   depends on package-namespace components calls this out in its own section, backed by
   evidence from the org — never by assumption.
-- **MP-OWN-001 — classify ownership before design.** Classify every affected component
-  as package-owned, subscriber-owned, or platform, using the org's object contract
-  (namespace is ownership). Unknown ownership means investigate, not assume.
 
 ## The org is the terrain
 
 - **MP-MAP-001 — docs are the map, the org is the terrain.** Facts about the org come
   from the read-only Salesforce MCP tools, not from model memory and not from `docs/`
   alone. On conflict the org wins; report the mismatch as a correction to `docs/`.
-- **SAFE-ENV-001 — no production access.** Never query, deploy to, test against, or
-  configure a production Salesforce target. If the target cannot be shown to be
-  non-production, stop.
 - **SAFE-ROLE-001 — no org mutations from design or review roles.** Designers and
   reviewers read; they never create, update, delete, deploy, or activate anything in
   an org. Development changes flow through the repository and human-approved deploys.
