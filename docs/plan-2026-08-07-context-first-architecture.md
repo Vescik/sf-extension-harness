@@ -354,9 +354,12 @@ od razu pełnym przepisaniem (patrz Faza 7).
 **Status 2026-08-08: przepisanie evali zrobione** (zaakceptowane przez ownera razem
 z zamknięciem fazy 6): `agent-scenarios.yaml` mówi językiem nowej architektury —
 scenariusze designer/developer/reviewer/git-agent pod ryzyka §5, zachowane lane'y
-knowledge/QA/handover, protokół pomiaru §7 w nagłówku pliku. **Otwarte pozostaje:**
-przebieg porównawczy (blokowany przez treść docs/ — CONTENT-TODO po stronie ownera)
-i przegląd po miesiącu normalnej pracy.
+knowledge/QA/handover, protokół pomiaru §7 w nagłówku pliku. **Przebieg porównawczy — noga A wykonana 2026-08-08**
+(syntetyczny ticket 243101 za zgodą ownera; raport:
+`harness-lab/docs/report-2026-08-08-phase7-leg-a.md`): zero konfabulacji, ale też zero
+weryfikacji — discovery przez fasadę SF pominięte mimo prozy (ryzyko §5 zaobserwowane
+na żywo), 0 rund doprecyzowań, design chat-only. **Otwarte:** noga B (czeka na treść
+docs/ — CONTENT-TODO), kwestia fidelity zapisu plików w lane CLI, przegląd po miesiącu.
 - Przepisanie `agent-scenarios.yaml` pod nową strukturę — scenariusze formułowane razem
   z kryteriami pomiaru (discovery przez MCP przed propozycją; zmiany `VendorNS__`
   w osobnej sekcji z dowodem z orga; konflikt docs↔org → wygrywa org + zgłoszenie
