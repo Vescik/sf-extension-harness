@@ -2,7 +2,7 @@
 name: document-metadata-change
 description: Generate reviewed technical documentation for one accepted metadata change.
 argument-hint: "recordId=<ID> itemId=<ID> [manifestPath=<path>]"
-agent: development-assistant
+agent: developer
 tools: ['read', 'search', 'edit/editFiles', 'execute/runInTerminal', 'vscode/askQuestions', 'ado-readonly/*', 'salesforce-readonly/review_org_identity', 'salesforce-readonly/review_installed_packages', 'salesforce-readonly/review_object_contract']
 ---
 

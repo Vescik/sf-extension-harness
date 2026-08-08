@@ -6,11 +6,11 @@ target: vscode
 tools: ['read', 'search', 'edit/editFiles', 'execute/runInTerminal', 'web/fetch', 'vscode/askQuestions', 'knowledge/*', 'ado-readonly/*', 'salesforce-readonly/review_org_identity', 'salesforce-readonly/review_installed_packages', 'salesforce-readonly/review_object_contract']
 handoffs:
   - label: Coverage Work Needed
-    agent: development-assistant
+    agent: developer
     prompt: Require the explicit recordId and coverage handoffId. Validate the persisted gaps and accepted design, address only the recorded testability work, and return with evidence.
     send: false
   - label: Review Ready
-    agent: guardrail-reviewer
+    agent: reviewer
     prompt: Require the explicit recordId and review handoffId. Validate the persisted coverage assessment, implementation, and test evidence before review.
     send: false
 hooks:

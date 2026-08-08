@@ -598,7 +598,7 @@ exactly what §7 protects:
 - **Set A — step-1 *source* lookup is the `knowledge_context` MCP tool** (9 surfaces):
   `solution-design`, `check-against-principles`, `check-feature-coverage`, `adhoc-fix`,
   `investigate-config-records`, `generate-technical-documentation`, `investigate-object`,
-  `development-assistant.agent.md`, `test-strategist.agent.md`.
+  `developer.agent.md`, `test-strategist.agent.md`.
 - **Set B — stays layer-2, each with its stated reason**: `search-knowledge` step 2 (org/runtime/
   business/vendor questions), `batch-knowledge` (drill-downs), `propose-force-app-knowledge`
   (duplicate check while authoring v1 claims), plus every `--uses-object`/`--uses-field` call
@@ -615,6 +615,7 @@ written and joined the counted set (8 → 10). Set A revision 2026-08-05 (Soluti
 P1): `suggest-test-cases` was retired as dead functionality — the Verification Contract is now the
 canonical verification plan — so the counted set is 9. This line is the live contract the validator
 parses; the retired surface survives only in historical audit text elsewhere.
+Set A revision 2026-08-08 (context-first phase 3): `development-assistant.agent.md` was replaced by `developer.agent.md` and the `solution-design` skill was rewritten for the context-first architecture; the step-1 discipline and the count (9) are unchanged.
 
 **Each Set A surface owes two things, and the gate must count both.** `context --identity` is only
 half of a correct step-1 lookup: a row carrying `hydrated: false` failed re-reading and is not a

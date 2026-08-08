@@ -30,15 +30,17 @@ the deep directory tree lives in `docs/workspace-topology.md`.
 | `schemas` | JSON Schemas for every governed artifact |
 | `scripts` | Guarded scripts: safety hook, role guard, registries, wrappers |
 | `tests` | Harness unit tests + promoted tests/e2e |
+| `work-items` | Current work: one folder per work item — design.md (intent), tasks.md (progress), decisions.md (append-only deviations) |
 
 ## Roles (`.github/agents/`)
 
 - **config-investigator** — Read-only evidence collector for allowlisted …. Loads instructions: managed-package; contracts: source-authority, tool-capabilities; skills: inventory-force-app, investigate-config-records, investigate-object, selected-files-knowledge.
-- **development-assistant** — Implement a human-accepted Salesforce design …. Loads instructions: apex, flows, managed-package; contracts: execution-contract, tool-capabilities, workflow-state-machine; skills: adhoc-fix. Hands off to: guardrail-reviewer, solution-designer.
-- **guardrail-reviewer** — Independently review a design or …. Loads instructions: apex, flows, managed-package; contracts: source-authority, tool-capabilities, workflow-state-machine; skills: check-against-principles. Hands off to: development-assistant, solution-designer.
+- **designer** — Design subscriber-owned extensions of the …. Loads skills: org-discovery, solution-design.
+- **developer** — Implement a designed work item …. Loads skills: development, git-workflow.
+- **git-agent** — Routine git operations by the …. Loads skills: git-workflow.
 - **knowledge-curator** — Maintains governed Knowledge from repository …. Loads instructions: managed-package; contracts: source-authority, workflow-state-machine; skills: approve-knowledge-drafts, search-knowledge.
-- **solution-designer** — Run the Solution Design loop …. Loads instructions: apex, flows, managed-package; contracts: source-authority; skills: solution-design. Hands off to: guardrail-reviewer.
-- **test-strategist** — Assess QA inventory freshness and …. Loads instructions: apex; contracts: execution-contract, tool-capabilities, workflow-state-machine. Hands off to: development-assistant, guardrail-reviewer.
+- **reviewer** — Challenge a design or implementation …. Loads skills: check-against-principles.
+- **test-strategist** — Assess QA inventory freshness and …. Loads instructions: apex; contracts: execution-contract, tool-capabilities, workflow-state-machine. Hands off to: developer, reviewer.
 
 ## Skills (`.github/skills/`)
 
@@ -47,38 +49,41 @@ the deep directory tree lives in `docs/workspace-topology.md`.
 - `author-feature` — Interactive Feature Knowledge authoring - …
 - `check-against-principles` — Evaluate a scoped design or …
 - `check-feature-coverage` — Compare a current Azure DevOps …
+- `development` — How to implement a designed …
 - `fetch-ado-item` — Fetch and normalize one Azure …
 - `fetch-test-case` — Fetch and normalize one Azure …
 - `generate-release-handover` — Compose a current, sourced monthly …
 - `generate-technical-documentation` — Generate a sourced technical-documentation draft …
+- `git-workflow` — The team's git conventions — …
 - `inventory-force-app` — Inventory the repository-root Salesforce force-app …
 - `investigate-config-records` — Take a bounded, sanitized snapshot …
 - `investigate-object` — Collect bounded, sanitized, reconciled evidence …
+- `org-discovery` — The recipe for investigating the …
 - `search-ado` — Read-only Azure DevOps text search …
 - `search-knowledge` — Read-only search over governed Knowledge …
 - `selected-files-knowledge` — Convert an explicitly selected handful …
-- `solution-design` — The Solution Design loop — …
+- `solution-design` — How to design a subscriber-owned …
 - `sync-test-cases` — Synchronize an allowlisted Azure Test …
 - `tune-test-case-keywords` — Curate one Test Case keyword …
 
 ## Commands (`.github/prompts/`, public)
 
-- `/adhoc-fix` → development-assistant
+- `/adhoc-fix` → developer
 - `/approve-drafts-knowledge` → knowledge-curator
 - `/author-feature` → knowledge-curator
-- `/check-against-principles` → guardrail-reviewer
+- `/check-against-principles` → reviewer
 - `/curate-knowledge` → knowledge-curator
-- `/document-metadata-change` → development-assistant
+- `/document-metadata-change` → developer
 - `/feature-health` → test-strategist
-- `/fetch-ado-item` → solution-designer
+- `/fetch-ado-item` → designer
 - `/inventory-force-app` → config-investigator
 - `/investigate-config-records` → config-investigator
 - `/investigate-object` → config-investigator
 - `/pin-knowledge` → config-investigator
 - `/release-handover` → test-strategist
-- `/search-ado` → solution-designer
+- `/search-ado` → designer
 - `/search-knowledge` → config-investigator
-- `/solution-design` → solution-designer
+- `/solution-design` → designer
 - `/sync-test-cases` → test-strategist
 - `/tune-test-case-keywords` → test-strategist
 

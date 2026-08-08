@@ -2,7 +2,7 @@
 name: adhoc-fix
 description: Bounded defect fix express lane — edit the diagnosed component in force-app, write a fix note; deployment stays human.
 argument-hint: "component=<Type:Name> [org=<alias>] plus the diagnosis or a pointer to it"
-agent: development-assistant
+agent: developer
 tools: ['read', 'search', 'edit/editFiles', 'execute/runInTerminal', 'vscode/askQuestions', 'salesforce-readonly/review_org_identity', 'salesforce-readonly/review_object_contract', 'salesforce-readonly/review_soql_query']
 ---
 

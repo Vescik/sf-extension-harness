@@ -10,7 +10,7 @@ Apply the [shared execution contract](../../../.ai/contracts/execution-contract.
 [Managed Package Boundaries](../../instructions/managed-package.instructions.md).
 Run `python scripts/preflight.py --capability salesforce-review`.
 
-This lane is the owner-approved exception (decision of 2026-07-23) to the development-assistant
+This lane is the owner-approved exception (decision of 2026-07-23) to the developer
 accepted-design entry gate. It exists so a diagnosed defect — a broken Flow decision, a wrong
 validation formula, a mislabeled field — can be fixed in the repository the moment the diagnosis
 is in hand. Everything else about the role's boundaries is unchanged: edits stay inside
@@ -70,7 +70,7 @@ human deploy.
    `sf project deploy start`), and the rollback path (re-retrieve from the org, which still holds
    the pre-fix state until the human deploys).
 7. Hand the outcome to the human: the fix is NOT live until they deploy. Recommend an
-   after-the-fact guardrail review — the human opens the guardrail-reviewer role on the fix note
+   after-the-fact guardrail review — the human opens the reviewer role on the fix note
    and changed files; record the verdict by appending a `Review outcome` section to the note.
 8. If the defect or its fix reveals durable facts worth keeping (error surface, config meaning),
    route them through `/pin-knowledge` afterwards; this skill itself writes no Knowledge.

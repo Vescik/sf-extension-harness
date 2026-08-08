@@ -2,7 +2,7 @@
 name: search-ado
 description: Text-search Azure DevOps wikis and work items in the configured project; fetched wiki pages are sanitized, cached, and quoted with provenance.
 argument-hint: "query=<text> [target=wiki|workitems|both] [top=<N>]"
-agent: solution-designer
+agent: designer
 tools: ['read', 'search', 'edit/editFiles', 'execute/runInTerminal', 'vscode/askQuestions', 'ado-readonly/*']
 ---
 

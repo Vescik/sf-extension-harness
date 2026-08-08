@@ -2,7 +2,7 @@
 name: fetch-ado-item
 description: Fetch a validated Azure DevOps work item context and begin Solution Design.
 argument-hint: "itemId=<ID> [recordId=<ID>] [mode=single|hierarchy] [childDetail=summary|full] [includeTestCases=true|false]"
-agent: solution-designer
+agent: designer
 ---
 
 Use the [fetch-ado-item skill](../skills/fetch-ado-item/SKILL.md).

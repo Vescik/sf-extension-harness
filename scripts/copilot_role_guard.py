@@ -50,6 +50,21 @@ ALLOWED_PREFIXES = {
         ".cache/ado-wiki/",
     ),
     "guardrail-reviewer": (),
+    # Context-first roles (plan 2026-08-07 phase 3). The legacy role entries above stay as
+    # the frozen work-record lane's vocabulary until phase 5 decides their removal.
+    "designer": (
+        ".cache/ado-items/",
+        ".cache/ado-wiki/",
+        "work-items/",
+    ),
+    "developer": (
+        "output/documentation/",
+        ".cache/ado-items/",
+        ".cache/ado-wiki/",
+        "work-items/",
+    ),
+    "reviewer": (),
+    "git-agent": (),
 }
 
 HARNESS_ROOT = Path(__file__).resolve().parents[1]
@@ -518,6 +533,50 @@ def read_only_orientation_command(parts: list[str]) -> bool:
     return False
 
 
+# git-agent terminal policy (plan 2026-08-07, lightweight additions §7.2): local,
+# recoverable operations run freely; anything that publishes or touches shared history
+# asks the human first; remote-branch deletion is never done. Force-push and
+# `reset --hard` are denied one layer down by the global safety hook.
+GIT_AGENT_FREE_SUBCOMMANDS = frozenset(
+    {
+        "status", "log", "diff", "show", "ls-files", "shortlog", "describe",
+        "branch", "switch", "checkout", "restore", "add", "commit", "stash",
+        "fetch", "rev-parse", "merge-base", "remote",
+    }
+)
+GIT_AGENT_ASK_SUBCOMMANDS = frozenset({"push", "pull", "merge", "rebase", "cherry-pick", "reset"})
+
+
+def git_agent_terminal_decision(command: str) -> tuple[str, str]:
+    if not command or re.search(r"[;&|`$<>\n\r]", command):
+        return ("deny", "git-agent runs plain single git commands only — no chaining.")
+    try:
+        parts = shlex.split(command.replace("\\", "/"))
+    except ValueError:
+        return ("deny", "git-agent could not parse the command.")
+    if not parts:
+        return ("deny", "git-agent received an empty command.")
+    if read_only_orientation_command(parts):
+        return ("allow", "")
+    if Path(parts[0]).name.lower().removesuffix(".exe") != "git":
+        return ("deny", "git-agent runs git commands only.")
+    subcommand = parts[1].lower() if len(parts) > 1 else ""
+    arguments = [part.lower() for part in parts[2:]]
+    if subcommand == "push" and (
+        "--delete" in arguments or "-d" in arguments or any(arg.startswith(":") for arg in arguments)
+    ):
+        return ("deny", "git-agent never deletes remote branches.")
+    if subcommand in GIT_AGENT_ASK_SUBCOMMANDS:
+        return (
+            "ask",
+            f"git {subcommand} publishes or rewrites shared state — confirm explicitly "
+            "(git-workflow skill: ask before merge to main, any push, or touching others' commits).",
+        )
+    if subcommand in GIT_AGENT_FREE_SUBCOMMANDS:
+        return ("allow", "")
+    return ("deny", f"git {subcommand or '<none>'} is outside the git-agent's routine-operations scope.")
+
+
 def allowed_role_command(command: str, root: Path, role: str) -> bool:
     if not command or re.search(r"[;&|`$<>\n\r]", command):
         return False
@@ -534,7 +593,7 @@ def allowed_role_command(command: str, root: Path, role: str) -> bool:
         return True
     executable = Path(parts[0]).name.lower()
     if (
-        role == "development-assistant"
+        role in {"development-assistant", "developer"}
         and executable.removesuffix(".exe").removesuffix(".cmd") == "sf"
         and [part.lower() for part in parts[1:4]] == ["project", "retrieve", "start"]
     ):
@@ -618,7 +677,7 @@ def resolve_candidate(raw: str, resolution_root: Path) -> Path | None:
     return candidate.resolve(strict=False)
 
 
-def development_edit_allowed(raw: str, resolution_root: Path) -> bool:
+def development_edit_allowed(raw: str, resolution_root: Path, role: str = "development-assistant") -> bool:
     candidate = resolve_candidate(raw, resolution_root)
     if candidate is None:
         return True
@@ -630,7 +689,7 @@ def development_edit_allowed(raw: str, resolution_root: Path) -> bool:
         return True
     if is_governed_record_path(brain_relative):
         return False
-    return allowed(brain_relative, ALLOWED_PREFIXES["development-assistant"])
+    return allowed(brain_relative, ALLOWED_PREFIXES[role])
 
 
 def collect_paths(value: Any, parent_key: str = "") -> Iterable[str]:
@@ -741,6 +800,13 @@ def main() -> int:
             )
             return 0
         command = terminal_command(event.get("tool_input", {}))
+        if args.role == "git-agent":
+            decision, reason = git_agent_terminal_decision(command)
+            if decision == "allow":
+                print(json.dumps(response()))
+            else:
+                print(json.dumps(response(decision, reason)))
+            return 0
         if not allowed_role_command(command, root, args.role):
             print(
                 json.dumps(
@@ -766,26 +832,28 @@ def main() -> int:
         return 0
 
     raw_paths = list(collect_paths(event.get("tool_input", {})))
-    if args.role == "development-assistant":
+    if args.role in {"development-assistant", "developer"}:
         if not raw_paths:
             print(
                 json.dumps(
                     response(
                         "ask",
-                        "development-assistant requested an edit whose target path could not be determined.",
+                        f"{args.role} requested an edit whose target path could not be determined.",
                     )
                 )
             )
             return 0
         denied_raw = sorted(
-            raw for raw in raw_paths if not development_edit_allowed(raw, event_root)
+            raw
+            for raw in raw_paths
+            if not development_edit_allowed(raw, event_root, args.role)
         )
         if denied_raw:
             print(
                 json.dumps(
                     response(
                         "deny",
-                        f"development-assistant may edit only root Salesforce force-app/manifest/tests/e2e source, reviewed documentation/change records, and ignored ADO cache: {', '.join(denied_raw)}",
+                        f"{args.role} may edit only root Salesforce force-app/manifest/tests/e2e source, work items, reviewed documentation, and ignored ADO cache: {', '.join(denied_raw)}",
                     )
                 )
             )

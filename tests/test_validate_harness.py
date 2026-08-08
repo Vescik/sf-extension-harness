@@ -148,7 +148,7 @@ class GithubCopyBase(TempRootBase):
 class TestCustomizationsHostileFrontmatter(GithubCopyBase):
     def test_null_tools_recorded_not_raised(self) -> None:
         self.rewrite_frontmatter(
-            ".github/agents/guardrail-reviewer.agent.md",
+            ".github/agents/reviewer.agent.md",
             lambda data: data.update(tools=None),
         )
         audit = self.run_audit(validate_harness.check_customizations, root=self.root)
@@ -158,7 +158,7 @@ class TestCustomizationsHostileFrontmatter(GithubCopyBase):
 
     def test_unhashable_tools_recorded_not_raised(self) -> None:
         self.rewrite_frontmatter(
-            ".github/agents/development-assistant.agent.md",
+            ".github/agents/developer.agent.md",
             lambda data: data.update(tools=[{"a": 1}]),
         )
         audit = self.run_audit(validate_harness.check_customizations, root=self.root)
@@ -170,12 +170,12 @@ class TestCustomizationsHostileFrontmatter(GithubCopyBase):
         import datetime
 
         self.rewrite_frontmatter(
-            ".github/agents/guardrail-reviewer.agent.md",
+            ".github/agents/reviewer.agent.md",
             lambda data: data.setdefault("hooks", {}).update(probe=datetime.date(2026, 1, 1)),
         )
         audit = self.run_audit(validate_harness.check_customizations, root=self.root)
         self.assertNotIn(
-            "guardrail-reviewer role guard is required", audit.errors
+            "reviewer role guard is required", audit.errors
         )  # original hooks content still present; the date must not abort serialization
 
 

@@ -49,7 +49,7 @@ except ModuleNotFoundError:  # imported as scripts.validate_harness by unit test
 
 
 ROOT = Path(__file__).resolve().parents[1]
-EXPECTED_COUNTS = {"agents": 6, "prompts": 18, "skills": 18, "instructions": 3}
+EXPECTED_COUNTS = {"agents": 7, "prompts": 18, "skills": 21, "instructions": 3}
 # Budget for each grounding subprocess below. entry-check parses and validates every entry at
 # roughly 4.5 ms per entry (measured at 9 000), so a corpus in the low tens of thousands is the
 # constraint here, not the code. Raise this deliberately from a measurement — never to silence a
@@ -449,16 +449,15 @@ def check_customizations(audit: Audit, root: Path = ROOT) -> None:
                 audit.require(target in agents or target in BUILT_IN_AGENTS, f"{label} has unknown agent {target!r}")
                 audit.require(handoff.get("send") is False, f"{label} must remain human-triggered with send: false")
 
-    guardrail_tools = {
+    reviewer_tools = {
         tool
-        for tool in (agents.get("guardrail-reviewer", {}).get("tools") or [])
+        for tool in (agents.get("reviewer", {}).get("tools") or [])
         if isinstance(tool, str)
     }
-    audit.require("edit/editFiles" not in guardrail_tools, "guardrail-reviewer must not edit")
-    audit.require("execute/runInTerminal" in guardrail_tools, "guardrail-reviewer needs guarded work-record execution")
-    audit.require("salesforce-development/*" not in guardrail_tools, "guardrail-reviewer must not mutate Salesforce")
-    reviewer_hooks = agents.get("guardrail-reviewer", {}).get("hooks", {})
-    audit.require("guardrail-reviewer" in json.dumps(reviewer_hooks, default=str), "guardrail-reviewer role guard is required")
+    audit.require("edit/editFiles" not in reviewer_tools, "reviewer must not edit")
+    audit.require("salesforce-development/*" not in reviewer_tools, "reviewer must not mutate Salesforce")
+    reviewer_hooks = agents.get("reviewer", {}).get("hooks", {})
+    audit.require("--role reviewer" in json.dumps(reviewer_hooks, default=str), "reviewer role guard is required")
 
     prompt_names: list[str] = []
     for path in prompt_paths:
@@ -493,7 +492,11 @@ def check_customizations(audit: Audit, root: Path = ROOT) -> None:
         description = data.get("description")
         audit.require(isinstance(description, str) and 1 <= len(description) <= 1024, f"{relative(path)}: description must be 1..1024 characters")
         audit.require(data.get("user-invocable") is False, f"{relative(path)}: internal skill must set user-invocable: false")
-        audit.require("shared execution contract" in body.lower(), f"{relative(path)}: shared execution contract is required")
+        # Context-first skills (plan 2026-08-07 phase 3) are recipes, not governed lanes:
+        # they do not load the retired execution contract. Legacy lanes keep it until
+        # phase 5 rules on their freeze.
+        if folder not in {"solution-design", "org-discovery", "development", "git-workflow"}:
+            audit.require("shared execution contract" in body.lower(), f"{relative(path)}: shared execution contract is required")
         if data.get("user-invocable") is not False and isinstance(data.get("name"), str):
             public_skill_names.append(data["name"])
 
@@ -792,9 +795,9 @@ def check_settings_and_mcp(audit: Audit) -> None:
     for marker in ("deniedOrganizationIds", "assertOrgIdPermitted", "validateMcpIdentity"):
         audit.require(marker in facade, f"Salesforce review facade is missing runtime gate: {marker}")
 
-    development_frontmatter, _ = frontmatter(ROOT / ".github/agents/development-assistant.agent.md", audit)
-    audit.require("execute/runInTerminal" in (development_frontmatter.get("tools") or []), "Development Assistant needs guarded preflight execution")
-    audit.require("development-assistant" in json.dumps(development_frontmatter.get("hooks", {}), default=str), "Development Assistant role guard is required")
+    development_frontmatter, _ = frontmatter(ROOT / ".github/agents/developer.agent.md", audit)
+    audit.require("execute/runInTerminal" in (development_frontmatter.get("tools") or []), "developer needs guarded terminal execution")
+    audit.require("--role developer" in json.dumps(development_frontmatter.get("hooks", {}), default=str), "developer role guard is required")
     doc_prompt, _ = frontmatter(ROOT / ".github/prompts/document-metadata-change.prompt.md", audit)
     audit.require("salesforce-development/*" not in doc_prompt.get("tools", []), "Documentation prompt must not inherit Salesforce write tools")
     audit.require("execute/runInTerminal" in doc_prompt.get("tools", []), "Documentation prompt needs guarded metadata/ADO preflight execution")

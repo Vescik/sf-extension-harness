@@ -426,3 +426,58 @@ scenarios:
       tool_input:
         command: git push origin main
     expectedDecision: continue
+
+  - id: designer-forceapp-edit-denied
+    guard: role
+    role: designer
+    workingDirectory: repository
+    event:
+      tool_name: edit/editFiles
+      tool_input:
+        path: force-app/main/default/classes/NotificationService.cls
+    expectedDecision: deny
+    reasonContains: may not edit
+
+  - id: reviewer-edit-denied
+    guard: role
+    role: reviewer
+    workingDirectory: repository
+    event:
+      tool_name: edit/editFiles
+      tool_input:
+        path: work-items/242850-approval-notifications/design.md
+    expectedDecision: deny
+    reasonContains: may not edit
+
+  - id: git-agent-push-asks-human
+    guard: role
+    role: git-agent
+    workingDirectory: repository
+    event:
+      tool_name: execute/runInTerminal
+      tool_input:
+        command: git push origin feature/242850-approval-notifications
+    expectedDecision: ask
+    reasonContains: confirm explicitly
+
+  - id: git-agent-remote-branch-delete-denied
+    guard: role
+    role: git-agent
+    workingDirectory: repository
+    event:
+      tool_name: execute/runInTerminal
+      tool_input:
+        command: git push origin --delete feature/242850-approval-notifications
+    expectedDecision: deny
+    reasonContains: never deletes remote branches
+
+  - id: git-agent-non-git-command-denied
+    guard: role
+    role: git-agent
+    workingDirectory: repository
+    event:
+      tool_name: execute/runInTerminal
+      tool_input:
+        command: npm install
+    expectedDecision: deny
+    reasonContains: git commands only
