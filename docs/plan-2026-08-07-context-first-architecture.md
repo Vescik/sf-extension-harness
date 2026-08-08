@@ -333,6 +333,11 @@ Menu punktowych mechanizmów (§8) wskazuje od tej decyzji wyłącznie archiwum 
 ownera — w tym repo nie ma już nic do „odmrożenia".
 
 ### Faza 6 — Walidatory, CI i higiena evali (~1–2 h)
+
+**Status 2026-08-08: zamknięta.** Piny aktualizowane przyrostowo przy każdej fazie
+(decyzja ownera — commit per faza z zieloną bramką); przegląd `harness-ci.yml` czysty
+(kroki generyczne, zero odwołań do usuniętych powierzchni); higiena evali zrealizowana
+od razu pełnym przepisaniem (patrz Faza 7).
 - Aktualizacja pinów `validate_harness.py` (liczby promptów/skilli/flag zmieniają się
   po fazach 1–3; CI je pinuje — guard↔parser drift).
 - Przegląd `harness-ci.yml` pod usunięte kroki.
@@ -345,6 +350,13 @@ ownera — w tym repo nie ma już nic do „odmrożenia".
 - Pełna bramka: `validate_harness.py` + unit testy + `run_evals.py`.
 
 ### Faza 7 — Pomiar rozstrzygający i nowe evale (§7)
+
+**Status 2026-08-08: przepisanie evali zrobione** (zaakceptowane przez ownera razem
+z zamknięciem fazy 6): `agent-scenarios.yaml` mówi językiem nowej architektury —
+scenariusze designer/developer/reviewer/git-agent pod ryzyka §5, zachowane lane'y
+knowledge/QA/handover, protokół pomiaru §7 w nagłówku pliku. **Otwarte pozostaje:**
+przebieg porównawczy (blokowany przez treść docs/ — CONTENT-TODO po stronie ownera)
+i przegląd po miesiącu normalnej pracy.
 - Przepisanie `agent-scenarios.yaml` pod nową strukturę — scenariusze formułowane razem
   z kryteriami pomiaru (discovery przez MCP przed propozycją; zmiany `VendorNS__`
   w osobnej sekcji z dowodem z orga; konflikt docs↔org → wygrywa org + zgłoszenie
