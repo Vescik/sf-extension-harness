@@ -1117,7 +1117,9 @@ def check_grounding_contracts(audit: Audit) -> None:
     # Context-first phase 1: the kernel is orientation-only; the non-negotiable rules
     # moved to managed-package.instructions.md, whose applyTo "**" keeps them always-on.
     boundaries = required_text(ROOT / ".github/instructions/managed-package.instructions.md", audit)
-    for marker in ("MP-NS-001", "SAFE-ENV-001", "SAFE-UNTRUST-001", "SAFE-TOOL-001", "SAFE-HUMAN-001"):
+    # SAFE-ENV-001 prose was removed 2026-08-08 (owner decision): the production block
+    # is hook-enforced (copilot_safety_hook denies with that label); prose no longer duplicates it.
+    for marker in ("MP-NS-001", "SAFE-UNTRUST-001", "SAFE-TOOL-001", "SAFE-HUMAN-001"):
         audit.require(marker in boundaries, f"always-on boundary rule is missing: {marker}")
 
     principle_paths = [ROOT / ".github/copilot-instructions.md"] + sorted(

@@ -29,12 +29,10 @@ document exactly the files the human pinned to chat or named in the prompt, load
 
 ## Required procedure
 
-1. Require the exact question, scope, and evidence policy. Require the calling
-   `recordId` only when governed delivery work raised the investigation, and use it solely to
-   attach evidence references. Documenting existing state is record-free: the entry lanes
-   (`inventory-force-app`, `selected-files-knowledge`, `/curate-knowledge`) have no work record,
-   and a work record cannot exist without a real ADO work item — never block them for one and
-   never invite a fabricated ID.
+1. Require the exact question, scope, and evidence policy. Every investigation is a
+   standalone read — never demand a workflow identifier and never invite a fabricated one.
+   When a work item raised the question, link the finished report from its
+   `work-items/<id>-<slug>/` folder.
 2. Read relevant approved Knowledge Entries and repository evidence before querying the org:
    call the `knowledge_context` tool per component (`knowledge_resolve` maps bare names and
    file paths to identities; `knowledge_search` covers free text, facets and dependency
@@ -68,7 +66,7 @@ document exactly the files the human pinned to chat or named in the prompt, load
    org-sampling step). The executor re-runs every probe, derives closed counts/shapes — row
    values never persist — and attaches click-free (machine-attested, expiring, outside every
    approval digest). Skip with a reported reason when no org is configured or containment
-   refuses; this lane is record-free like the rest of documenting existing state.
+   refuses; like the rest of documenting existing state, this lane needs no work item.
 8. Escalate when a mutation, inaccessible package internal, business interpretation, vendor
    guarantee, or unallowlisted component would be required.
 
@@ -76,7 +74,7 @@ document exactly the files the human pinned to chat or named in the prompt, load
 
 - Never create, update, delete, deploy, activate, or open production.
 - Direct edits are limited to ignored `.cache/knowledge-proposals/*` and `.cache/org-usage/*`
-  draft inputs plus `output/` reports. Entries, ledgers, and work-record references are
+  draft inputs plus `output/` reports. Entries and ledgers are
   written only through role-allowlisted deterministic commands.
 - Do not turn an observation into a rule; flag a proposed rule for the Principles owner.
 
@@ -98,7 +96,6 @@ is still only a draft until that confirmed approval lands.
 
 ## Return contract
 
-Return `EVIDENCE COLLECTED`, `INFERRED`, or `UNRESOLVED`; `recordId` when one was provided;
-report paths; drafted entry identities;
+Return `EVIDENCE COLLECTED`, `INFERRED`, or `UNRESOLVED`; report paths; drafted entry identities;
 source/reconciliation status; limitations; and outstanding approvals. Never call an unreviewed
 observation verified.

@@ -95,10 +95,7 @@
     },
     {
       "description": "Assess QA inventory freshness and coverage sufficiency, select the appropriate QA skills, and produce a sourced coverage decision or reviewed test draft.",
-      "handoffs": [
-        "developer",
-        "reviewer"
-      ],
+      "handoffs": [],
       "loads": {
         "contracts": [
           "execution-contract",
@@ -492,16 +489,16 @@
     ".ai/contracts/execution-contract.md": "sha256:31ec967a6828902e9a58577a2b3ccc4d9e146e06ea12c68c3f881ec86bbb5840",
     ".ai/contracts/source-authority.md": "sha256:21f45190131347752c36ced221855635b5a60126c11c67fe29b564de446d1af3",
     ".ai/contracts/tool-capabilities.md": "sha256:47bd9bd98819b12694b1744aac4c7931cf5cba27fc998a9d6144f680118e9cf6",
-    ".github/agents/config-investigator.agent.md": "sha256:7578d8a60141cef326b55a05a0bcb9f5acee2ebd9d48c32c5158378e9652b4a1",
+    ".github/agents/config-investigator.agent.md": "sha256:b789b19cf0fed3c34266011c0e82b2f507eb2f0bd3a48b3624a9c31b8b1065ce",
     ".github/agents/designer.agent.md": "sha256:2a277c6fbfed24cec8320a03bb3d0c2fde837b24347c79e6504c569ea41ce203",
     ".github/agents/developer.agent.md": "sha256:4b6ccbd760b39e79adb668cf166397af70a6a3c9f174bdf03fb480a97123df6f",
     ".github/agents/git-agent.agent.md": "sha256:1ec54fe0d4ad399d5dcd61f4d5d148c14b119666ee7142af85ada66f51a200b2",
-    ".github/agents/knowledge-curator.agent.md": "sha256:e3be5f163c5d3c33aca20be7ead9ea645772cd5546b937cc8b7ebee79b673c3c",
+    ".github/agents/knowledge-curator.agent.md": "sha256:b76cd8e07e8ba877d0c1fb88064745f7b38d29d93ed62303580aa926c2696dba",
     ".github/agents/reviewer.agent.md": "sha256:3a4af43c2617aa2bbd284e9c7c87d1af3bfa171e49a2a86ba445f6ef4c322bea",
-    ".github/agents/test-strategist.agent.md": "sha256:c99ca16758ae92a05a7ff016bfb1ee26a397225a2b5381a5e1415a02e2501011",
+    ".github/agents/test-strategist.agent.md": "sha256:d473536b03f459bdef3044b8c3fc507bea8c63cbcf0720949972249dc59b414c",
     ".github/instructions/apex.instructions.md": "sha256:d28260c9247d670c71353f0cdaa22195f2490d4bb1b5bf11d403861602cda5b3",
     ".github/instructions/flows.instructions.md": "sha256:63c560e27041a9bf6e89342f0df491310f6a6fb3dc3d70d1a56f6c61d5788adc",
-    ".github/instructions/managed-package.instructions.md": "sha256:da8fefab4523168244bb8532d3a6adc35138d19b9a5e8e9640990d49fde738a4",
+    ".github/instructions/managed-package.instructions.md": "sha256:c60f437ae4e63e8773bde02e603f3389b327406174a3829c1c913077ab26607e",
     ".github/prompts/adhoc-fix.prompt.md": "sha256:0264731e5255e92ad6e5f1b4b20ff48e0907ee8ed6278ad28db9fce325fc66f2",
     ".github/prompts/approve-drafts-knowledge.prompt.md": "sha256:92161400b4a355574c8d4e5ce6ba1988b7fce918d622ced968dce5e77ac639da",
     ".github/prompts/author-feature.prompt.md": "sha256:53131bf0cfa7ed19d149ab04c34ac3098628e8f480b5e055f74712bdd7bbc59f",
@@ -543,5 +540,5 @@
     ".github/skills/tune-test-case-keywords/SKILL.md": "sha256:bf9e6961b03bf3ff00903dcef31c9ccb4ac41cb974bc32e20f4d1e10ae1e3fce",
     "config/repo-map-seed.json": "sha256:f3af73b3080c66802abb0483b79851cfd0c1ed708989f2810bea9f4b2898d09c"
   },
-  "wordCount": 785
+  "wordCount": 780
 }
