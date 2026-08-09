@@ -13,9 +13,9 @@ Last verified against vendor documentation: 2026-07-10
 | Python | 3.11+ | Runs preflight, validation, safety hooks, and tests using the standard library plus the dev requirement below. |
 | PyYAML | `>=6,<7`; CI uses the lock file | Frontmatter and evaluation validation. |
 | jsonschema | `>=4,<5`; CI uses the lock file | Draft 2020-12 configuration/cache/output validation. |
-| Node.js | 22+ (`.nvmrc` pins 24) | The pinned `@salesforce/mcp` requires Node ≥22.19; CI installs the `.nvmrc` version. |
+| Node.js | 22+ (`.nvmrc` pins 24) | MCP launchers and the ADO server run on Node; CI installs the `.nvmrc` version. |
 | Azure DevOps MCP | Local stdio `@azure-devops/mcp` 2.8.1, installed from `package-lock.json` and started as `node node_modules/@azure-devops/mcp/dist/index.js`; domains work-items/wiki/test-plans/search | Switched from the hosted endpoint 2026-07-14: its toolset header was not honored, while local `-d` domain args are. Moved off runtime `npx -y` on 2026-08-05 (rebuild P3) — a pinned version never pinned the fetch; the package carries a dependency admission record and the workspace starts after `npm ci --ignore-scripts` with no network. No server-side read-only — read-only is harness policy (hooks); requires `az login`. |
-| Salesforce DX MCP | `@salesforce/mcp@0.30.15` | Pinned to the version verified on 2026-07-10; update deliberately. |
+| Salesforce review facade | `scripts/salesforce_review_server.py` (REST) | Replaced the vendor-MCP child architecture (plan-2026-08-09, F-4); Salesforce CLI 2.136.8+ required for token access. |
 
 ## Required Copilot capabilities
 
@@ -66,8 +66,9 @@ as noted in `requirements-dev.txt` when bumping a pin). `typing_extensions` appe
 only as a transitive of `referencing` under `python_version < '3.13'`; on Python 3.13+ it drops
 out of the resolved set automatically. Supply-chain monitoring runs continuously via
 `.github/dependabot.yml` (pip, npm, github-actions) plus a `npm audit --audit-level=critical` CI
-gate; lower-severity npm advisories in the pinned `@salesforce/mcp` transitive tree are tracked by
-Dependabot rather than hard-failing CI.
+gate; lower-severity npm advisories in the remaining npm tree (`@azure-devops/mcp`) are tracked by
+Dependabot rather than hard-failing CI. (The former largest npm subtree, the vendor Salesforce MCP,
+was removed with the REST facade rewrite - plan-2026-08-09 F-4.)
 
 The current 24 non-critical npm findings were investigated on 2026-07-13 and are a recorded,
 accepted risk: all are transitive to vendor-pinned Salesforce tooling, no stable upgrade resolves

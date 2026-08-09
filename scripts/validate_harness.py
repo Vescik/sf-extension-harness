@@ -230,7 +230,7 @@ def check_required_files(audit: Audit) -> None:
         "schemas/harness-config.schema.json",
         "requirements-dev.lock",
         "scripts/verify_salesforce_org.py",
-        "scripts/salesforce_review_server.mjs",
+        "scripts/salesforce_review_server.py",
         "scripts/force_app_knowledge.py",
         "scripts/render_repo_map.py",
         "config/repo-map-seed.json",
@@ -751,7 +751,7 @@ def check_settings_and_mcp(audit: Audit) -> None:
         audit.require(forbidden not in launcher, f"the launcher must not contact orgs or vendor MCP: {forbidden}")
     audit.require('"data,metadata,testing,code-analysis"' not in launcher, "broad Salesforce data-write toolset is forbidden")
     # Live facade (Python, plan-2026-08-09 F-2): pin the walls that make never-production
-    # and read-only true. The retired .mjs keeps its own pins below until F-4 deletes it.
+    # and read-only true. The .mjs facade and its pins were deleted in F-4.
     py_facade = required_text(ROOT / "scripts/salesforce_review_server.py", audit)
     for marker in (
         "ALIAS_PRODUCTION_LIKE",
@@ -762,9 +762,6 @@ def check_settings_and_mcp(audit: Audit) -> None:
         "IDENTITY_ORG_ID_MISMATCH",
     ):
         audit.require(marker in py_facade, f"Python review facade is missing runtime gate: {marker}")
-    facade = required_text(ROOT / "scripts/salesforce_review_server.mjs", audit)
-    for marker in ("deniedOrganizationIds", "assertOrgIdPermitted", "validateMcpIdentity"):
-        audit.require(marker in facade, f"Salesforce review facade is missing runtime gate: {marker}")
 
     development_frontmatter, _ = frontmatter(ROOT / ".github/agents/developer.agent.md", audit)
     audit.require("execute/runInTerminal" in (development_frontmatter.get("tools") or []), "developer needs guarded terminal execution")
@@ -1270,11 +1267,17 @@ def check_grounding_contracts(audit: Audit) -> None:
 
     package = load_json(ROOT / "package.json", audit)
     audit.require(package.get("private") is True, "package.json must remain private")
-    salesforce_mcp = package.get("dependencies", {}).get("@salesforce/mcp")
-    audit.require(salesforce_mcp == "0.30.15", "Salesforce MCP dependency must match the compatibility-tested pin 0.30.15")
+    # F-4 (plan-2026-08-09): the vendor MCP child is retired with the .mjs facade; its
+    # reappearance in the dependency tree would resurrect the per-call-child architecture.
+    audit.require(
+        "@salesforce/mcp" not in package.get("dependencies", {}),
+        "the retired @salesforce/mcp dependency must not return (REST facade replaced it)",
+    )
     package_lock = load_json(ROOT / "package-lock.json", audit)
-    locked_mcp = package_lock.get("packages", {}).get("node_modules/@salesforce/mcp", {})
-    audit.require(locked_mcp.get("version") == "0.30.15", "package-lock.json must resolve @salesforce/mcp 0.30.15")
+    audit.require(
+        "node_modules/@salesforce/mcp" not in package_lock.get("packages", {}),
+        "package-lock.json must not resolve the retired @salesforce/mcp",
+    )
     harness_example = load_json(ROOT / "config/harness.example.json", audit)
     example_review = harness_example.get("salesforce", {}).get("review", {})
     audit.require(example_review.get("enabled") is False, "example Salesforce review must be disabled")

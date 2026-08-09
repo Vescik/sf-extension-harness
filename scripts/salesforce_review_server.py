@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Read-only, non-production-only Salesforce review facade (single REST transport).
 
-Python rewrite of scripts/salesforce_review_server.mjs per
+Python rewrite of the retired dual-transport .mjs facade per
 docs/plan-2026-08-09-salesforce-mcp-rest-rewrite.md. The model never receives a
 command string, an org alias it did not configure, a raw token, or an unbounded
 vendor response. One allowlisted non-production alias is bound at startup: the
@@ -227,8 +227,8 @@ def load_runtime(alias: str) -> dict:
     max_fields = review.get("maxFieldsPerObject")
     if not isinstance(max_fields, int) or not 1 <= max_fields <= 500:
         raise ReviewError("CONFIG_INVALID")
-    # Policy: commandTimeoutSeconds and salesforceMcpPackage are the old server's knobs -
-    # tolerated while it exists (F-4 deletes them), never read here.
+    # Policy: the old server's knobs (vendor package pin, command timeout) were removed
+    # from the policy file in F-4; unknown legacy keys are simply never read here.
     soql_timeout = policy.get("soqlQueryTimeoutSeconds")
     if (
         policy.get("schemaVersion") != 1

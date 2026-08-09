@@ -63,7 +63,6 @@ jobs:
       - name: Parse Salesforce MCP launcher
         run: |
           node --check scripts/start_salesforce_mcp.mjs
-          node --check scripts/salesforce_review_server.mjs
           node --check scripts/knowledge_mcp_server.mjs
 
       - name: Validate harness structure and contracts

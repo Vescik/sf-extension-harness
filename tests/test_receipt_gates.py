@@ -23,7 +23,6 @@ def base_config(**safety_flags: bool) -> dict:
         "salesforce": {
             "review": {
                 "enabled": True,
-                "requireDualSource": True,
                 "apiVersion": "67.0",
                 "allowedObjectApiNames": ["*"],
                 "allowedPackageNamespaces": ["c"],

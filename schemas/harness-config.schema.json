@@ -172,10 +172,6 @@
               "type": "string",
               "pattern": "^[0-9]{2}\\.0$"
             },
-            "requireDualSource": {
-              "description": "DEPRECATED (plan-2026-08-09-salesforce-mcp-rest-rewrite) but DO NOT DELETE from harness.local.json yet: the still-wired .mjs server hard-fails startup (CONFIG_INVALID) when the key is absent. Keep it set to true until phase F-4 removes the .mjs server and this property together.",
-              "const": true
-            },
             "allowedPackageNamespaces": {
               "description": "Namespaces of managed packages in review scope. An empty list means NO managed packages (correct for an org that has none — a Developer Edition or a clean sandbox); [\"*\"] means every installed package. An explicit list stays the tightest option and is preferred where the set is known.",
               "type": "array",

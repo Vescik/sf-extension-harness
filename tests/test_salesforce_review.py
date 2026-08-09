@@ -1,7 +1,7 @@
 """End-to-end tests for the REST Salesforce review facade (salesforce_review_server.py).
 
 Replaces the previous suite wholesale (plan F-2): the old tests mocked the CLI and
-@salesforce/mcp child processes of the retired .mjs server; this suite drives the
+vendor-MCP child processes of the retired .mjs server; this suite drives the
 real Python server as a stdio subprocess against an in-process mock Salesforce REST
 endpoint and a fake `sf` CLI script, over exactly the newline-delimited JSON-RPC
 frames real clients send. Every VERIFIED envelope asserted here is also validated

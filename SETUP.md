@@ -6,7 +6,7 @@
   configured MCP surface is read-only by construction on every platform (no write-mode Salesforce
   MCP server exists).
 - Consolidated GitHub Copilot extension and the recommendations in `.vscode/extensions.json`.
-- Git, Python 3.11+, Node.js 22+ (the pinned `@salesforce/mcp` requires ≥22.19), and Salesforce CLI.
+- Git, Python 3.11+, Node.js 22+ (the MCP launchers and the ADO server run on Node), and Salesforce CLI 2.136.8+ (the review facade needs `sf org auth show-access-token`).
   On Windows both install flavors are supported — npm (`sf.cmd`) and the installer (`sf.exe`);
   the review server resolves whichever `where.exe sf` would find first.
 - Local Salesforce CLI authorization for approved non-production aliases. Authenticate manually;
@@ -204,7 +204,7 @@ owner decision of 2026-07-14.)
   hosted endpoint did not honor its toolset header, so the local `-d` args replace it). It
   authenticates with your own Azure CLI login — run `az login` once; agents never handle the
   credentials.
-- `salesforce-readonly` starts through `scripts/salesforce_review_server.mjs`. It binds one exact
+- `salesforce-readonly` starts through `scripts/salesforce_review_server.py` (via the interpreter-resolving launcher). It binds one exact
   review-enabled non-production org and exposes only identity, configured-package,
   allowlisted-object review, composed read-only SOQL (`review_soql_query`), and (when
   `safety.allowScopedEnumeration` is enabled) a configured-orgs listing built purely

@@ -57,7 +57,6 @@ def write_local_config(root: Path) -> None:
             "review": {
                 "enabled": True,
                 "apiVersion": "67.0",
-                "requireDualSource": True,
                 "allowedPackageNamespaces": ["examplepkg"],
                 "allowedObjectApiNames": ["ExampleManagedObject__c"],
                 "maxFieldsPerObject": 500,
@@ -983,7 +982,6 @@ class SafetyClassificationTests(unittest.TestCase):
                 ],
                 "review": {
                     "enabled": True,
-                    "requireDualSource": True,
                     "allowedObjectApiNames": ["ExampleManagedObject__c"],
                 },
             }
@@ -1022,7 +1020,6 @@ class SafetyClassificationTests(unittest.TestCase):
                 "orgs": [{"alias": "dev-sbx", "environment": "development"}],
                 "review": {
                     "enabled": True,
-                    "requireDualSource": True,
                     "allowedObjectApiNames": ["*"],
                 },
             }
@@ -1056,7 +1053,6 @@ class SafetyClassificationTests(unittest.TestCase):
                 "orgs": [{"alias": "dev-sbx", "environment": "development"}],
                 "review": {
                     "enabled": True,
-                    "requireDualSource": True,
                 },
             }
         }

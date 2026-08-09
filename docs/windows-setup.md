@@ -19,7 +19,7 @@ Install and confirm each is on `PATH` (open a **new** PowerShell and run the che
 |---|---|---|
 | VS Code + GitHub Copilot / Copilot Chat | current stable | — |
 | Python | **3.11+**, exposed as **`python`** (python.org installer; this repo uses `python`, not `py -3`) | `python --version` |
-| Node.js | **22+** (the pinned `@salesforce/mcp` needs ≥22.19) | `node --version` |
+| Node.js | **22+** (MCP launchers and the ADO server run on Node) | `node --version` |
 | Salesforce CLI | v2 | `sf --version` |
 | Git | any recent | `git --version` |
 

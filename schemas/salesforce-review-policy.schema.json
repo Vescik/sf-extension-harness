@@ -6,33 +6,61 @@
   "additionalProperties": false,
   "required": [
     "schemaVersion",
-    "salesforceMcpPackage",
     "mcpProtocolVersion",
     "salesforceCliMajor",
-    "commandTimeoutSeconds",
     "maxVendorPayloadBytes",
     "soqlQueryTimeoutSeconds",
     "profiles"
   ],
   "properties": {
-    "$schema": { "type": "string" },
-    "schemaVersion": { "const": 1 },
-    "salesforceMcpPackage": { "const": "@salesforce/mcp@0.30.15" },
-    "mcpProtocolVersion": { "const": "2025-06-18" },
-    "salesforceCliMajor": { "const": 2 },
-    "commandTimeoutSeconds": { "type": "integer", "minimum": 5, "maximum": 60 },
-    "maxVendorPayloadBytes": { "type": "integer", "minimum": 65536, "maximum": 1048576 },
-    "soqlQueryTimeoutSeconds": { "type": "integer", "minimum": 5, "maximum": 120 },
+    "$schema": {
+      "type": "string"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "mcpProtocolVersion": {
+      "const": "2025-06-18"
+    },
+    "salesforceCliMajor": {
+      "const": 2
+    },
+    "maxVendorPayloadBytes": {
+      "type": "integer",
+      "minimum": 65536,
+      "maximum": 1048576
+    },
+    "soqlQueryTimeoutSeconds": {
+      "type": "integer",
+      "minimum": 5,
+      "maximum": 120
+    },
     "profiles": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["orgIdentity", "installedPackages", "installedPackagesAll", "objectEntity", "objectFields"],
+      "required": [
+        "orgIdentity",
+        "installedPackages",
+        "installedPackagesAll",
+        "objectEntity",
+        "objectFields"
+      ],
       "properties": {
-        "orgIdentity": { "$ref": "#/$defs/fixedProfile" },
-        "installedPackages": { "$ref": "#/$defs/packageProfile" },
-        "installedPackagesAll": { "$ref": "#/$defs/fixedProfile" },
-        "objectEntity": { "$ref": "#/$defs/objectProfile" },
-        "objectFields": { "$ref": "#/$defs/objectProfile" }
+        "orgIdentity": {
+          "$ref": "#/$defs/fixedProfile"
+        },
+        "installedPackages": {
+          "$ref": "#/$defs/packageProfile"
+        },
+        "installedPackagesAll": {
+          "$ref": "#/$defs/fixedProfile"
+        },
+        "objectEntity": {
+          "$ref": "#/$defs/objectProfile"
+        },
+        "objectFields": {
+          "$ref": "#/$defs/objectProfile"
+        }
       }
     }
   },
@@ -40,28 +68,47 @@
     "fixedProfile": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["useToolingApi", "query"],
+      "required": [
+        "useToolingApi",
+        "query"
+      ],
       "properties": {
-        "useToolingApi": { "type": "boolean" },
-        "query": { "type": "string", "minLength": 1, "maxLength": 2000 }
+        "useToolingApi": {
+          "type": "boolean"
+        },
+        "query": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        }
       }
     },
     "objectProfile": {
       "allOf": [
-        { "$ref": "#/$defs/fixedProfile" },
+        {
+          "$ref": "#/$defs/fixedProfile"
+        },
         {
           "properties": {
-            "query": { "type": "string", "pattern": "\\$\\{OBJECT_API_NAME\\}" }
+            "query": {
+              "type": "string",
+              "pattern": "\\$\\{OBJECT_API_NAME\\}"
+            }
           }
         }
       ]
     },
     "packageProfile": {
       "allOf": [
-        { "$ref": "#/$defs/fixedProfile" },
+        {
+          "$ref": "#/$defs/fixedProfile"
+        },
         {
           "properties": {
-            "query": { "type": "string", "pattern": "\\$\\{PACKAGE_NAMESPACES\\}" }
+            "query": {
+              "type": "string",
+              "pattern": "\\$\\{PACKAGE_NAMESPACES\\}"
+            }
           }
         }
       ]
