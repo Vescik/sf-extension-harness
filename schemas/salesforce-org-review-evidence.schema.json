@@ -20,7 +20,7 @@
   ],
   "properties": {
     "schemaVersion": {
-      "const": 1
+      "enum": [1, 2]
     },
     "runId": {
       "type": "string",
@@ -773,7 +773,8 @@
         "kind": {
           "enum": [
             "salesforce-cli",
-            "salesforce-mcp"
+            "salesforce-mcp",
+            "salesforce-rest"
           ]
         },
         "version": {
@@ -843,12 +844,58 @@
         }
       ]
     },
+    "restSource": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/sourceBase"
+        },
+        {
+          "properties": {
+            "kind": {
+              "const": "salesforce-rest"
+            },
+            "version": {
+              "pattern": "^(?:[0-9]{2,3}\\.0|unavailable)$"
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "complete": {
+                "const": true
+              }
+            },
+            "required": [
+              "complete"
+            ]
+          },
+          "then": {
+            "properties": {
+              "version": {
+                "pattern": "^[0-9]{2,3}\\.0$"
+              }
+            }
+          }
+        }
+      ]
+    },
     "sources": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "cli",
-        "mcp"
+      "oneOf": [
+        {
+          "required": [
+            "cli",
+            "mcp"
+          ]
+        },
+        {
+          "required": [
+            "cli",
+            "rest"
+          ]
+        }
       ],
       "properties": {
         "cli": {
@@ -856,6 +903,9 @@
         },
         "mcp": {
           "$ref": "#/$defs/mcpSource"
+        },
+        "rest": {
+          "$ref": "#/$defs/restSource"
         }
       }
     },
@@ -874,6 +924,13 @@
               }
             },
             "mcp": {
+              "properties": {
+                "complete": {
+                  "const": true
+                }
+              }
+            },
+            "rest": {
               "properties": {
                 "complete": {
                   "const": true

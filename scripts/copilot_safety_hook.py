@@ -367,8 +367,10 @@ def salesforce_review_tool_error(
     if config is None:
         return "local harness configuration is missing"
     review = config.get("salesforce", {}).get("review", {})
-    if review.get("enabled") is not True or review.get("requireDualSource") is not True:
-        return "dual-source Salesforce org review is disabled"
+    # requireDualSource retired with the REST facade rewrite (plan 2026-08-09): the flag
+    # gated a second transport that no longer exists; review.enabled is the whole switch.
+    if review.get("enabled") is not True:
+        return "Salesforce org review is disabled"
     # Owner decision 2026-08-04: any alias is admitted on the facade's live identity proof
     # (per call, with review.deniedOrganizationIds as the org-level brake), so the hook
     # holds no per-alias grant gate — only tool-shape checks below.
