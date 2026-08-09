@@ -241,6 +241,47 @@ class GlobalSafetyHookTests(unittest.TestCase):
                 )
                 self.assertEqual(hook_decision(output), "deny")
 
+    def test_windows_shell_recursive_deletions_are_denied(self) -> None:
+        # W-1 (audit-2026-08-09-windows-readiness): the same destruction spelled in
+        # cmd.exe or PowerShell must not slip past a hook written for bash. cmd.exe
+        # is available on team Windows machines; Remove-Item is defense in depth.
+        for command in (
+            "rd /s /q output",
+            "rmdir /S build",
+            "del /f /s /q force-app",
+            "cmd /c rd /s /q output",
+            "Remove-Item -Recurse -Force output",
+            "Remove-Item output -Recurse",
+        ):
+            with self.subTest(command=command):
+                output = run_hook(
+                    "copilot_safety_hook.py",
+                    {
+                        "tool_name": "execute/runInTerminal",
+                        "tool_input": {"command": command},
+                    },
+                )
+                self.assertEqual(hook_decision(output), "deny")
+
+    def test_windows_shell_non_recursive_deletions_are_not_over_blocked(self) -> None:
+        # The carve-out mirrors the bash rule: single-file del / plain rd / a
+        # -Recurse belonging to a read-only cmdlet must not trip the gate.
+        for command in (
+            "del stale.lock",
+            "rd temp",
+            "Remove-Item stale.lock",
+            "Get-ChildItem -Recurse force-app",
+        ):
+            with self.subTest(command=command):
+                output = run_hook(
+                    "copilot_safety_hook.py",
+                    {
+                        "tool_name": "execute/runInTerminal",
+                        "tool_input": {"command": command},
+                    },
+                )
+                self.assertEqual(hook_decision(output), "continue")
+
     def test_benign_rm_and_chained_flags_are_not_over_blocked(self) -> None:
         # Non-recursive rm, and a force flag that belongs to a *different* command segment,
         # must not trip the destructive gate.

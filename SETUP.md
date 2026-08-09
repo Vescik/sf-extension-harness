@@ -9,6 +9,9 @@
 - Git, Python 3.11+, Node.js 22+ (the MCP launchers and the ADO server run on Node), and Salesforce CLI 2.136.8+ (the review facade needs `sf org auth show-access-token`).
   On Windows both install flavors are supported — npm (`sf.cmd`) and the installer (`sf.exe`);
   the review server resolves whichever `where.exe sf` would find first.
+- **Windows is a first-class runtime, not best-effort**: CI runs the full gate
+  (validation, unit suite, evals, hash-locked install) on a `windows-latest` leg, and
+  `docs/windows-setup.md` is the platform runbook.
 - Local Salesforce CLI authorization for approved non-production aliases. Authenticate manually;
   never give credentials or session material to an agent.
 
@@ -137,9 +140,12 @@ ADO settings. New to all of this? Follow the zero-assumptions walkthrough in
 steps by hand:
 
 ```bash
-python3 -m venv .venv
+python -m venv .venv
 # macOS/Linux: source .venv/bin/activate
-# Windows PowerShell: .venv\Scripts\Activate.ps1
+# Windows (cmd.exe): .venv\Scripts\activate.bat
+#   PowerShell is policy-blocked on team machines - do not use Activate.ps1.
+#   Activation is optional anyway: .venv\Scripts\python.exe works directly, and the
+#   MCP launchers resolve the .venv interpreter themselves without activation.
 python -m pip install --require-hashes -r requirements-dev.lock
 npm ci --ignore-scripts
 python scripts/validate_harness.py

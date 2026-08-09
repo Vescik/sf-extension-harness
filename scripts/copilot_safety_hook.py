@@ -28,6 +28,14 @@ DESTRUCTIVE_PATTERNS = (
     re.compile(r"\bsf\s+org\s+delete\b", re.IGNORECASE),
     re.compile(r"\bDROP\s+(TABLE|DATABASE)\b", re.IGNORECASE),
     re.compile(r"\bDELETE\s+FROM\b", re.IGNORECASE),
+    # cmd.exe / PowerShell spellings of the recursive deletions above (W-1,
+    # audit-2026-08-09-windows-readiness): cmd.exe is available on team Windows
+    # machines even though PowerShell is policy-blocked there; Remove-Item is
+    # covered anyway as defense in depth. Plain `del file` / `rd dir` without the
+    # recursive switch stay allowed, mirroring the non-recursive `rm` carve-out.
+    re.compile(r"\b(?:rd|rmdir)\b[^\n]*\s/s\b", re.IGNORECASE),
+    re.compile(r"\bdel\b[^\n]*\s/s\b", re.IGNORECASE),
+    re.compile(r"\bremove-item\b[^\n]*\s-recurse\b", re.IGNORECASE),
 )
 
 PRODUCTION_PATTERNS = (
