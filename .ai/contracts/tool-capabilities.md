@@ -10,7 +10,7 @@ upgrade.
 | Reconciled installed package inventory | `salesforce-readonly/review_installed_packages` | investigator, design, review |
 | Reconciled allowlisted object contract | `salesforce-readonly/review_object_contract` | investigator, design, review, QA |
 | Scoped enumeration of configured org aliases (requires `safety.allowScopedEnumeration`) | `salesforce-readonly/review_configured_orgs` | investigator |
-| Composed read-only SOQL incl. record reads (verbatim, Salesforce MCP transport only, unredacted single-source rows) | `salesforce-readonly/review_soql_query` | investigator, design, development, knowledge curation |
+| Composed read-only SOQL incl. record reads (verbatim, facade REST transport, unredacted single-source rows) | `salesforce-readonly/review_soql_query` | investigator, design, development, knowledge curation |
 | Salesforce non-production source retrieve into the project (per-invocation human confirmation; the only direct `sf` command not denied) | `sf project retrieve start` guarded terminal command | development only |
 | Interactive human confirmation | `vscode/askQuestions` | prompts and approval gates |
 | Subagent delegation | `agent` plus explicit `agents` allowlist | Designer, Developer |
@@ -41,7 +41,7 @@ alias. It exposes only the review tools above (configured-orgs enumeration is ad
 by `safety.allowScopedEnumeration` and reflects local configuration only — never unconfigured
 orgs, ids, or hosts). Internally it executes fixed, checked-in query
 profiles — plus validated composed read-only statements for `review_soql_query` — through the
-pinned Salesforce MCP and a private Salesforce CLI allowlist, normalizes the
+facade's single REST transport (the CLI contributes only the startup identity proof), normalizes the
 receipts, removes credentials/identity details/raw sensitive values, and returns `VERIFIED`, `MISMATCH`,
 `INCOMPLETE`, or `BLOCKED`.
 
@@ -69,7 +69,7 @@ and recommended whenever a task depends on record data structure — through the
 `review_soql_query` tool only, for the Solution Designer, Knowledge Curator, Development
 Assistant, and Config Investigator roles. The 2026-08-04 decision removed the statement
 blockade entirely: no grammar validation, no secret-adjacent object deny-set, no LIMIT
-policing, no value redaction. The statement executes verbatim over the pinned Salesforce MCP
+policing, no value redaction. The statement executes verbatim over the facade's REST transport
 child — never the CLI — against the identity-proven non-production org, and rows return
 unredacted (`attributes` noise stripped), bounded only by payload size and timeout. An
 absent `review.allowedObjectApiNames` key means all objects (equivalent to `["*"]`) — an explicit

@@ -43,7 +43,7 @@ OS-level MCP sandbox keys (the fleet runs Windows, where VS Code cannot sandbox 
 configured servers are read-only by construction, org mutation is not an agent capability, and
 the guarded wrapper, review facade, safety hook, and role guards are the enforcement layers.
 Under the 2026-07-30 and 2026-08-04 decisions composed read-only SOQL runs verbatim through
-the governed facade's `review_soql_query` tool (Salesforce MCP transport only, statement
+the governed facade's `review_soql_query` tool (facade REST transport, statement
 blockade removed); raw CLI and raw vendor MCP stay denied.
 Agents may request `sf project retrieve start` against a configured alias; the safety hook stops
 each invocation for human confirmation. Deploys ship through the human-run release process

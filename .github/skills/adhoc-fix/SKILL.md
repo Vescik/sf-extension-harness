@@ -36,7 +36,7 @@ human deploy.
 2. Read the retrieved source and confirm the diagnosis against it — the exact element, formula,
    or connector that is wrong. When the defect plausibly depends on real record shape (field
    fill, picklist values in use, lookup population), probe it through the governed
-   `review_soql_query` facade tool — verbatim SOQL over the Salesforce MCP transport — rather
+   `review_soql_query` facade tool — verbatim SOQL over the facade's REST transport — rather
    than assuming — preferred practice per the 2026-07-30/2026-08-04 owner decisions; probed numbers quoted
    in the fix note cite the org alias and observation time. If the retrieved state
    contradicts the diagnosis, stop and report instead of guessing.

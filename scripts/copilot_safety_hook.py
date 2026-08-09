@@ -99,6 +99,9 @@ SALESFORCE_REVIEW_TOOLS = {
     "review_object_contract",
     "review_configured_orgs",
     "review_soql_query",
+    # REST facade additions (plan-2026-08-09 F-2): diagnostics, read-only by construction.
+    "org_limits",
+    "explain_query",
 }
 
 # Receipt-bounded efficiency toggles (config safety.*, default off). A receipt only ever REPLACES
@@ -385,13 +388,14 @@ def salesforce_review_tool_error(
         config, "allowScopedEnumeration"
     ):
         return "scoped org enumeration is disabled (safety.allowScopedEnumeration)"
-    if matched in {"review_org_identity", "review_installed_packages", "review_configured_orgs"}:
+    if matched in {"review_org_identity", "review_installed_packages", "review_configured_orgs", "org_limits"}:
         if keys:
             return "this Salesforce review tool accepts no model-controlled arguments"
         return None
-    if matched == "review_soql_query":
+    if matched in {"review_soql_query", "explain_query"}:
         # Shape/type validation only; the statement-level SOQL validation (grammar, FROM-object
         # gates, LIMIT bounds) lives in the facade server so exactly one validator exists.
+        # explain_query shares the SOQL input shape; it never executes the statement.
         if "query" not in keys or not keys <= {"query", "useToolingApi"}:
             return "composed SOQL review accepts only query and useToolingApi"
         query = tool_input.get("query")
