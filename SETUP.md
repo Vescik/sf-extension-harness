@@ -6,9 +6,12 @@
   configured MCP surface is read-only by construction on every platform (no write-mode Salesforce
   MCP server exists).
 - Consolidated GitHub Copilot extension and the recommendations in `.vscode/extensions.json`.
-- Git, Python 3.11+, Node.js 22+ (the pinned `@salesforce/mcp` requires ≥22.19), and Salesforce CLI.
+- Git, Python 3.11+, Node.js 22+ (the MCP launchers and the ADO server run on Node), and Salesforce CLI 2.136.8+ (the review facade needs `sf org auth show-access-token`).
   On Windows both install flavors are supported — npm (`sf.cmd`) and the installer (`sf.exe`);
   the review server resolves whichever `where.exe sf` would find first.
+- **Windows is a first-class runtime, not best-effort**: CI runs the full gate
+  (validation, unit suite, evals, hash-locked install) on a `windows-latest` leg, and
+  `docs/windows-setup.md` is the platform runbook.
 - Local Salesforce CLI authorization for approved non-production aliases. Authenticate manually;
   never give credentials or session material to an agent.
 
@@ -137,9 +140,12 @@ ADO settings. New to all of this? Follow the zero-assumptions walkthrough in
 steps by hand:
 
 ```bash
-python3 -m venv .venv
+python -m venv .venv
 # macOS/Linux: source .venv/bin/activate
-# Windows PowerShell: .venv\Scripts\Activate.ps1
+# Windows (cmd.exe): .venv\Scripts\activate.bat
+#   PowerShell is policy-blocked on team machines - do not use Activate.ps1.
+#   Activation is optional anyway: .venv\Scripts\python.exe works directly, and the
+#   MCP launchers resolve the .venv interpreter themselves without activation.
 python -m pip install --require-hashes -r requirements-dev.lock
 npm ci --ignore-scripts
 python scripts/validate_harness.py
@@ -204,7 +210,7 @@ owner decision of 2026-07-14.)
   hosted endpoint did not honor its toolset header, so the local `-d` args replace it). It
   authenticates with your own Azure CLI login — run `az login` once; agents never handle the
   credentials.
-- `salesforce-readonly` starts through `scripts/salesforce_review_server.mjs`. It binds one exact
+- `salesforce-readonly` starts through `scripts/salesforce_review_server.py` (via the interpreter-resolving launcher). It binds one exact
   review-enabled non-production org and exposes only identity, configured-package,
   allowlisted-object review, composed read-only SOQL (`review_soql_query`), and (when
   `safety.allowScopedEnumeration` is enabled) a configured-orgs listing built purely
@@ -213,7 +219,7 @@ owner decision of 2026-07-14.)
 - The model never receives direct `sf`/`sfdx`, an alias, directory, Tooling flag,
   `list_all_orgs`, or raw vendor output. Composed read-only SOQL (owner decisions 2026-07-30
   and 2026-08-04) executes only through the facade's `review_soql_query` tool — verbatim, over
-  the Salesforce MCP transport, never the CLI; rows return unredacted from the identity-proven
+  the facade's REST transport, never the CLI; rows return unredacted from the identity-proven
   non-production org. MCP/CLI agreement is transport corroboration from the same org, not
   independent package/business authority.
 - `knowledge` starts through `scripts/knowledge_mcp_server.mjs` and is the primary read
@@ -267,7 +273,7 @@ owner decision of 2026-07-14.)
   confirm `.vscode/mcp.json` contains `${workspaceFolder}` without `:brain-core`, then restart the
   MCP server or reload the window.
 - Salesforce review blocked: verify the exact alias, expected hostname/organization ID, review
-  permission, package namespace, component allowlist, pinned runtime, and dual-source result. Never
+  permission, package namespace, component allowlist, and pinned runtime. Never
   bypass the facade with raw MCP, `ALLOW_ALL_ORGS`, a default org, or direct CLI.
 - Salesforce project missing: restore root `sfdx-project.json`, `force-app/`, `manifest/`, and
   `tests/e2e/` from this repository; do not fall back to a subfolder, parent/sibling directory, or

@@ -42,7 +42,6 @@ def safe_config() -> dict:
             "review": {
                 "enabled": True,
                 "apiVersion": "67.0",
-                "requireDualSource": True,
                 "allowedPackageNamespaces": ["examplepkg"],
                 "allowedObjectApiNames": ["ExampleManagedObject__c"],
                 "maxFieldsPerObject": 500,

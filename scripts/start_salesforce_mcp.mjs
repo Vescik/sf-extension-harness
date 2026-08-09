@@ -1,23 +1,25 @@
 #!/usr/bin/env node
+// Thin launcher for the Python REST review facade (salesforce_review_server.py).
+//
+// Kept (plan-2026-08-09 F-3 deviation, reviewed): .vscode/mcp.json cannot express a
+// cross-platform Python interpreter path, and a bare "python" command would run
+// whatever interpreter is first on PATH - typically one without the admitted
+// `requests` dependency. This launcher resolves the interpreter exactly like the
+// knowledge server does (env override -> repo .venv -> py -3 -> python3 -> python,
+// probed for the real dependency) and keeps the pre-contact walls that must hold
+// before ANY process talks to an org. The old vendor-MCP child and the .mjs review
+// server are gone from this launch path; F-4 deletes them from the tree.
 
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(SCRIPT_DIR, "..");
 const CONFIG_PATH = resolve(REPO_ROOT, "config", "harness.local.json");
-const SALESFORCE_MCP_VERSION = "0.30.15";
-const SALESFORCE_MCP_BIN = resolve(
-  REPO_ROOT,
-  "node_modules",
-  "@salesforce",
-  "mcp",
-  "bin",
-  "run.js",
-);
-const REVIEW_SERVER = resolve(SCRIPT_DIR, "salesforce_review_server.mjs");
+const REVIEW_SERVER = resolve(SCRIPT_DIR, "salesforce_review_server.py");
+const PROBE_TIMEOUT_MS = 15_000;
 
 function fail(message) {
   process.stderr.write(`Salesforce MCP startup blocked: ${message}\n`);
@@ -39,10 +41,12 @@ function parseArgs(argv) {
 
 const { mode, org } = parseArgs(process.argv.slice(2));
 // The development/write lane was retired 2026-08-04 (owner decision): org changes are
-// human-only, so the vendor MCP is never spawned with write toolsets from this launcher.
+// human-only, so nothing is ever launched in a write mode from here.
 if (mode !== "review") {
   fail(`unsupported mode '${mode ?? ""}'; org changes are human-only`);
 }
+// First never-production wall, pre-contact; the Python server re-checks it and adds
+// the live host/org-id/IsSandbox proof before serving any tool call.
 if (!org || /(^|[^a-z])(prod|production)([^a-z]|$)/i.test(org)) {
   fail("the org alias is missing or production-like");
 }
@@ -71,23 +75,52 @@ if (entry && !new Set(["development", "qa", "uat"]).has(environment)) {
 if (config?.salesforce?.review?.enabled !== true) {
   fail("Salesforce org review is disabled in local configuration");
 }
-// Owner decision 2026-08-04: which org a developer connects is the developer's
-// responsibility. No per-alias grants and no startup identity subprocess here — any
-// non-production-looking alias is admitted, and the review facade proves live
-// non-production identity on every tool call and refuses any organization ID listed
-// in salesforce.review.deniedOrganizationIds.
-if (!existsSync(SALESFORCE_MCP_BIN)) {
-  fail(`pinned @salesforce/mcp@${SALESFORCE_MCP_VERSION} is missing; run npm ci`);
+
+// Interpreter ladder (same shape as knowledge_mcp_server.mjs): the probe imports the
+// facade's real third-party dependency, so a missing `requests` surfaces here as one
+// actionable message instead of a dead server.
+function interpreterCandidates() {
+  const candidates = [];
+  if (process.env.SALESFORCE_MCP_PYTHON) candidates.push([process.env.SALESFORCE_MCP_PYTHON]);
+  candidates.push(
+    [join(REPO_ROOT, ".venv", "bin", "python")],
+    [join(REPO_ROOT, ".venv", "Scripts", "python.exe")],
+    ["py", "-3"],
+    ["python3"],
+    ["python"],
+  );
+  return candidates;
 }
 
-const child = spawn(process.execPath, [REVIEW_SERVER, "--org", org], {
+let python = null;
+for (const candidate of interpreterCandidates()) {
+  const probe = spawnSync(candidate[0], [...candidate.slice(1), "-c", "import requests"], {
+    timeout: PROBE_TIMEOUT_MS,
+    stdio: "ignore",
+  });
+  if (!probe.error && probe.status === 0) {
+    python = candidate;
+    break;
+  }
+}
+if (!python) {
+  fail(
+    "no Python interpreter with the 'requests' dependency was found (tried " +
+      "SALESFORCE_MCP_PYTHON, the repo .venv, py -3, python3, python); run: " +
+      "python -m pip install --require-hashes -r requirements-dev.lock",
+  );
+}
+
+const child = spawn(python[0], [...python.slice(1), REVIEW_SERVER, "--org", org], {
   cwd: REPO_ROOT,
-  env: { ...process.env, SF_ORG_API_VERSION: String(config.salesforce.review.apiVersion) },
+  // PYTHONUTF8 forces UTF-8 std streams on Windows, where the default encoding is a
+  // legacy code page and the MCP spec mandates UTF-8 frames.
+  env: { ...process.env, PYTHONUTF8: "1" },
   stdio: "inherit",
   shell: false,
 });
 
-child.on("error", (error) => fail(`failed to start guarded Node runtime: ${error.message}`));
+child.on("error", (error) => fail(`failed to start the Python review facade: ${error.message}`));
 child.on("exit", (code, signal) => {
   if (signal) process.kill(process.pid, signal);
   else process.exit(code ?? 1);

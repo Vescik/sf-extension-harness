@@ -82,6 +82,8 @@ ALLOWED_TOOLS = {
     "salesforce-readonly/review_object_contract",
     "salesforce-readonly/review_configured_orgs",
     "salesforce-readonly/review_soql_query",
+    "salesforce-readonly/org_limits",
+    "salesforce-readonly/explain_query",
     "solution-design/design_open",
     "solution-design/design_record",
     "solution-design/design_check",
@@ -228,7 +230,7 @@ def check_required_files(audit: Audit) -> None:
         "schemas/harness-config.schema.json",
         "requirements-dev.lock",
         "scripts/verify_salesforce_org.py",
-        "scripts/salesforce_review_server.mjs",
+        "scripts/salesforce_review_server.py",
         "scripts/force_app_knowledge.py",
         "scripts/render_repo_map.py",
         "config/repo-map-seed.json",
@@ -732,21 +734,34 @@ def check_settings_and_mcp(audit: Audit) -> None:
         audit.require(pre[0].get("timeout", 0) >= 10, "global hook timeout must accommodate guarded command parsing")
 
     launcher = required_text(ROOT / "scripts/start_salesforce_mcp.mjs", audit)
-    # Owner decision 2026-08-04: the launcher's per-alias grants, development/write lane,
-    # and startup identity subprocess were retired — identity is proven per call in the
-    # review facade. These markers pin what must survive that slimming.
+    # Owner decision 2026-08-04 retired the launcher's per-alias grants, write lane and
+    # startup identity subprocess; plan-2026-08-09 F-3 repointed it at the Python REST
+    # facade with an interpreter-resolving probe (local, no org contact). These markers
+    # pin what must survive both slimmings.
     for marker in (
         "production-like",
         'environment === "production"',
         "org changes are human-only",
-        "salesforce_review_server.mjs",
+        "salesforce_review_server.py",
     ):
         audit.require(marker in launcher, f"Salesforce MCP launcher is missing runtime gate: {marker}")
-    audit.require("spawnSync" not in launcher, "the launcher's startup identity subprocess was retired; identity is proven per call in the facade")
+    # The launcher must never contact an org itself: identity is proven in the facade.
+    # (The interpreter probe is local by construction - it imports a Python module.)
+    for forbidden in ('"sf"', "org display", "show-access-token", "@salesforce/mcp"):
+        audit.require(forbidden not in launcher, f"the launcher must not contact orgs or vendor MCP: {forbidden}")
     audit.require('"data,metadata,testing,code-analysis"' not in launcher, "broad Salesforce data-write toolset is forbidden")
-    facade = required_text(ROOT / "scripts/salesforce_review_server.mjs", audit)
-    for marker in ("deniedOrganizationIds", "assertOrgIdPermitted", "validateMcpIdentity"):
-        audit.require(marker in facade, f"Salesforce review facade is missing runtime gate: {marker}")
+    # Live facade (Python, plan-2026-08-09 F-2): pin the walls that make never-production
+    # and read-only true. The .mjs facade and its pins were deleted in F-4.
+    py_facade = required_text(ROOT / "scripts/salesforce_review_server.py", audit)
+    for marker in (
+        "ALIAS_PRODUCTION_LIKE",
+        "NON_PRODUCTION_HOST",
+        "denied_org_ids",
+        "fail_closed",
+        "contains_sensitive_material",
+        "IDENTITY_ORG_ID_MISMATCH",
+    ):
+        audit.require(marker in py_facade, f"Python review facade is missing runtime gate: {marker}")
 
     development_frontmatter, _ = frontmatter(ROOT / ".github/agents/developer.agent.md", audit)
     audit.require("execute/runInTerminal" in (development_frontmatter.get("tools") or []), "developer needs guarded terminal execution")
@@ -1252,11 +1267,17 @@ def check_grounding_contracts(audit: Audit) -> None:
 
     package = load_json(ROOT / "package.json", audit)
     audit.require(package.get("private") is True, "package.json must remain private")
-    salesforce_mcp = package.get("dependencies", {}).get("@salesforce/mcp")
-    audit.require(salesforce_mcp == "0.30.15", "Salesforce MCP dependency must match the compatibility-tested pin 0.30.15")
+    # F-4 (plan-2026-08-09): the vendor MCP child is retired with the .mjs facade; its
+    # reappearance in the dependency tree would resurrect the per-call-child architecture.
+    audit.require(
+        "@salesforce/mcp" not in package.get("dependencies", {}),
+        "the retired @salesforce/mcp dependency must not return (REST facade replaced it)",
+    )
     package_lock = load_json(ROOT / "package-lock.json", audit)
-    locked_mcp = package_lock.get("packages", {}).get("node_modules/@salesforce/mcp", {})
-    audit.require(locked_mcp.get("version") == "0.30.15", "package-lock.json must resolve @salesforce/mcp 0.30.15")
+    audit.require(
+        "node_modules/@salesforce/mcp" not in package_lock.get("packages", {}),
+        "package-lock.json must not resolve the retired @salesforce/mcp",
+    )
     harness_example = load_json(ROOT / "config/harness.example.json", audit)
     example_review = harness_example.get("salesforce", {}).get("review", {})
     audit.require(example_review.get("enabled") is False, "example Salesforce review must be disabled")

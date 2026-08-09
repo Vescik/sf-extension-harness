@@ -40,7 +40,6 @@ CONFIG_PATH = ROOT / "config" / "harness.local.json"
 SCHEMA_PATH = ROOT / "schemas" / "harness-config.schema.json"
 REVIEW_POLICY_PATH = ROOT / "config" / "salesforce-review-policy.json"
 REVIEW_POLICY_SCHEMA_PATH = ROOT / "schemas" / "salesforce-review-policy.schema.json"
-SALESFORCE_MCP_BIN = ROOT / "node_modules" / "@salesforce" / "mcp" / "bin" / "run.js"
 PLACEHOLDER = re.compile(r"<[^>]+>")
 
 
@@ -265,8 +264,16 @@ def validate_capability(config: dict, capability: str) -> list[str]:
         review = config.get("salesforce", {}).get("review", {})
         if review.get("enabled") is not True:
             failures.append("Salesforce org review is disabled")
-        if not SALESFORCE_MCP_BIN.is_file():
-            failures.append("pinned @salesforce/mcp runtime is missing; run npm ci")
+        # The REST facade (salesforce_review_server.py) needs requests at runtime; a
+        # missing dependency must surface at setup, not at the first agent tool call.
+        try:
+            import requests  # noqa: F401
+        except ModuleNotFoundError:
+            failures.append(
+                "python package 'requests' is not installed for this interpreter "
+                "(needed by salesforce_review_server.py); run: "
+                "python -m pip install --require-hashes -r requirements-dev.lock"
+            )
         executable = shutil.which("sf")
         if executable is not None:
             try:

@@ -1,10 +1,8 @@
 {
   "$schema": "../schemas/salesforce-review-policy.schema.json",
   "schemaVersion": 1,
-  "salesforceMcpPackage": "@salesforce/mcp@0.30.15",
   "mcpProtocolVersion": "2025-06-18",
   "salesforceCliMajor": 2,
-  "commandTimeoutSeconds": 30,
   "maxVendorPayloadBytes": 1048576,
   "soqlQueryTimeoutSeconds": 60,
   "profiles": {

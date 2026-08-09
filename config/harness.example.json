@@ -34,7 +34,6 @@
       "enabled": false,
       "deniedOrganizationIds": [],
       "apiVersion": "67.0",
-      "requireDualSource": true,
       "allowedPackageNamespaces": [],
       "allowedObjectApiNames": [],
       "maxFieldsPerObject": 500,

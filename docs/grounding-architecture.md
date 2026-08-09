@@ -55,7 +55,7 @@ Agents never receive raw Salesforce CLI, aliases, directories, Tooling flags, or
 payloads. Composed read-only SOQL is permitted — and, for record data-shape questions,
 recommended (owner decisions 2026-07-30 and 2026-08-04) — through the governed
 `salesforce-readonly` facade's `review_soql_query` tool only. The 2026-08-04 decision removed
-the statement blockade: the statement executes verbatim over the pinned Salesforce MCP (never
+the statement blockade: the statement executes verbatim over the facade's REST transport (never
 the CLI) against the identity-proven non-production org, and rows return unredacted in a
 single-source envelope. An explicitly configured `review.allowedObjectApiNames` list is still
 honored. The facade exposes only:
@@ -71,7 +71,7 @@ honored. The facade exposes only:
 The facade binds one configured allowlisted non-production org (sandbox, scratch org, or an owner-admitted Developer Edition), runs fixed evidence profiles — plus
 verbatim composed statements for `review_soql_query` — through the pinned
 Salesforce MCP and a private CLI allowlist, sanitizes the profile receipts, and reconciles what
-is dual-sourced. Results are `VERIFIED`, `MISMATCH`, `INCOMPLETE`, or `BLOCKED`.
+carries the session identity proof; object contracts reconcile the describe and Tooling REST endpoints, with contested traits nulled and listed. Results are `VERIFIED`, `INCOMPLETE`, or `BLOCKED` (`MISMATCH` retired with the dual-transport design).
 
 MCP/CLI agreement corroborates transport from the same org; it is not an independent source of
 business or vendor truth. Mismatch, truncation, schema drift, identity failure, or one missing
@@ -111,7 +111,7 @@ and repository lineage. A new chat must resume from `recordId` and `handoffId` a
 - No model-only inference is verified Knowledge.
 - No incomplete/mismatched org review or source/org drift yields `SAFE`.
 - Direct CLI, default org, and production remain blocked; composed read-only SOQL executes
-  only through the identity-gated facade, verbatim over the Salesforce MCP transport.
+  only through the identity-gated facade, verbatim over its REST transport.
 - Deterministic fresh-chat handoff and negative false-safe fixtures must pass locally and in CI.
   No cross-model behavior matrix is currently certified; model/host scenarios remain a pilot gate
   until each explicit model and version is executed and its evidence recorded.

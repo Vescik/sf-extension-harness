@@ -150,7 +150,6 @@
           "required": [
             "enabled",
             "apiVersion",
-            "requireDualSource",
             "allowedPackageNamespaces",
             "maxFieldsPerObject",
             "evidenceMaxAgeMinutes"
@@ -172,9 +171,6 @@
             "apiVersion": {
               "type": "string",
               "pattern": "^[0-9]{2}\\.0$"
-            },
-            "requireDualSource": {
-              "const": true
             },
             "allowedPackageNamespaces": {
               "description": "Namespaces of managed packages in review scope. An empty list means NO managed packages (correct for an org that has none — a Developer Edition or a clean sandbox); [\"*\"] means every installed package. An explicit list stays the tightest option and is preferred where the set is known.",

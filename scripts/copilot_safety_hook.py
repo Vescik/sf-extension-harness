@@ -28,6 +28,14 @@ DESTRUCTIVE_PATTERNS = (
     re.compile(r"\bsf\s+org\s+delete\b", re.IGNORECASE),
     re.compile(r"\bDROP\s+(TABLE|DATABASE)\b", re.IGNORECASE),
     re.compile(r"\bDELETE\s+FROM\b", re.IGNORECASE),
+    # cmd.exe / PowerShell spellings of the recursive deletions above (W-1,
+    # audit-2026-08-09-windows-readiness): cmd.exe is available on team Windows
+    # machines even though PowerShell is policy-blocked there; Remove-Item is
+    # covered anyway as defense in depth. Plain `del file` / `rd dir` without the
+    # recursive switch stay allowed, mirroring the non-recursive `rm` carve-out.
+    re.compile(r"\b(?:rd|rmdir)\b[^\n]*\s/s\b", re.IGNORECASE),
+    re.compile(r"\bdel\b[^\n]*\s/s\b", re.IGNORECASE),
+    re.compile(r"\bremove-item\b[^\n]*\s-recurse\b", re.IGNORECASE),
 )
 
 PRODUCTION_PATTERNS = (
@@ -99,6 +107,9 @@ SALESFORCE_REVIEW_TOOLS = {
     "review_object_contract",
     "review_configured_orgs",
     "review_soql_query",
+    # REST facade additions (plan-2026-08-09 F-2): diagnostics, read-only by construction.
+    "org_limits",
+    "explain_query",
 }
 
 # Receipt-bounded efficiency toggles (config safety.*, default off). A receipt only ever REPLACES
@@ -367,8 +378,10 @@ def salesforce_review_tool_error(
     if config is None:
         return "local harness configuration is missing"
     review = config.get("salesforce", {}).get("review", {})
-    if review.get("enabled") is not True or review.get("requireDualSource") is not True:
-        return "dual-source Salesforce org review is disabled"
+    # requireDualSource retired with the REST facade rewrite (plan 2026-08-09): the flag
+    # gated a second transport that no longer exists; review.enabled is the whole switch.
+    if review.get("enabled") is not True:
+        return "Salesforce org review is disabled"
     # Owner decision 2026-08-04: any alias is admitted on the facade's live identity proof
     # (per call, with review.deniedOrganizationIds as the org-level brake), so the hook
     # holds no per-alias grant gate — only tool-shape checks below.
@@ -383,13 +396,14 @@ def salesforce_review_tool_error(
         config, "allowScopedEnumeration"
     ):
         return "scoped org enumeration is disabled (safety.allowScopedEnumeration)"
-    if matched in {"review_org_identity", "review_installed_packages", "review_configured_orgs"}:
+    if matched in {"review_org_identity", "review_installed_packages", "review_configured_orgs", "org_limits"}:
         if keys:
             return "this Salesforce review tool accepts no model-controlled arguments"
         return None
-    if matched == "review_soql_query":
+    if matched in {"review_soql_query", "explain_query"}:
         # Shape/type validation only; the statement-level SOQL validation (grammar, FROM-object
         # gates, LIMIT bounds) lives in the facade server so exactly one validator exists.
+        # explain_query shares the SOQL input shape; it never executes the statement.
         if "query" not in keys or not keys <= {"query", "useToolingApi"}:
             return "composed SOQL review accepts only query and useToolingApi"
         query = tool_input.get("query")

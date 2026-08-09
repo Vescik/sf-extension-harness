@@ -10,7 +10,7 @@ Use the [investigate-object skill](../skills/investigate-object/SKILL.md).
 
 Require exactly one `objectApiName` (ask once with `#tool:vscode/askQuestions` if missing). The
 name must be on the configured review allowlist; evidence stays bounded, sanitized, and
-dual-source reconciled through the guarded review tools (record reads via `review_soql_query`).
+grounded through the guarded review tools (record reads via `review_soql_query`); the facade proves the non-production org identity live at startup, and object facts reconcile the describe and Tooling endpoints with contested traits nulled and listed in `contestedProperties`.
 
 The outcome is a sanitized investigation report under `output/` — never a verified fact and
 never citable Knowledge by itself. Numbers worth keeping persist through the skill's governed

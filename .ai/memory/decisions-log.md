@@ -1109,3 +1109,47 @@ loop; the single hard gate is human approval at design_submit (digest-bound elic
   test-strategist record downstream evidence in the work record, not through SD tools.
 - Out of scope, recorded: behavioral runs §10.1/§10.4 (live Copilot, gated on U-3), D-6
   MP-* rule content (SME work), the measurement campaign (D2).
+
+## 2026-08-09 — Salesforce review facade rewritten: Python + single REST transport (plan-2026-08-09, F-1…F-4)
+
+Owner-approved rewrite replacing `scripts/salesforce_review_server.mjs` (1 708 lines,
+dual-source reconciliation, fresh `sf` CLI + `@salesforce/mcp` child per tool call) with
+`scripts/salesforce_review_server.py`: the CLI runs a fixed number of times at server
+startup (version gate ≥ 2.136.8, `sf org auth show-access-token` — the May 2026 CLI
+redaction retired `org display` as a token source — and `org display`), the org's
+non-production identity is proven live and frozen for the session, and every tool call is
+one HTTPS GET over a pooled session. Measured motivation: chained calls hit the client's
+immovable ~60 s timeout because each call booted an oclif child and re-proved identity.
+
+- Decisions D-1…D-7 (table in docs/plan-2026-08-09-salesforce-mcp-rest-rewrite.md):
+  startup-only org check re-proven after every 401 refresh (fail-closed on org-id change);
+  envelope schemaVersion 2 with sources {cli, rest} bound to the version (v1 kept valid
+  for rollback; enum narrows to [2] later); `requests` admitted hash-locked
+  (advisory-accepted-with-mitigation: the extract_zipped_paths issue is unreachable and
+  the fixed line does not install on Python 3.9); no persistent audit log (stderr timing);
+  delete-in-place with git revert as the rollback path (§6a); receipt cache deleted
+  (zero consumers, grep-proven); `explain_query` added on the Beta explain endpoint,
+  behind the same FROM-scan/allowlist as SOQL, raw plans[] passthrough.
+- Object contracts keep the describe-only traits (unique/externalId/createable/updateable)
+  via one supplementary REST describe (owner decision b, 2026-08-09) under
+  `sourceExclusive.rest`; contested describe-vs-Tooling traits are nulled and listed in
+  `contestedProperties`; envelope-level MISMATCH is retired with the dual transport.
+- Deviation from the plan, reviewed: `start_salesforce_mcp.mjs` stays as a thin
+  interpreter-resolving launcher (mcp.json cannot express a cross-platform Python path;
+  ladder mirrors the knowledge server) instead of being deleted.
+- requireDualSource removed everywhere (schema, example, hook trust condition, fixtures,
+  policy pins salesforceMcpPackage/commandTimeoutSeconds removed); local configs carrying
+  the key fail preflight schema validation with a self-explanatory message — delete the
+  line from config/harness.local.json.
+- New tools org_limits and explain_query wired through the safety hook, validator
+  allowlist, and the config-investigator agent. A high-effort review pass before F-2
+  found and fixed 10 verified defects (time budget, schema-invalid warning combos,
+  refresh stampede, session-swap race, version binding, fromObjects cap, macOS PATH and
+  NO_COLOR regression, missing pre-contact production-alias wall, unpinned install
+  remediation, deprecation text inviting a config break).
+- Retired surface pinned: `salesforce_review_server.mjs` + `salesforceMcpPackage` tokens
+  in config/retired-surfaces.json; `@salesforce/mcp` must not return to package.json
+  (validator now asserts its absence).
+- NOT yet done, deliberately: live verification against the slow org (plan §7 tests 1, 2,
+  9 — latency, process count, explain selectivity) runs only on explicit owner
+  instruction against the configured non-production alias.

@@ -18,7 +18,7 @@ Keep the governed Knowledge store complete and current from repository source. D
 or implement. When curation depends on how data actually sits in records (does a field carry
 data, what shapes a picklist really takes), composed read-only SOQL through the
 `review_soql_query` facade tool is recommended over guessing (owner decision 2026-08-04) — it
-runs verbatim over the Salesforce MCP transport, never the CLI. Treat returned rows as org
+runs verbatim over the facade's REST transport against the identity-proven non-production org, never the CLI. Treat returned rows as org
 observations for curation judgment, never as source-derived facts; escalate deep or contested
 org investigations, and all org-usage persistence (`entry-org-attach`), to
 `config-investigator`.
