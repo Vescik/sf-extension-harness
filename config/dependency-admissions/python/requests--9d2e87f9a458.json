@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "ecosystem": "python",
+  "packageName": "requests",
+  "safeSlug": "requests",
+  "nameDigest12": "9d2e87f9a458",
+  "version": "2.32.5",
+  "purpose": "HTTP layer of the REST Salesforce review facade (scripts/salesforce_review_server.py, plan-2026-08-09 D-3): one pooled keep-alive session per server session is the mechanism that removes the per-call process boots behind the measured MCP timeouts. Session pooling, connection reuse, proxy/corporate-CA handling and urllib3 retry plumbing come from requests instead of ~200 lines of hand-written http.client code.",
+  "importNames": [
+    "requests"
+  ],
+  "rejectedAlternatives": [
+    {
+      "alternative": "stdlib urllib.request",
+      "whyInsufficient": "No connection pooling or keep-alive: every tool call would pay a fresh TCP+TLS handshake against the org, recreating part of the latency problem this rewrite exists to remove."
+    },
+    {
+      "alternative": "hand-written keep-alive wrapper over http.client",
+      "whyInsufficient": "Roughly 200 lines of bespoke network code (pooling, retries, proxy and corporate-CA handling) to maintain in the most safety-critical file of the repo, replacing a battle-tested library with a weaker private copy."
+    }
+  ],
+  "integrity": {
+    "lockfile": "requirements-dev.lock",
+    "mechanism": "pip-hash-locked",
+    "artifactDigests": [
+      "sha256:2462f94637a34fd532264295e186976db0f5d453d1cdd31473c85a6a161affb6",
+      "sha256:dbba0bac56e100853db0ea71b82b4dfd5fe2bf6d3754a8893c3af500cec7d7cf"
+    ]
+  },
+  "provenance": {
+    "sourceRepository": "https://github.com/psf/requests",
+    "sourceCommit": null,
+    "maintainerNote": "PSF-stewarded project with a long continuous release history; one of the most widely deployed Python packages.",
+    "checkedAt": "2026-08-09T00:00:00Z",
+    "note": "Provenance is evidence of origin, not proof of benign content. Wheel and sdist digests were computed locally from pip-downloaded artifacts and match the PyPI JSON API digests."
+  },
+  "advisoryCheck": {
+    "sources": [
+      "https://github.com/advisories (GitHub Advisory Database)",
+      "https://security.snyk.io/package/pip/requests"
+    ],
+    "checkedAt": "2026-08-09T00:00:00Z",
+    "outcome": "advisory-accepted-with-mitigation",
+    "detail": "SNYK-PYTHON-REQUESTS-15763443 (medium): insecure temporary-file handling in requests.utils.extract_zipped_paths, affecting <2.33.0, fixed in 2.33.0. Accepted because (a) the fixed line is not installable on the repository's Python 3.9 environment (pip resolves 2.32.5 as the newest compatible release), and (b) the vulnerable function is unreachable from the facade: extract_zipped_paths only runs for CA-bundle paths that point inside zip archives, and the facade uses the default certifi bundle and never passes zip-embedded paths. Re-assess when the workspace Python moves past 3.9 (see rollbackCriterion)."
+  },
+  "transitiveDeltaDigest": "sha256:7b629ba7bc9e5df59bb9df2f669142835e93ba4ae8b6223974f03416b96a765f",
+  "lifecycleScripts": {
+    "disabled": true,
+    "note": "Installed from the hash-locked requirements file; pip executes no lifecycle scripts for wheels, and the lock pins wheel and sdist hashes so a substituted artifact fails installation."
+  },
+  "license": "Apache-2.0",
+  "supportedPlatforms": [
+    "windows",
+    "macos",
+    "linux"
+  ],
+  "cooldown": {
+    "applied": true,
+    "reason": "2.32.5 has been the newest Python-3.9-compatible release since 2025-08; no newer compatible release exists to wait out."
+  },
+  "owner": "workspace owner (sf-harness-brain-core)",
+  "reviewBy": "2027-02-09",
+  "rollbackCriterion": "Remove or re-pin if a new advisory affects 2.32.5 through a code path the facade exercises (HTTP request plumbing rather than extract_zipped_paths), when the workspace Python line moves past 3.9 (then upgrade to the newest clean release, 2.33.0+), or if the facade is retired. transitiveDeltaDigest is sha256 over the canonical JSON of the pinned closure map {package: version}; a change means the closure moved."
+}

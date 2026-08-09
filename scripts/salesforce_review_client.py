@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import json
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -81,7 +82,7 @@ def call_salesforce_review_facade(
 ) -> dict[str, Any]:
     """Call the fixed local facade directly and return only its normalized envelope."""
 
-    script = root / "scripts" / "salesforce_review_server.mjs"
+    script = root / "scripts" / "salesforce_review_server.py"
     if not script.is_file():
         raise SalesforceReviewError("Salesforce review facade is missing")
     messages = "\n".join(
@@ -111,7 +112,7 @@ def call_salesforce_review_facade(
     )
     try:
         completed = subprocess.run(
-            ["node", str(script), "--org", alias],
+            [sys.executable, str(script), "--org", alias],
             cwd=root,
             input=messages,
             text=True,

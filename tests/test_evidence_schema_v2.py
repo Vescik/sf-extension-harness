@@ -84,6 +84,14 @@ class EvidenceSchemaV2(unittest.TestCase):
     def test_v2_rest_envelope_validates(self) -> None:
         self.assert_valid(envelope(2, {"cli": CLI_SOURCE, "rest": REST_SOURCE}))
 
+    def test_v2_claiming_the_retired_mcp_transport_is_rejected(self) -> None:
+        # The exact "lie in the data" shape D-2b rejected: a v2 envelope fabricating
+        # dual-transport corroboration from a transport that no longer exists.
+        self.assert_invalid(envelope(2, {"cli": CLI_SOURCE, "mcp": MCP_SOURCE}))
+
+    def test_v1_claiming_the_rest_transport_is_rejected(self) -> None:
+        self.assert_invalid(envelope(1, {"cli": CLI_SOURCE, "rest": REST_SOURCE}))
+
     def test_both_transports_at_once_is_rejected(self) -> None:
         self.assert_invalid(
             envelope(2, {"cli": CLI_SOURCE, "mcp": MCP_SOURCE, "rest": REST_SOURCE})

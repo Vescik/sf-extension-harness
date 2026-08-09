@@ -20,7 +20,10 @@
   ],
   "properties": {
     "schemaVersion": {
-      "enum": [1, 2]
+      "enum": [
+        1,
+        2
+      ]
     },
     "runId": {
       "type": "string",
@@ -87,11 +90,15 @@
               "installed-packages",
               "object-contract"
             ]
+          },
+          "schemaVersion": {
+            "const": 1
           }
         },
         "required": [
           "status",
-          "reviewType"
+          "reviewType",
+          "schemaVersion"
         ]
       },
       "then": {
@@ -347,11 +354,15 @@
           },
           "reviewType": {
             "const": "org-identity"
+          },
+          "schemaVersion": {
+            "const": 1
           }
         },
         "required": [
           "status",
-          "reviewType"
+          "reviewType",
+          "schemaVersion"
         ]
       },
       "then": {
@@ -401,11 +412,15 @@
           },
           "reviewType": {
             "const": "installed-packages"
+          },
+          "schemaVersion": {
+            "const": 1
           }
         },
         "required": [
           "status",
-          "reviewType"
+          "reviewType",
+          "schemaVersion"
         ]
       },
       "then": {
@@ -431,11 +446,15 @@
           },
           "reviewType": {
             "const": "object-contract"
+          },
+          "schemaVersion": {
+            "const": 1
           }
         },
         "required": [
           "status",
-          "reviewType"
+          "reviewType",
+          "schemaVersion"
         ]
       },
       "then": {
@@ -660,6 +679,225 @@
                 "const": true
               }
             }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "schemaVersion": {
+            "const": 2
+          },
+          "status": {
+            "const": "VERIFIED"
+          },
+          "reviewType": {
+            "const": "org-identity"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "status",
+          "reviewType"
+        ]
+      },
+      "then": {
+        "properties": {
+          "target": {
+            "$ref": "#/$defs/provenTarget"
+          },
+          "sources": {
+            "$ref": "#/$defs/completeSources"
+          },
+          "completeness": {
+            "$ref": "#/$defs/singleSourceVerifiedCompleteness"
+          },
+          "warnings": {
+            "maxItems": 0
+          },
+          "reconciliation": {
+            "allOf": [
+              {
+                "$ref": "#/$defs/matchReconciliation"
+              },
+              {
+                "properties": {
+                  "comparisons": {
+                    "minItems": 2,
+                    "maxItems": 2,
+                    "prefixItems": [
+                      {
+                        "properties": {
+                          "fact": {
+                            "const": "organization-identity"
+                          },
+                          "result": {
+                            "const": "MATCH"
+                          }
+                        }
+                      },
+                      {
+                        "properties": {
+                          "fact": {
+                            "const": "is-sandbox"
+                          },
+                          "result": {
+                            "const": "MATCH"
+                          }
+                        }
+                      }
+                    ],
+                    "items": false
+                  }
+                }
+              }
+            ]
+          },
+          "facts": {
+            "$ref": "#/$defs/identityFacts"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "schemaVersion": {
+            "const": 2
+          },
+          "status": {
+            "const": "VERIFIED"
+          },
+          "reviewType": {
+            "const": "installed-packages"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "status",
+          "reviewType"
+        ]
+      },
+      "then": {
+        "properties": {
+          "target": {
+            "$ref": "#/$defs/provenTarget"
+          },
+          "sources": {
+            "$ref": "#/$defs/completeSources"
+          },
+          "completeness": {
+            "$ref": "#/$defs/singleSourceVerifiedCompleteness"
+          },
+          "warnings": {
+            "maxItems": 0
+          },
+          "facts": {
+            "$ref": "#/$defs/packageFacts"
+          },
+          "reconciliation": {
+            "properties": {
+              "status": {
+                "const": "SINGLE_SOURCE"
+              },
+              "comparisons": {
+                "maxItems": 0
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "schemaVersion": {
+            "const": 2
+          },
+          "status": {
+            "const": "VERIFIED"
+          },
+          "reviewType": {
+            "const": "object-contract"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "status",
+          "reviewType"
+        ]
+      },
+      "then": {
+        "properties": {
+          "target": {
+            "$ref": "#/$defs/provenTarget"
+          },
+          "sources": {
+            "$ref": "#/$defs/completeSources"
+          },
+          "completeness": {
+            "$ref": "#/$defs/singleSourceVerifiedCompleteness"
+          },
+          "warnings": {
+            "maxItems": 0
+          },
+          "facts": {
+            "$ref": "#/$defs/objectFacts"
+          },
+          "reconciliation": {
+            "properties": {
+              "status": {
+                "const": "SINGLE_SOURCE"
+              },
+              "comparisons": {
+                "maxItems": 0
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "schemaVersion": {
+            "const": 1
+          }
+        },
+        "required": [
+          "schemaVersion"
+        ]
+      },
+      "then": {
+        "properties": {
+          "sources": {
+            "required": [
+              "cli",
+              "mcp"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "schemaVersion": {
+            "const": 2
+          }
+        },
+        "required": [
+          "schemaVersion"
+        ]
+      },
+      "then": {
+        "properties": {
+          "sources": {
+            "required": [
+              "cli",
+              "rest"
+            ]
           }
         }
       }
@@ -1626,12 +1864,88 @@
         "sourceExclusive": {
           "type": "object",
           "additionalProperties": false,
-          "required": [
-            "cli",
-            "mcp"
+          "oneOf": [
+            {
+              "required": [
+                "cli",
+                "mcp"
+              ]
+            },
+            {
+              "required": [
+                "rest"
+              ]
+            }
           ],
-          "description": "Traits only one transport can report. Preserved with their source rather than deleted or forced into a whole-object MISMATCH.",
+          "description": "Traits only one transport can report. Preserved with their source rather than deleted or forced into a whole-object MISMATCH. schemaVersion 2 (single REST transport) reports the union under `rest`: labelling REST-derived traits `cli` would lie about provenance (D-2b class).",
           "properties": {
+            "rest": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "unique": {
+                  "oneOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "type": "boolean"
+                    }
+                  ]
+                },
+                "externalId": {
+                  "oneOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "type": "boolean"
+                    }
+                  ]
+                },
+                "createable": {
+                  "oneOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "type": "boolean"
+                    }
+                  ]
+                },
+                "updateable": {
+                  "oneOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "type": "boolean"
+                    }
+                  ]
+                },
+                "indexed": {
+                  "oneOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "type": "boolean"
+                    }
+                  ]
+                },
+                "dataType": {
+                  "oneOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "type": "string",
+                      "maxLength": 160
+                    }
+                  ]
+                }
+              }
+            },
             "cli": {
               "type": "object",
               "additionalProperties": false,
@@ -1938,6 +2252,9 @@
         "ORG_ID_DENIED",
         "QUERY_PROFILE_DENIED",
         "QUERY_VALIDATION_DENIED",
+        "REST_SCHEMA_MISMATCH",
+        "REST_TIMEOUT",
+        "REST_UNAVAILABLE",
         "RESULT_TRUNCATED",
         "SCOPED_ENUMERATION_DISABLED",
         "SENSITIVE_OUTPUT_DETECTED"
@@ -1953,6 +2270,9 @@
         "MCP_START_FAILED",
         "MCP_TIMEOUT",
         "MCP_TOOL_ERROR",
+        "REST_SCHEMA_MISMATCH",
+        "REST_TIMEOUT",
+        "REST_UNAVAILABLE",
         "RESULT_TRUNCATED"
       ]
     },
