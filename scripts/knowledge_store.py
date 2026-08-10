@@ -1877,7 +1877,28 @@ def command_entry_status(args: argparse.Namespace) -> dict[str, Any]:
     latest = ledger_latest(read_ledger())
     org_latest = org_ledger_latest()
     lanes = []
-    for path in all_entry_paths():
+    if args.identity:
+        # Direct path resolution (plan 2026-08-09 §3c.4): the path is a function of the
+        # identity, so one entry's status must not pay a full-corpus lane recompute. And a
+        # typo'd identity is a named error, not an empty success indistinguishable from
+        # "no entry" (§3c.2).
+        parts = args.identity.split(":", 2)
+        if len(parts) != 3:
+            raise StoreError(
+                f"--identity {args.identity!r} is not <MetadataType>:<ns|c>:<FullName>"
+            )
+        metadata_type, namespace_segment, full_name = parts
+        namespace = None if namespace_segment == "c" else namespace_segment
+        path = entry_path(metadata_type, namespace, full_name)
+        if not path.is_file():
+            raise StoreError(
+                f"no entry matches {args.identity} (path {relative_path(path)} does not "
+                "exist) — check the identity or draft the entry first"
+            )
+        candidates = [path]
+    else:
+        candidates = all_entry_paths()
+    for path in candidates:
         lane = compute_lane(path, latest)
         if args.identity and lane["identity"] != args.identity:
             continue

@@ -1423,6 +1423,16 @@ class ErrorEnvelopeTests(KnowledgeStoreTests):
         self.assertNotEqual("StoreError", envelope["errorType"])
         self.assertIn("Traceback", err)
 
+    def test_entry_status_typo_is_a_named_error_not_an_empty_success(self) -> None:
+        drafted = self.draft()
+        with self.assertRaises(store.StoreError) as ctx:
+            store.command_entry_status(argparse.Namespace(identity="Flow:c:NoSuchFlow"))
+        self.assertIn("no entry matches", str(ctx.exception))
+        with self.assertRaises(store.StoreError):
+            store.command_entry_status(argparse.Namespace(identity="Flow:OnlyTwoParts"))
+        result = store.command_entry_status(argparse.Namespace(identity=drafted["identity"]))
+        self.assertEqual(1, len(result["entries"]))
+
     def test_domain_errors_keep_a_quiet_stderr(self) -> None:
         code, out, err = self.run_main(
             ["entry-draft", "--metadata-type", "NoSuchType", "--full-name", "X"]
