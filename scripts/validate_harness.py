@@ -520,7 +520,7 @@ def check_customizations(audit: Audit, root: Path = ROOT) -> None:
         data, _body = frontmatter(path, audit)
         # The work-record and Design-Case handoff lanes were deleted with their runtime
         # (phase 5, owner decision 2026-08-08) — the identifier-pair requirement that lived
-        # here would have re-imposed the retired recordId/handoffId vocabulary on the first
+        # here would have re-imposed the retired identifier-pair vocabulary on the first
         # future handoff. What survives is the durable-artifact rule: a handoff may never
         # depend on chat context.
         for handoff in data.get("handoffs", []) or []:
@@ -852,49 +852,34 @@ def check_secret_signatures(audit: Audit) -> None:
             audit.require(pattern.search(text) is None, f"{name}: high-confidence secret signature detected")
 
 
-KNOWLEDGE_MASTER_PLAN = "docs/knowledge-master-plan-2026-07-25.md"
-# §7's two consumer sets, and the reason they are read out of the plan instead of listed here.
-# The gate this replaces counted a list assembled beside it — a list that included
-# `search-knowledge`, which owns the command menu and is not a Set A consumer — so it was green
-# while measuring the wrong thing. Parsing the plan means moving a surface between sets, or
-# renaming one, fails here in the plan's own words rather than silently.
+# §7 Set A: the surfaces whose step-1 SOURCE lookup must run through the entry index.
+# The membership is declared HERE, explicitly — this list is the single source of truth
+# (decoupled from the historical master plan on the owner's 2026-08-10 decision: parsing
+# docs/knowledge-master-plan-2026-07-25.md coupled runtime validation to a frozen
+# document; moving a surface now means editing this tuple in the same commit that edits
+# the surface, and the git diff is the review trail).
 # 2026-08-04 (owner decision, MCP-only definitions): the step-1 surface is the MCP tool,
-# not the CLI literal — the v1-retirement lesson is that two competing lanes in agent-facing
-# text rot into bypass. The CLI menu survives only in search-knowledge as the operator
-# fallback, which is deliberately NOT a Set A surface.
+# not the CLI literal. The CLI menu survives only in search-knowledge as the operator
+# fallback, which is deliberately NOT a Set A surface — the gate this design replaced
+# counted a list that included the menu owner and was green while measuring the wrong
+# thing.
+SET_A_SURFACES = (
+    "solution-design",
+    "check-against-principles",
+    "check-feature-coverage",
+    "adhoc-fix",
+    "investigate-config-records",
+    "generate-technical-documentation",
+    "investigate-object",
+    "developer.agent.md",
+    "test-strategist.agent.md",
+)
 SET_A_CALL = "knowledge_context"
 # The second half of a correct step-1 lookup. A context lookup without the re-read rule lets
 # an agent cite a row carrying `hydrated: false`, which contract §14.2 rules uncitable — the
 # retrieval defect P0–P4 made visible, re-introduced at the last hop. Wave 2 claimed the rule was
 # present in all eight Set A surfaces when it was present in two, so §7 asserts both tokens.
 SET_A_HYDRATION_RULE = "hydrated"
-
-
-def plan_consumer_set(plan_text: str, label: str) -> tuple[int | None, list[str]]:
-    """Backticked surface names from §7's `- **Set X — …**: …` bullet, and its declared count.
-
-    Flag names (`--uses-object`) are dropped: the bullet mixes surfaces with the flags Set B
-    retains, and only the surfaces resolve to a file."""
-
-    bullet = re.search(
-        rf"^- \*\*{re.escape(label)} —.*?(?=^- \*\*|^\s*$)",
-        plan_text,
-        re.MULTILINE | re.DOTALL,
-    )
-    if bullet is None:
-        return None, []
-    text = " ".join(bullet.group(0).split())
-    # The bold intro can itself contain backticks (`context --identity`), so the surface list
-    # starts at the first colon after the intro closes, never at the first colon in the bullet.
-    # A bullet whose bold intro never closes (or has no colon) is unparsed, not a crash.
-    try:
-        tail = text[text.index("**", text.index("**") + 2) + 2:]
-        colon = tail.index(":")
-    except ValueError:
-        return None, []
-    declared = re.search(r"\((\d+) surfaces\)", tail[:colon])
-    names = [name for name in re.findall(r"`([^`]+)`", tail[colon + 1:]) if not name.startswith("-")]
-    return (int(declared.group(1)) if declared else None, names)
 
 
 def consumer_surface_path(root: Path, name: str) -> Path:
@@ -906,48 +891,26 @@ def consumer_surface_path(root: Path, name: str) -> Path:
 
 
 def check_knowledge_consumer_sets(audit: Audit, root: Path = ROOT) -> None:
-    """§7 Set A: the step-1 *source* lookup that must run through the entry index.
+    """§7 Set A: every declared surface runs the step-1 source lookup AND its re-read rule.
 
     Set B (the preserved layer-2 registry call) retired with the claim registry
-    (v1 retirement P2b, owner D-C 2026-08-03): the unprofiled-type gap is now NAMED in
-    check-feature-coverage's report instead of queried, so the gate here covers Set A only.
+    (v1 retirement P2b, owner D-C 2026-08-03). Membership lives in SET_A_SURFACES above.
     """
 
-    plan_path = root / KNOWLEDGE_MASTER_PLAN
-    if not plan_path.is_file():
-        audit.require(False, f"{KNOWLEDGE_MASTER_PLAN} is missing; the P6 consumer sets are unpinned")
-        return
-    plan_text = plan_path.read_text(encoding="utf-8")
-
-    declared_a, set_a = plan_consumer_set(plan_text, "Set A")
-    audit.require(
-        bool(set_a),
-        f"{KNOWLEDGE_MASTER_PLAN} §7 no longer names Set A in the parsed shape "
-        f"(`- **Set A — …**: `surface`, …`); the consumer gate cannot measure anything",
-    )
-    if not set_a:
-        return
-    audit.require(
-        declared_a == len(set_a),
-        f"{KNOWLEDGE_MASTER_PLAN} §7 declares {declared_a} Set A surfaces but names "
-        f"{len(set_a)}: {', '.join(set_a)}",
-    )
-
-    for name in set_a:
+    for name in SET_A_SURFACES:
         path = consumer_surface_path(root, name)
         text = path.read_text(encoding="utf-8") if path.is_file() else ""
         audit.require(
             SET_A_CALL in text,
-            f"§7 Set A ({len(set_a)} surfaces): {relative(path)} no longer runs "
-            f"`{SET_A_CALL}` as its step-1 source lookup — §8's gate is {len(set_a)} of "
-            f"{len(set_a)}, so this moves the count without moving the plan",
+            f"§7 Set A ({len(SET_A_SURFACES)} surfaces): {relative(path)} no longer runs "
+            f"`{SET_A_CALL}` as its step-1 source lookup — remove it from SET_A_SURFACES "
+            f"only together with the design change that retires the surface",
         )
         audit.require(
             SET_A_HYDRATION_RULE in text,
-            f"§7 Set A ({len(set_a)} surfaces): {relative(path)} names the step-1 command but "
-            f"not the `{SET_A_HYDRATION_RULE}` re-read rule — an agent may then cite a row "
-            f"contract §14.2 rules uncitable, which is the half of the lookup wave 2 claimed "
-            f"without counting",
+            f"§7 Set A ({len(SET_A_SURFACES)} surfaces): {relative(path)} names the step-1 "
+            f"command but not the `{SET_A_HYDRATION_RULE}` re-read rule — an agent may then "
+            f"cite a row contract §14.2 rules uncitable",
         )
 
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Canonical-JSON digest primitives shared by every Knowledge executor.
 
-Relocated verbatim from scripts/knowledge_registry.py (P0 of the v1 claim-registry
+Relocated verbatim from the retired v1 claim-registry module (P0 of that
 retirement, 2026-08-03) so the one-file entry store does not depend on the retiring
 module. The byte behavior is load-bearing: canonical_digest() values are persisted as
 entry filename suffixes, factsDigest/bodyDigest/reviewedContentDigest, sourceTreeDigest,

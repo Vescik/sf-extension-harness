@@ -98,7 +98,12 @@ PATCHED = ("ROOT", "ARTIFACTS_ROOT", "LEDGER_PATH", "REVIEW_ARTIFACT_ROOT", "LOC
            "TAXONOMY_PATH", "FEATURES_ROOT", "FEATURE_LEDGER_PATH")
 
 
-class KnowledgeStoreTests(unittest.TestCase):
+class KnowledgeStoreFixture(unittest.TestCase):
+    """setUp + helpers ONLY — no test methods. Test classes inherit THIS, never each
+    other: inheriting a test-bearing class silently re-runs every inherited test in each
+    subclass (this module used to collect 460 tests for 97 unique methods, 363 of them
+    accidental re-runs). TestArchitectureTests pins the rule."""
+
     def setUp(self) -> None:
         self.temp = Path(tempfile.mkdtemp()).resolve()
         self.addCleanup(shutil.rmtree, self.temp, True)
@@ -167,6 +172,11 @@ class KnowledgeStoreTests(unittest.TestCase):
         self.assertEqual(1, len(result["entries"]))
         return result["entries"][0]
 
+    def review(self, identities=None):
+        return store.command_entry_review(argparse.Namespace(identity=identities))
+
+
+class KnowledgeStoreTests(KnowledgeStoreFixture):
     def test_draft_stamps_collector_version_outside_the_digests(self) -> None:
         from scripts.force_app_knowledge import COLLECTOR_VERSION
 
@@ -363,9 +373,6 @@ class KnowledgeStoreTests(unittest.TestCase):
         frontmatter, _ = store.split_entry((self.temp / drafted["path"]).read_text(encoding="utf-8"))
         self.assertNotIn("trigger", frontmatter["typeFacts"])
         self.assertEqual(1, len(frontmatter["intentionalErrors"]))
-
-    def review(self, identities=None):
-        return store.command_entry_review(argparse.Namespace(identity=identities))
 
     def test_entry_review_renders_the_surface_before_approval(self) -> None:
         drafted = self.draft()
@@ -571,7 +578,7 @@ if __name__ == "__main__":
     unittest.main()
 
 
-class CrossPlatformDeterminismTests(KnowledgeStoreTests):
+class CrossPlatformDeterminismTests(KnowledgeStoreFixture):
     """Windows-sensitive behavior. CI runs this suite on ubuntu-latest AND windows-latest,
     so these assertions are the cross-platform gate the review asked for (R-20 partial:
     correctness on Windows is covered here; Windows *latency* still needs a manual run)."""
@@ -638,7 +645,7 @@ class CrossPlatformDeterminismTests(KnowledgeStoreTests):
         self.assertFalse(path.with_suffix(".tmp").exists())
 
 
-class EntryCitationVerificationTests(KnowledgeStoreTests):
+class EntryCitationVerificationTests(KnowledgeStoreFixture):
     """Entry citation verdicts live in the store (v1 retirement P0), not the registry."""
 
     def test_verdicts_track_the_entry_lifecycle(self) -> None:
@@ -1397,7 +1404,7 @@ class ProfileSchemaCoverageTests(unittest.TestCase):
                 self.assertEqual([], problems, f"{metadata_type}: {problems}")
 
 
-class ErrorEnvelopeTests(KnowledgeStoreTests):
+class ErrorEnvelopeTests(KnowledgeStoreFixture):
     """Plan 2026-08-09 §3c.2: main() may never leak a raw traceback to stdout — every
     failure is a JSON envelope with errorType; unexpected types keep their traceback on
     stderr for the programmer."""
@@ -1479,7 +1486,7 @@ class ErrorEnvelopeTests(KnowledgeStoreTests):
         self.assertNotIn("Traceback", err)
 
 
-class FeatureBindingResolverTests(KnowledgeStoreTests):
+class FeatureBindingResolverTests(KnowledgeStoreFixture):
     """Plan 2026-08-09 §F.4: approved-drifted binds too (same rule as retrieval §3.1);
     draft and revoked never do. binding_state's digest comparison — not the resolver —
     is what downgrades stale citations."""
@@ -1564,7 +1571,7 @@ class FeatureBindingResolverTests(KnowledgeStoreTests):
         self.assertEqual({"FB-001": "drifted"}, context["bindingHealth"])
 
 
-class PackageExtensionPointTests(KnowledgeStoreTests):
+class PackageExtensionPointTests(KnowledgeStoreFixture):
     """packageExtensionPoint (plan 2026-08-09, Problem 4): a conscious, human-approved
     classification in the envelope — digest-included like sensitivity, unlike orgUsage."""
 
@@ -1608,7 +1615,7 @@ class PackageExtensionPointTests(KnowledgeStoreTests):
         self.assertNotEqual("approved-current", self.lane_of(drafted["identity"])["lane"])
 
 
-class VersionedSchemaResolutionTests(KnowledgeStoreTests):
+class VersionedSchemaResolutionTests(KnowledgeStoreFixture):
     """Validation resolves the profile schema from the (id, version) the entry declares,
     against the append-only SCHEMA_REGISTRY — never from the current PROFILES row for the
     type (plan 2026-08-09 §2.1). A consolidation that repoints PROFILES must NOT
@@ -1662,7 +1669,7 @@ class VersionedSchemaResolutionTests(KnowledgeStoreTests):
         )
 
 
-class AgentDescriptionTests(KnowledgeStoreTests):
+class AgentDescriptionTests(KnowledgeStoreFixture):
     """The description is the one part of an entry a model writes rather than extracts."""
 
     def describe(self, identity: str, text: str):
@@ -1776,7 +1783,7 @@ class AgentDescriptionTests(KnowledgeStoreTests):
             )
 
 
-class DraftLaneHonestyTests(KnowledgeStoreTests):
+class DraftLaneHonestyTests(KnowledgeStoreFixture):
     """Unfinished work and broken work must not look the same."""
 
     def test_undescribed_draft_reports_draft_with_the_reason(self) -> None:
@@ -1905,7 +1912,7 @@ class WorkflowReachabilityTests(unittest.TestCase):
                     self.assertTrue(guard.allowed_role_command(command, self.HARNESS, role))
 
 
-class ReparseScopeTests(KnowledgeStoreTests):
+class ReparseScopeTests(KnowledgeStoreFixture):
     """The symlink walk is the command's own cost, so it covers the tree the command writes.
 
     Unscoped, `feature-status` on one 500-byte file paid an rglob over the whole 15 k-entry
@@ -1936,7 +1943,7 @@ class ReparseScopeTests(KnowledgeStoreTests):
             self.draft()
 
 
-class IncrementalEntryCheckTests(KnowledgeStoreTests):
+class IncrementalEntryCheckTests(KnowledgeStoreFixture):
     """`--changed-since` must skip the work, and must not skip the guarantees.
 
     Measured at 9 000 entries, the first version skipped 9 000 of 9 000 fragment re-digests and
@@ -2033,7 +2040,7 @@ class IncrementalEntryCheckTests(KnowledgeStoreTests):
         self.assertEqual(before, after)
 
 
-class PathDerivedIdentityTests(KnowledgeStoreTests):
+class PathDerivedIdentityTests(KnowledgeStoreFixture):
     """An identity read off a path is what makes the whole-entry skip possible — and it is only
     allowed when the path can prove it. `entry_path()` derives the path FROM the identity, so
     the inverse is exact for plain ASCII names and lossy for everything else; the lossy cases

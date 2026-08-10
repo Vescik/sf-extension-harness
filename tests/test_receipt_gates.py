@@ -64,12 +64,8 @@ class BrowserLaneRetirementTests(unittest.TestCase):
     executor to write receipts, so the absence itself is the contract.
     """
 
-    def test_browser_session_receipt_machinery_is_gone(self) -> None:
-        self.assertFalse(hasattr(safety, "browser_session_approved"))
-        self.assertFalse(hasattr(safety, "playwright_session_name"))
-        self.assertFalse(hasattr(safety, "STATE_CHANGING_BROWSER"))
-        self.assertFalse((Path(safety.__file__).resolve().parents[1] / "scripts/playwright_guard.py").exists())
-
+    # The "machinery stays gone" assertions moved to config/retired-surfaces.json
+    # (validator token scan) — the active deny below is what this file still owns.
     def test_guard_invocation_is_denied_not_asked(self) -> None:
         command = "python scripts/playwright_guard.py --session sf-harness click role=button"
         result, reason = run_hook("execute/runInTerminal", {"command": command}, base_config())
@@ -158,12 +154,8 @@ class DevToolBatchRetirementTests(unittest.TestCase):
         self.assertEqual("ask", result)
         self.assertIn("SAFE-HUMAN-001", reason)
 
-    def test_pipeline_surfaces_are_gone(self) -> None:
-        root = Path(__file__).resolve().parents[1]
-        self.assertFalse((root / "scripts" / "approve_dev_tool_batch.py").exists())
-        self.assertFalse((root / "schemas" / "dev-tool-batch.schema.json").exists())
-        self.assertFalse(hasattr(safety, "consume_devtool_batch_entry"))
-        self.assertFalse(hasattr(safety, "devtool_entry_digest"))
+    # The "pipeline surfaces stay gone" assertions moved to config/retired-surfaces.json
+    # (validator token scan); the always-ask behavior above is the live contract.
 
 
 if __name__ == "__main__":

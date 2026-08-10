@@ -114,58 +114,30 @@ class RepoMapRenderTests(unittest.TestCase):
 
 
 class KnowledgeConsumerSetTests(unittest.TestCase):
-    """Master plan §7: "Both counts are asserted. Neither is allowed to move silently."
-
-    These sit beside the repo-map tests because both read `.github/**` as the consumer-surface
-    inventory. The point of every case below is that the gate measures the plan's named sets,
-    not a list assembled next to it — the previous gate counted its own list (`search-knowledge`
-    included, which owns the command menu and is not a Set A consumer) and was therefore green
-    and meaningless.
-    """
-
-    PLAN_TEXT = (ROOT / validate_harness.KNOWLEDGE_MASTER_PLAN).read_text(encoding="utf-8")
-
-    def sets(self) -> tuple[tuple[int | None, list[str]], tuple[int | None, list[str]]]:
-        # Set B retired with the claim registry (v1 retirement P2b); the plan may still
-        # describe it historically, but the gate measures Set A only.
-        return (
-            validate_harness.plan_consumer_set(self.PLAN_TEXT, "Set A"),
-            (None, []),
-        )
+    """§7 Set A — membership now lives in validate_harness.SET_A_SURFACES (owner decision
+    2026-08-10: the gate no longer parses the historical master plan; the tuple in the
+    validator is the single source of truth and its git diff is the review trail).
+    These two tests keep the gate honest: the live tree passes, and a surface silently
+    dropping the step-1 lookup fails BY NAME — the failure mode the original design was
+    built against (a green gate measuring the wrong list)."""
 
     def audit_root(self, root: Path) -> list[str]:
         audit = validate_harness.Audit()
         validate_harness.check_knowledge_consumer_sets(audit, root)
         return audit.errors
 
-    def harness_copy(self, tmp: str) -> Path:
-        root = Path(tmp)
-        (root / "docs").mkdir(parents=True)
-        (root / validate_harness.KNOWLEDGE_MASTER_PLAN).write_text(self.PLAN_TEXT, encoding="utf-8")
-        shutil.copytree(ROOT / ".github", root / ".github")
-        return root
-
-    def test_plan_still_names_set_a_in_the_parsed_shape(self) -> None:
-        # 10 since 2026-08-04 (MCP-only definitions), 9 since 2026-08-05: the Solution
-        # Design rebuild (P1) retired suggest-test-cases, so the counted set lost one
-        # surface. investigate-object remains from the 2026-08-04 revision.
-        (declared_a, set_a), _retired = self.sets()
-        self.assertEqual(9, declared_a, "§7 declares Set A as 9 surfaces")
-        self.assertEqual(declared_a, len(set_a))
-        self.assertNotIn("search-knowledge", set_a, "the menu owner is never a Set A consumer")
-
-    def test_live_tree_meets_the_set_a_count(self) -> None:
-        (_declared_a, set_a), _retired = self.sets()
+    def test_live_tree_carries_both_tokens_on_every_set_a_surface(self) -> None:
         self.assertEqual([], self.audit_root(ROOT))
-        for name in set_a:
-            path = validate_harness.consumer_surface_path(ROOT, name)
-            self.assertIn(validate_harness.SET_A_CALL, path.read_text(encoding="utf-8"), name)
+        for name in validate_harness.SET_A_SURFACES:
+            text = validate_harness.consumer_surface_path(ROOT, name).read_text(encoding="utf-8")
+            self.assertIn(validate_harness.SET_A_CALL, text, name)
+            self.assertIn(validate_harness.SET_A_HYDRATION_RULE, text, name)
 
     def test_set_a_surface_dropping_the_entry_lookup_fails_by_name(self) -> None:
-        (_declared_a, set_a), _b = self.sets()
-        for name in set_a:
+        for name in validate_harness.SET_A_SURFACES:
             with self.subTest(surface=name), tempfile.TemporaryDirectory() as tmp:
-                root = self.harness_copy(tmp)
+                root = Path(tmp)
+                shutil.copytree(ROOT / ".github", root / ".github")
                 path = validate_harness.consumer_surface_path(root, name)
                 path.write_text(
                     path.read_text(encoding="utf-8").replace(
@@ -174,55 +146,11 @@ class KnowledgeConsumerSetTests(unittest.TestCase):
                     encoding="utf-8",
                 )
                 errors = self.audit_root(root)
-                self.assertTrue(errors, f"reverting {name} to a layer-2 step-1 lookup went unnoticed")
+                self.assertTrue(errors, f"reverting {name} went unnoticed")
                 self.assertTrue(
-                    any("Set A" in message and name.removesuffix(".agent.md") in message for message in errors),
+                    any("Set A" in m and name.removesuffix(".agent.md") in m for m in errors),
                     errors,
                 )
-
-    def test_live_tree_carries_the_hydration_rule_on_every_set_a_surface(self) -> None:
-        """§7's second token. Wave 2 reported this present on all eight and it was present on two,
-        so the assertion iterates the plan's Set A rather than the surfaces that happen to have it."""
-
-        (_declared_a, set_a), _b = self.sets()
-        for name in set_a:
-            path = validate_harness.consumer_surface_path(ROOT, name)
-            self.assertIn(
-                validate_harness.SET_A_HYDRATION_RULE, path.read_text(encoding="utf-8"), name
-            )
-
-    def test_set_a_surface_dropping_the_hydration_rule_fails_by_name(self) -> None:
-        (_declared_a, set_a), _b = self.sets()
-        for name in set_a:
-            with self.subTest(surface=name), tempfile.TemporaryDirectory() as tmp:
-                root = self.harness_copy(tmp)
-                path = validate_harness.consumer_surface_path(root, name)
-                path.write_text(
-                    path.read_text(encoding="utf-8").replace(
-                        validate_harness.SET_A_HYDRATION_RULE, "resolved"
-                    ),
-                    encoding="utf-8",
-                )
-                errors = self.audit_root(root)
-                self.assertTrue(errors, f"{name} losing the re-read rule went unnoticed")
-                self.assertTrue(
-                    any(
-                        "Set A" in message
-                        and validate_harness.SET_A_HYDRATION_RULE in message
-                        and name.removesuffix(".agent.md") in message
-                        for message in errors
-                    ),
-                    errors,
-                )
-
-    def test_a_plan_edit_that_erases_a_set_fails_the_gate(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = self.harness_copy(tmp)
-            plan = root / validate_harness.KNOWLEDGE_MASTER_PLAN
-            plan.write_text(
-                self.PLAN_TEXT.replace("- **Set A —", "- Set A was here:"), encoding="utf-8"
-            )
-            self.assertTrue(any("cannot measure anything" in m for m in self.audit_root(root)))
 
 
 if __name__ == "__main__":

@@ -44,18 +44,8 @@ class DigestStabilityTests(unittest.TestCase):
 
 
 class DependencyDirectionTests(unittest.TestCase):
-    """The claim registry is retired (v1 retirement P2b). Nothing in scripts/ may import
-    it again — a reintroduced module would resurrect the dependency this pin ended."""
-
-    IMPORT_RE = re.compile(r"^\s*(from|import)\s+(scripts\.)?knowledge_registry\b", re.MULTILINE)
-
-    def test_no_script_imports_the_retired_registry(self) -> None:
-        for path in sorted((ROOT / "scripts").glob("*.py")):
-            with self.subTest(script=path.name):
-                self.assertIsNone(self.IMPORT_RE.search(path.read_text(encoding="utf-8")))
-
-    def test_the_registry_module_stays_deleted(self) -> None:
-        self.assertFalse((ROOT / "scripts/knowledge_registry.py").exists())
+    """The claim registry is retired (v1 retirement P2b); "stays deleted" now lives in
+    config/retired-surfaces.json (validator token scan)."""
 
     def test_store_uses_the_one_digest_implementation(self) -> None:
         from scripts import knowledge_store

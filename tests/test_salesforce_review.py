@@ -159,6 +159,9 @@ class FacadeHarness(unittest.TestCase):
         MockSalesforce.requests_seen = []
         self.http = ThreadingHTTPServer(("127.0.0.1", 0), MockSalesforce)
         threading.Thread(target=self.http.serve_forever, daemon=True).start()
+        # shutdown() stops serve_forever but leaves the listening socket open —
+        # server_close() releases it, or every test leaks a socket warning.
+        self.addCleanup(self.http.server_close)
         self.addCleanup(self.http.shutdown)
         (tmp / "fake_sf.py").write_text(FAKE_SF, encoding="utf-8")
         self.cli_state_path = tmp / "cli-state.json"

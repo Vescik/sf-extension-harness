@@ -30,7 +30,8 @@
     "work_record",
     "solution_design",
     "governed_state",
-    ".ai/change-records"
+    ".ai/change-records",
+    "handoffId"
    ],
    "historicalAllowlist": [
     "config/retired-surfaces.json",
@@ -49,8 +50,10 @@
     "docs/solution-design-runtime-v2-design.md",
     "docs/solution-design-product-goal.md",
     "docs/spec-p5-attested-claim-lane-2026-07-27.md",
-    "tests/test_knowledge_contract.py",
-    "tests/test_safety_hooks.py"
+    "tests/test_safety_hooks.py",
+    "schemas/output-envelope.schema.json",
+    "docs/grounding-architecture.md",
+    "evals/fixtures/output.grounded-accepted.invalid-no-handoff.json"
    ]
   },
   {
@@ -70,6 +73,62 @@
     "docs/handoff-plan-2026-07-29.md",
     "docs/knowledge-thread-2026-07-27.md",
     "docs/knowledge-completion-audit-2026-07-25.md"
+   ]
+  },
+  {
+   "name": "browser-session-receipt-machinery",
+   "retiredIn": "browser-lane retirement",
+   "retiredOn": "2026-08-05",
+   "replacement": "no browser automation lane; direct browser tooling is denied by the safety hook",
+   "tokens": [
+    "playwright_guard",
+    "browser_session_approved",
+    "playwright_session_name",
+    "STATE_CHANGING_BROWSER"
+   ],
+   "historicalAllowlist": [
+    ".ai/memory/decisions-log.md",
+    "evals/safety-scenarios.yaml",
+    "tests/test_receipt_gates.py",
+    "tests/test_safety_hooks.py"
+   ]
+  },
+  {
+   "name": "dev-tool-batch-approval-pipeline",
+   "retiredIn": "owner decision 2026-08-04",
+   "retiredOn": "2026-08-04",
+   "replacement": "a mutating dev tool always stops for its per-invocation human confirmation (SAFE-HUMAN-001)",
+   "tokens": [
+    "approve_dev_tool_batch",
+    "dev-tool-batch.schema",
+    "consume_devtool_batch_entry",
+    "devtool_entry_digest"
+   ],
+   "historicalAllowlist": [
+    ".ai/memory/decisions-log.md"
+   ]
+  },
+  {
+   "name": "knowledge-registry-claim-module",
+   "retiredIn": "v1 retirement P2b",
+   "retiredOn": "2026-07-27",
+   "replacement": "one-file Knowledge Entries (knowledge_store.py); canonical digest relocated to knowledge_digest.py",
+   "tokens": [
+    "knowledge_registry"
+   ],
+   "historicalAllowlist": [
+    ".ai/memory/decisions-log.md",
+    "docs/discovery-2026-07-27-authored-feature-entry.md",
+    "docs/evidence-analysis-2026-07-24.md",
+    "docs/evidence-to-analyse.md",
+    "docs/knowledge-facts-overlay-architecture.md",
+    "docs/knowledge-master-plan-2026-07-25.md",
+    "docs/knowledge-one-file-contract.md",
+    "docs/knowledge-one-file-impact-map.md",
+    "docs/knowledge-p1-completion-note.md",
+    "docs/knowledge-thread-2026-07-27.md",
+    "docs/knowledge-usefulness-plan-2026-07-24.md",
+    "docs/spec-p5-attested-claim-lane-2026-07-27.md"
    ]
   }
  ]

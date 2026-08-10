@@ -1269,3 +1269,38 @@ Gate: full suite post-P4 showed exactly two non-green results — the repo-map c
 a clean origin/main worktree under the machine's external load (~18 loadavg), proving
 it environmental, not a regression; it was green in the post-P3 full gate on the same
 tree. 43 safety evals PASS; validate_harness coherent.
+
+## 2026-08-10 — Test-suite cleanup: 363 accidental re-runs removed, retired pins centralized, Set A decoupled from the master plan
+
+Owner-approved cleanup (8 commits 953d424..674321d) of the test harness itself:
+
+- **Fixture split:** KnowledgeStoreTests mixed helpers with ~33 tests and 11 classes
+  inherited it for the helpers, silently re-running the base's tests in every subclass
+  (460 collected for 97 unique methods). Helpers moved to KnowledgeStoreFixture;
+  tests/test_test_architecture.py pins the rule suite-wide (a test-bearing class never
+  inherits from another test-bearing class). Suite: 1065 -> 690 collected, full run
+  ~87 s, zero unique assertions lost.
+- **'Must stay deleted' centralized:** browser-session receipt machinery, the dev-tool
+  batch pipeline and the v1 knowledge_registry moved from scattered hasattr/exists tests
+  into config/retired-surfaces.json token entries (the validator's whole-tree scan is
+  strictly stronger); active behaviors (browser deny, dev-tool always-ask, single digest
+  implementation) stay in tests.
+- **Work-record tests replaced by a token ban:** RecordFreeKnowledgeLaneTests deleted —
+  after the removal sweep no surface mentions records; handoffId joined the work-record
+  entry's tokens. Deliberate correction to the audit's 'global ban' suggestion:
+  recordId is NOT a banned token, because `@api recordId` is legitimate LWC platform
+  vocabulary that will appear in real product source and knowledge facts.
+- **Set A decoupled from the frozen master plan:** membership is now the explicit
+  SET_A_SURFACES tuple in validate_harness (single source of truth; git diff is the
+  review trail); plan_consumer_set and the plan-shape checks are gone; the two-token
+  requirement per surface is unchanged, and the test class keeps the live-tree and
+  fails-by-name mutation checks. 6 plan-coupled tests -> 2.
+- test_copilot_safety_hook merged into test_safety_hooks (assertions verbatim; 23 test
+  files); the mock Salesforce fixture now releases its listening socket
+  (addCleanup(server_close) beside shutdown).
+
+Deferred per the audit's own sequencing: the 7 legacy output-envelope tests wait for the
+output-envelope schema simplification (the schema still declares recordId/recordHash/
+consumedHandoffId/promoted — allowlisted in retired-surfaces until that phase).
+
+Gate: 690 unit tests OK in ~87 s, 43 safety evals PASS, validate_harness coherent.
