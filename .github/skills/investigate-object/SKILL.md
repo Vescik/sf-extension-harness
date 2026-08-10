@@ -51,6 +51,11 @@ distributions) to the governed record reads instead of rejecting them (owner dec
 8. When the finding should outlive the chat and the subject has an approved entry
    (CustomObject, CustomField), persist the numbers through the org-sampling step below
    instead of quoting transcript values.
+9. After describing a CustomObject or CustomField entry, consider `entry-org-attach`
+   when fill rate or real data shape matters for what the entry is for — it is a
+   separate, deliberate step (static drafts carry repository facts only), and it needs a
+   configured non-production alias with `expectedOrganizationId`. Skipping it is fine;
+   forgetting it should not be.
 
 ## Entry-lane org sampling (governed persistence)
 
