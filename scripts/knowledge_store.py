@@ -728,15 +728,23 @@ def ledger_latest(records: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     return latest
 
 
-def append_ledger(entries: list[dict[str, Any]], path: Path | None = None) -> None:
+def append_ledger(
+    entries: list[dict[str, Any]], path: Path | None = None, *, sequence: int | None = None
+) -> int:
+    """Append entries; returns the new sequence high-water mark.
+
+    Pass `sequence` when the caller already read the ledger (a per-entry approve loop used
+    to re-read and re-validate the WHOLE file once per entry — quadratic on the one command
+    a human is waiting on, plan 2026-08-09 §3c.4). Default behavior is unchanged."""
     ledger = path or LEDGER_PATH
-    records = read_ledger(ledger)
-    sequence = len(records)
+    if sequence is None:
+        sequence = len(read_ledger(ledger))
     ledger.parent.mkdir(parents=True, exist_ok=True)
     with ledger.open("a", encoding="utf-8", newline="\n") as handle:
         for entry in entries:
             sequence += 1
             handle.write(json.dumps({"sequence": sequence, **entry}, sort_keys=True) + "\n")
+    return sequence
 
 
 # --- validation and lanes (contract §4) -------------------------------------------------
@@ -1484,6 +1492,7 @@ def command_entry_approve(args: argparse.Namespace) -> dict[str, Any]:
     REVIEW_ARTIFACT_ROOT.mkdir(parents=True, exist_ok=True)
     artifact_lines = [f"# Knowledge approval chunk {chunk_id}", ""]
     ledger_entries = []
+    sequence = len(records)
     for path, frontmatter, body, digest in resolved:
         subject = frontmatter["subject"]
         identity = identity_of(subject["metadataType"], subject.get("namespace"), subject["fullName"])
@@ -1508,7 +1517,9 @@ def command_entry_approve(args: argparse.Namespace) -> dict[str, Any]:
                 "chunkId": chunk_id,
             }
         )
-        append_ledger([ledger_entries[-1]])  # per-file journaled stamping (contract §6.4.5)
+        # Per-file journaled stamping (contract §6.4.5) with a hoisted sequence counter —
+        # the ledger was read once at the top of this command.
+        sequence = append_ledger([ledger_entries[-1]], sequence=sequence)
     with (REVIEW_ARTIFACT_ROOT / f"{chunk_id}.md").open("w", encoding="utf-8", newline="\n") as handle:
         handle.write("\n".join(artifact_lines))
     return {
