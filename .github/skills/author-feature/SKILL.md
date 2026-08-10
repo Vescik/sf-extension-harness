@@ -30,7 +30,9 @@ ignored proposal file, applied by the executor.
      --expected-version <N> --operations-file .cache/knowledge-proposals/<slug>-ops.json
    ```
 
-   The file is `{"operations": [{"kind", "op", "data"}...]}` (≤40 per batch). Kinds:
+   The file is `{"operations": [{"kind", "op", "data"}...]}` (≤40 per batch); the exact
+   `data` shapes per kind are pinned in `schemas/knowledge-feature.schema.json` — read it
+   before composing the first batch instead of learning the shapes from rejections. Kinds:
    `node` (set/remove), `relation` (set/remove), `claim` (set/withdraw), `binding`
    (bind/unbind — you give an entry identity, the EXECUTOR reads the live entry and pins
    the digests; an approved entry is required — `approved-drifted` binds too, drift is a
