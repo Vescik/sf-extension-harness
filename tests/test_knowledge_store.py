@@ -1423,6 +1423,21 @@ class ErrorEnvelopeTests(KnowledgeStoreTests):
         self.assertNotEqual("StoreError", envelope["errorType"])
         self.assertIn("Traceback", err)
 
+    def test_sentence_counter_skips_abbreviations_and_echoes_the_split(self) -> None:
+        text = (
+            "Routes cases by type, e.g. billing disputes, to the right queue. "
+            "Requires API v. 64.0 or later. Uses Acct. No. as the natural key."
+        )
+        self.assertEqual(3, len(store.split_sentences(text)))
+        with self.assertRaises(store.StoreError) as ctx:
+            purpose = self.temp / "long.md"
+            purpose.write_text("One. Two. Three. Four. Five. Six. Seven. Eight. Nine.", encoding="utf-8")
+            drafted = self.draft(purpose_file=None)
+            store.command_entry_describe(
+                argparse.Namespace(identity=drafted["identity"], purpose_file=str(purpose))
+            )
+        self.assertIn("Counted as:", str(ctx.exception))
+
     def test_entry_status_typo_is_a_named_error_not_an_empty_success(self) -> None:
         drafted = self.draft()
         with self.assertRaises(store.StoreError) as ctx:

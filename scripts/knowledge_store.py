@@ -746,6 +746,26 @@ def load_schema(name: str) -> dict[str, Any]:
     return json.loads((SCHEMA_DIR / name).read_text(encoding="utf-8"))
 
 
+# Abbreviations the naive sentence splitter must not count as sentence ends ("e.g.",
+# "v. 64.0", "Acct. No." each minted a phantom sentence — plan 2026-08-09 §3c.2). Kept
+# deliberately small: common English/technical forms, not a linguistics project.
+_NON_TERMINAL_ABBREVIATIONS = (
+    "e.g.", "i.e.", "etc.", "vs.", "v.", "cf.", "approx.", "no.", "acct.", "dept.",
+)
+
+
+def split_sentences(text: str) -> list[str]:
+    parts = [part for part in re.split(r"(?<=[.!?])\s+", text.strip()) if part.strip()]
+    merged: list[str] = []
+    for part in parts:
+        previous = merged[-1].lower() if merged else ""
+        if merged and any(previous.endswith(abbr) for abbr in _NON_TERMINAL_ABBREVIATIONS):
+            merged[-1] = f"{merged[-1]} {part}"
+        else:
+            merged.append(part)
+    return merged
+
+
 def _schema_problem(error) -> str:
     """`where: what` — a bare jsonschema message without its JSON path sends the author
     hunting through the whole document (plan 2026-08-09 §3c.2)."""
@@ -1606,11 +1626,16 @@ def command_entry_describe(args: argparse.Namespace) -> dict[str, Any]:
     description = normalize_body(Path(args.purpose_file).read_text(encoding="utf-8"))
     if not description.strip():
         raise StoreError("the description file is empty")
-    sentences = [part for part in re.split(r"(?<=[.!?])\s+", description.strip()) if part.strip()]
+    sentences = split_sentences(description)
     if not 1 <= len(sentences) <= 8:
+        # Echo the split (plan 2026-08-09 §3c.2): an author told "you wrote 9" with no way
+        # to see where the counter cut is stuck in a blind retry loop.
+        preview = " | ".join(
+            sentence if len(sentence) <= 60 else sentence[:57] + "..." for sentence in sentences
+        )
         raise StoreError(
             f"a description must be 1-8 sentences, got {len(sentences)} — it states what the "
-            "component does, it is not a transcript of its source"
+            f"component does, it is not a transcript of its source. Counted as: {preview}"
         )
     body = "## Purpose\n\n" + description
     limitations = [str(item).strip() for item in (getattr(args, "limitation", None) or []) if str(item).strip()]
