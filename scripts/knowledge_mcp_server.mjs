@@ -91,6 +91,26 @@ const IDENTITY_HINT =
 
 const FEATURE_HINT = "Feature slug — lowercase alphanumeric with single hyphens.";
 
+// Mirrors knowledge_search.py ALL_LANES (argparse --state choices). Opted-in lanes are
+// served in the *NonCurrent sibling keys, never merged into the approved buckets — the
+// engine's own remediation hints ("add --state draft") were unfollowable through MCP
+// until this parameter existed (plan 2026-08-09 §3c.1 #4).
+const STATE_PROP = Object.freeze({
+  type: "array",
+  maxItems: 7,
+  items: {
+    type: "string",
+    maxLength: 24,
+    enum: [
+      "approved-current", "approved-drifted", "draft", "revoked",
+      "scope-mismatch", "unsupported-profile", "not-effective",
+    ],
+  },
+  description:
+    "Opt into extra lifecycle lanes (e.g. [\"draft\"]). Opted-in rows arrive in the " +
+    "*NonCurrent sibling keys and are never merged into the approved buckets.",
+});
+
 export const TOOL_DEFINITIONS = Object.freeze([
   {
     name: "knowledge_context",
@@ -108,6 +128,7 @@ export const TOOL_DEFINITIONS = Object.freeze([
       properties: {
         identity: { type: "string", maxLength: MAX_STRING_INPUT, description: IDENTITY_HINT },
         top: { type: "integer", minimum: 1, maximum: 50, description: "Cap per result section." },
+        state: STATE_PROP,
         direction: {
           type: "string",
           enum: ["incoming", "outgoing"],
@@ -147,6 +168,7 @@ export const TOOL_DEFINITIONS = Object.freeze([
         includeHeuristic: { type: "boolean", description: "Also match heuristic edges." },
         mode: { type: "string", enum: ["hybrid", "intentional-flow-error"], description: "intentional-flow-error matches pasted Flow/VR error surfaces." },
         top: { type: "integer", minimum: 1, maximum: 50, description: "Result cap (default 10)." },
+        state: STATE_PROP,
       },
     },
     annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
@@ -169,6 +191,7 @@ export const TOOL_DEFINITIONS = Object.freeze([
         depth: { type: "integer", minimum: 1, maximum: 2, description: "Traversal depth (default 1; 2 is the executor's impact limit)." },
         top: { type: "integer", minimum: 1, maximum: 50, description: "Cap per level." },
         includeHeuristic: { type: "boolean", description: "Also traverse heuristic edges." },
+        state: STATE_PROP,
       },
     },
     annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
@@ -235,6 +258,7 @@ export const TOOL_DEFINITIONS = Object.freeze([
         identity: { type: "string", maxLength: MAX_STRING_INPUT, description: IDENTITY_HINT },
         top: { type: "integer", minimum: 1, maximum: 50, description: "Cap per usage table." },
         includeHeuristic: { type: "boolean", description: "Also list heuristic edges." },
+        state: STATE_PROP,
       },
     },
     annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
@@ -381,6 +405,9 @@ function validateToolInput(name, input) {
         if (typeof item !== "string" || item.length === 0 || item.length > spec.items.maxLength) {
           return `argument ${key} items must be non-empty strings of at most ${spec.items.maxLength} characters`;
         }
+        if (spec.items.enum && !spec.items.enum.includes(item)) {
+          return `argument ${key} items must be one of: ${spec.items.enum.join(", ")}`;
+        }
       }
     }
   }
@@ -436,6 +463,7 @@ function argvForTool(name, input) {
   if (input.metadataType !== undefined) argv.push(`--metadata-type=${input.metadataType}`);
   if (input.namespace !== undefined) argv.push(`--namespace=${input.namespace}`);
   for (const value of input.facet ?? []) argv.push(`--facet=${value}`);
+  for (const value of input.state ?? []) argv.push(`--state=${value}`);
   if (input.relationAnchor !== undefined) argv.push(`--relation-anchor=${input.relationAnchor}`);
   if (input.relationKind !== undefined) argv.push(`--relation-kind=${input.relationKind}`);
   if (input.direction !== undefined) argv.push(`--direction=${input.direction}`);

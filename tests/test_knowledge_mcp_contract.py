@@ -45,7 +45,7 @@ EXPECTED_TOOLS = {
 # Flags the server's argv builder may emit per tool. A flag listed here that the parser
 # drops (or renames) fails test_server_flags_exist_on_parsers before it fails at runtime.
 SERVER_FLAGS = {
-    "knowledge_context": {"--identity", "--top", "--direction", "--include-heuristic"},
+    "knowledge_context": {"--identity", "--top", "--direction", "--include-heuristic", "--state"},
     "knowledge_search": {
         "--text",
         "--identity",
@@ -58,11 +58,12 @@ SERVER_FLAGS = {
         "--include-heuristic",
         "--mode",
         "--top",
+        "--state",
     },
-    "knowledge_impact": {"--identity", "--direction", "--depth", "--top", "--include-heuristic"},
+    "knowledge_impact": {"--identity", "--direction", "--depth", "--top", "--include-heuristic", "--state"},
     "knowledge_resolve": {"--name", "--path"},
     "knowledge_entry_status": {"--identity"},
-    "knowledge_explain": {"--identity", "--top", "--include-heuristic"},
+    "knowledge_explain": {"--identity", "--top", "--include-heuristic", "--state"},
     "knowledge_feature_search": {"--text", "--artifact-id", "--layer", "--role", "--claim-type", "--top"},
     "knowledge_feature_context": {"--slug"},
     "knowledge_feature_status": {"--slug", "--claim"},
