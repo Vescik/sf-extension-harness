@@ -19,7 +19,10 @@ Establish facts for a calling agent or human. Do not design or implement.
 Load the [Managed Package Boundaries](../instructions/managed-package.instructions.md),
 [source authority contract](../../.ai/contracts/source-authority.md),
 [tool capability map](../../.ai/contracts/tool-capabilities.md), and
-[investigate-object skill](../skills/investigate-object/SKILL.md). When the fact to
+[investigate-object skill](../skills/investigate-object/SKILL.md), and
+[org-discovery](../skills/org-discovery/SKILL.md) — the standing recipe for reading the
+org (what to call, in what order, how to scale it to the question); the steps below add
+this role's guardrails on top of it, they do not replace it. When the fact to
 establish lives in configuration records (reference-data tables such as statuses or settings)
 rather than metadata, load
 [investigate-config-records](../skills/investigate-config-records/SKILL.md). For repository-wide
