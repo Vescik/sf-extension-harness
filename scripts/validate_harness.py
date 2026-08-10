@@ -520,7 +520,7 @@ def check_customizations(audit: Audit, root: Path = ROOT) -> None:
         data, _body = frontmatter(path, audit)
         # The work-record and Design-Case handoff lanes were deleted with their runtime
         # (phase 5, owner decision 2026-08-08) — the identifier-pair requirement that lived
-        # here would have re-imposed the retired recordId/handoffId vocabulary on the first
+        # here would have re-imposed the retired identifier-pair vocabulary on the first
         # future handoff. What survives is the durable-artifact rule: a handoff may never
         # depend on chat context.
         for handoff in data.get("handoffs", []) or []:
