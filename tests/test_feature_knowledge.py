@@ -333,6 +333,43 @@ class SeparationTests(unittest.TestCase):
                 self.assertEqual([], store.all_entry_paths())
 
 
+class ValidateOnlyTests(FeatureFixture):
+    """Plan 2026-08-09 §3c.2: --validate-only runs the SAME apply_operations pass and
+    skips the write — check-fix-apply instead of a blind 40-op retry."""
+
+    def record_validate_only(self, operations, slug="invoice-finance"):
+        frontmatter, _, _ = store._load_feature(slug)
+        ops_path = self.temp / "dry-ops.json"
+        ops_path.write_text(json.dumps({"operations": operations}), encoding="utf-8")
+        return store.command_feature_record(
+            ns(
+                slug=slug,
+                expected_version=frontmatter["draft"]["version"],
+                operations_file=str(ops_path),
+                validate_only=True,
+            )
+        )
+
+    def test_dry_run_validates_without_writing(self) -> None:
+        self.open_and_seed()
+        before, _, _ = store._load_feature("invoice-finance")
+        result = self.record_validate_only(
+            [{"kind": "meta", "op": "set", "data": {"keywords": ["billing"]}}]
+        )
+        self.assertEqual("VALIDATED", result["outcome"])
+        self.assertEqual(["set meta"], result["wouldApply"])
+        after, _, _ = store._load_feature("invoice-finance")
+        self.assertEqual(before, after)
+
+    def test_dry_run_rejects_exactly_like_a_real_write(self) -> None:
+        self.open_and_seed()
+        with self.assertRaises(store.StoreError) as ctx:
+            self.record_validate_only(
+                [{"kind": "meta", "op": "set", "data": {"entryPoint": ["typo"]}}]
+            )
+        self.assertIn("unknown meta key", str(ctx.exception))
+
+
 class MetaSetValidationTests(FeatureFixture):
     """Plan 2026-08-09 §3c.2: a typo'd meta key must reject the batch, never return a
     false RECORDED with a bumped version."""

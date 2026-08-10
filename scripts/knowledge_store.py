@@ -3024,6 +3024,7 @@ def build_parser() -> argparse.ArgumentParser:
     frecord.add_argument("--slug", required=True)
     frecord.add_argument("--expected-version", required=True, type=int)
     frecord.add_argument("--operations-file", required=True)
+    frecord.add_argument("--validate-only", action="store_true")
     frecord.set_defaults(func=command_feature_record)
 
     fstatus = commands.add_parser("feature-status", help="lanes for every feature")
@@ -3260,6 +3261,17 @@ def command_feature_record(args: argparse.Namespace) -> dict[str, Any]:
     frontmatter, body, applied = fk.apply_operations(
         frontmatter, body, operations, _feature_binding_resolver
     )
+    if getattr(args, "validate_only", False):
+        # Dry-run (plan 2026-08-09 §3c.2): the same apply_operations pass as a real write
+        # — validation and result always agree because it IS the write path — with the
+        # file write skipped. Turns the 40-op blind retry into check-fix-apply.
+        return {
+            "outcome": "VALIDATED",
+            "identity": fk.feature_identity(args.slug),
+            "draftVersion": int(args.expected_version),
+            "wouldApply": applied,
+            "note": "nothing written; re-run without --validate-only to apply",
+        }
     _write_feature(args.slug, frontmatter, body)
     return {
         "outcome": "RECORDED",

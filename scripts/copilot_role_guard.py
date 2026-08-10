@@ -136,7 +136,7 @@ KNOWLEDGE_STORE_COMMAND_FLAGS = {
     # so both are mutations; review/status/check are reads, mirroring the entry-review
     # precedent. The operations file is ignored proposal input, never Knowledge.
     "feature-open": frozenset({"--slug", "--name"}),
-    "feature-record": frozenset({"--slug", "--expected-version", "--operations-file"}),
+    "feature-record": frozenset({"--slug", "--expected-version", "--operations-file", "--validate-only"}),
     "feature-status": frozenset({"--slug"}),
     "feature-review": frozenset({"--slug"}),
     "feature-approve": frozenset({"--feature"}),
@@ -188,7 +188,9 @@ KNOWLEDGE_SEARCH_VALUELESS_FLAGS = frozenset({"--check", "--full", "--include-he
 # Empty because no knowledge_store subcommand declares a boolean yet. The constant and its
 # branch in knowledge_store_command_allowed exist so the first one cannot fail open the way
 # `--full` did on the search side; the arity-derived contract test is what will require it here.
-KNOWLEDGE_STORE_VALUELESS_FLAGS: frozenset[str] = frozenset({"--replace", "--clear-limitations"})
+KNOWLEDGE_STORE_VALUELESS_FLAGS: frozenset[str] = frozenset(
+    {"--replace", "--clear-limitations", "--validate-only"}
+)
 
 
 def knowledge_search_command_allowed(parts: list[str], role: str) -> bool:

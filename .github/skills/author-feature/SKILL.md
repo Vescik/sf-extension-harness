@@ -32,7 +32,8 @@ ignored proposal file, applied by the executor.
 
    The file is `{"operations": [{"kind", "op", "data"}...]}` (≤40 per batch); the exact
    `data` shapes per kind are pinned in `schemas/knowledge-feature.schema.json` — read it
-   before composing the first batch instead of learning the shapes from rejections. Kinds:
+   before composing the first batch instead of learning the shapes from rejections, and
+   `--validate-only` dry-runs the batch through the same apply path without writing. Kinds:
    `node` (set/remove), `relation` (set/remove), `claim` (set/withdraw), `binding`
    (bind/unbind — you give an entry identity, the EXECUTOR reads the live entry and pins
    the digests; an approved entry is required — `approved-drifted` binds too, drift is a
