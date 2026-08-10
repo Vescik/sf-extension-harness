@@ -5545,17 +5545,22 @@ def main(argv: Iterable[str] | None = None) -> int:
                 summary["path"] = result["path"]
         elif args.command == "entry-readiness":
             result = builder.entry_readiness()
+            # The lists ARE the worklist (plan 2026-08-09 §3c.3, same lesson as resolve's
+            # "the selections ARE the output"): a count of 37 with no ids steers nobody.
+            # Both lists are already capped at ENTRY_READINESS_SAMPLE_CAP.
             summary = {
                 "totals": result["totals"],
-                "documentNext": len(result["documentNext"]),
+                "documentNext": result["documentNext"],
                 "documentNextTruncated": result["documentNextTruncated"],
-                "describeNext": len(result["describeNext"]),
+                "describeNext": result["describeNext"],
                 "describeNextTruncated": result["describeNextTruncated"],
+                "basis": result["basis"],
             }
         elif args.command == "entry-edge-health":
             result = builder.entry_edge_report()
             summary = {
                 "findingCount": result["findingCount"],
+                "findings": result["findings"][:50],
                 "entriesByLane": result["entriesByLane"],
             }
     except (KnowledgeBuildError, json.JSONDecodeError, yaml.YAMLError) as exc:

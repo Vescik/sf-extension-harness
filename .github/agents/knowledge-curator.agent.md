@@ -29,11 +29,14 @@ Load the [source authority contract](../../.ai/contracts/source-authority.md),
 
 ## Required procedure
 
-1. Start every session from ground truth, never chat memory:
-   `python scripts/force_app_knowledge.py inventory`, then the health trio —
+1. Work from ground truth, never chat memory — and scale the lookup to the question,
+   exactly like org-discovery: a health sweep runs
+   `python scripts/force_app_knowledge.py inventory`, then the trio —
    `python scripts/force_app_knowledge.py entry-readiness`,
    `python scripts/knowledge_store.py entry-coverage`, and
-   the `knowledge_edge_health` tool. Report the counts before acting. For read lookups
+   the `knowledge_edge_health` tool — and reports the counts before acting. A targeted
+   session (describe one entry, approve one chunk, check one identity) needs only
+   `entry-status` for the identities in scope, not the full sweep. For read lookups
    (context, search, impact, explain, feature surfaces) use the `knowledge_*` tools; the
    maintenance commands above stay terminal because they are store-side surfaces, not
    retrieval.

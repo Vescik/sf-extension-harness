@@ -493,7 +493,7 @@
     ".github/agents/designer.agent.md": "sha256:2a277c6fbfed24cec8320a03bb3d0c2fde837b24347c79e6504c569ea41ce203",
     ".github/agents/developer.agent.md": "sha256:4b6ccbd760b39e79adb668cf166397af70a6a3c9f174bdf03fb480a97123df6f",
     ".github/agents/git-agent.agent.md": "sha256:1ec54fe0d4ad399d5dcd61f4d5d148c14b119666ee7142af85ada66f51a200b2",
-    ".github/agents/knowledge-curator.agent.md": "sha256:ca7b78546877f61d5756866f30d0cd2d06e1ca1ab0dcb69622528bb8316ac5d8",
+    ".github/agents/knowledge-curator.agent.md": "sha256:a1ca16fd2aa0ff87863a6c2a2e1db8d84366d8c37165d1a95bad268436992fc8",
     ".github/agents/reviewer.agent.md": "sha256:3a4af43c2617aa2bbd284e9c7c87d1af3bfa171e49a2a86ba445f6ef4c322bea",
     ".github/agents/test-strategist.agent.md": "sha256:d473536b03f459bdef3044b8c3fc507bea8c63cbcf0720949972249dc59b414c",
     ".github/instructions/apex.instructions.md": "sha256:d28260c9247d670c71353f0cdaa22195f2490d4bb1b5bf11d403861602cda5b3",
