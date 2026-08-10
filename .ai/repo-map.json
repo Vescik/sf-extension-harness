@@ -270,7 +270,7 @@
     },
     {
       "agent": "reviewer",
-      "argumentHint": "recordId=<ID> [scope=design|implementation]",
+      "argumentHint": "itemId=<ID> [scope=design|implementation]",
       "description": "Ad-hoc read-only review of a persisted design or implementation against every applicable Principle tier and its evidence.",
       "name": "check-against-principles",
       "path": ".github/prompts/check-against-principles.prompt.md"
@@ -511,7 +511,7 @@
     ".github/prompts/adhoc-fix.prompt.md": "sha256:0264731e5255e92ad6e5f1b4b20ff48e0907ee8ed6278ad28db9fce325fc66f2",
     ".github/prompts/approve-drafts-knowledge.prompt.md": "sha256:61e3e753c146c68150a1e9fa50b2a3da59563a72c66f73009cb25ce0af5038cb",
     ".github/prompts/author-feature.prompt.md": "sha256:53131bf0cfa7ed19d149ab04c34ac3098628e8f480b5e055f74712bdd7bbc59f",
-    ".github/prompts/check-against-principles.prompt.md": "sha256:dd59b6193a2b873a5c9136d2c7397f59da28166c0b64fd255a763ec77fbda4f0",
+    ".github/prompts/check-against-principles.prompt.md": "sha256:1270d798db301f9c0f87f1ba23a152803440f79a0722b693038b472560d4b0fe",
     ".github/prompts/curate-knowledge.prompt.md": "sha256:818076a6aefcff40a5620d74b946ebe72d3def5f0ae52302768346b870132fed",
     ".github/prompts/document-metadata-change.prompt.md": "sha256:e559008d042570519882d993efec0686767bb85409b56c9368c1540884d910b4",
     ".github/prompts/feature-health.prompt.md": "sha256:28647ddc5360e88de2db6f75dd4673dcf66237c5a4469ce0956f4d1a8635ea0b",
@@ -529,7 +529,7 @@
     ".github/skills/adhoc-fix/SKILL.md": "sha256:f21277c4d274b06ca1cba5ce99eaf0ee58ae47413e8d798d517b2aa69ce578e2",
     ".github/skills/approve-knowledge-drafts/SKILL.md": "sha256:9ce9376500f3dc7853dfe96ba4d4def2fc270368ea64e12f428c2e93eef27f38",
     ".github/skills/author-feature/SKILL.md": "sha256:da52400d84f83de04429de21aa35503d91de0c5717160280cbd4df17934474bf",
-    ".github/skills/check-against-principles/SKILL.md": "sha256:f8d5f8801924ad3c68bd0b320930a42e536cad043b6c0befbfde1bf05166e432",
+    ".github/skills/check-against-principles/SKILL.md": "sha256:bc430d7f97543602db035c3d61f4a747775235171202021b6a05f963037f3e02",
     ".github/skills/check-feature-coverage/SKILL.md": "sha256:c9e310ec92ba1b030531f58d6363a24c445b4295e2125c65e16df5e8200a07b9",
     ".github/skills/curate-knowledge/SKILL.md": "sha256:9b57fd832971946335cedd23a5c95b9924b6ee4270e37beefde165e7bb16b2ef",
     ".github/skills/development/SKILL.md": "sha256:40c2fb8d364e8983f8af535f05d3268c242c508aeca89a66303a454607b0ae99",
