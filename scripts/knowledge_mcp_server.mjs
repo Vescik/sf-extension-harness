@@ -41,6 +41,11 @@ const CALL_TIMEOUT_MS = 60_000;
 const BUILD_TIMEOUT_MS = 300_000;
 const PROBE_TIMEOUT_MS = 15_000;
 const MAX_STRING_INPUT = 400;
+// The `text` argument carries mode=intentional-flow-error's PASTED exact error message —
+// real Flow fault surfaces (preamble + element name + message) routinely exceed 400
+// characters, and hand-trimming the evidence breaks exact matching (plan 2026-08-09
+// §3c.1 #8). Own bound; the 1 MB request and 480 KB output caps still hold.
+const MAX_TEXT_INPUT = 4000;
 const STALE_INDEX_REASON = /^INDEX STALE/;
 
 // The only executor surface reachable through this server. `build` is spawnable by the
@@ -156,7 +161,7 @@ export const TOOL_DEFINITIONS = Object.freeze([
       type: "object",
       additionalProperties: false,
       properties: {
-        text: { type: "string", maxLength: MAX_STRING_INPUT, description: "Free-text query or pasted error message." },
+        text: { type: "string", maxLength: MAX_TEXT_INPUT, description: "Free-text query or pasted error message (paste the exact message untrimmed)." },
         identity: { type: "string", maxLength: MAX_STRING_INPUT, description: IDENTITY_HINT },
         metadataType: { type: "string", maxLength: MAX_STRING_INPUT, description: "Filter by metadata type, e.g. CustomObject." },
         namespace: { type: "string", maxLength: MAX_STRING_INPUT, description: "Filter by namespace (`c` for local)." },
