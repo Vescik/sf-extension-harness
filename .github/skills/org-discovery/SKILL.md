@@ -28,6 +28,17 @@ question — a one-field question does not need the full sweep.
    Never paste raw record rows into a design, a knowledge entry, or an ADO artifact —
    derive the counts and shapes you need.
 
+## Knowledge freshness flags
+
+Freshness on a knowledge entry has three different fates, not one. **Drift and expired
+org-usage** are not grounds to reject the entry or to redo discovery — they go into the
+design/review as an explicit caveat, exactly like `limitations`. **A failed re-read
+caused by the file changing since the index was built** — rebuild the index and retry
+(`knowledge_search.py build`); a cheap mechanical step, not a caveat and not discovery
+from zero. **A failed re-read for any other reason** (file missing, entry does not
+parse, identity/digest mismatch) remains a real gap: report it, do not build on that
+entry.
+
 ## When a tool fails
 
 A failed or unavailable tool is a stated limitation, never permission to imagine the

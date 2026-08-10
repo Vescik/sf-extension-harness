@@ -37,8 +37,15 @@ identity when applicable, and accepted design/approval hashes. Reject unspecifie
      no governed dependency lookup — name them explicitly when present, or the result looks
      clean while a whole class went unchecked.
    An empty result from either layer is a recorded gap, never proof that nothing depends on it. Then, for every material factual premise,
-   require an `approved-current`, scope-matched entry (or an unexpired org-usage block for
-   usage numbers). Drafts and model inference are not trusted facts. When a cited envelope
+   require an `approved`, scope-matched entry — `approved-drifted` counts, carried into the
+   review as an explicit caveat, and org-usage numbers count with their age stated
+   ("sampled N days ago"). Drafts, revoked entries and model inference are not trusted
+   facts. Knowledge freshness has three different fates, not one: drift and expired
+   org-usage travel as caveats exactly like `limitations`; a failed re-read caused by the
+   file changing since the index was built is a rebuild-and-retry
+   (`knowledge_search.py build`), not a finding; a failed re-read for any other reason
+   (file missing, entry does not parse, identity/digest mismatch) is a real gap — report
+   it, do not build on that entry. When a cited envelope
    carries entry references, `python scripts/knowledge_store.py entry-verify-citations
    --envelope <path>` reports any that no longer resolve to a current approved entry.
 4. Compare intended customer-owned repository state with the latest complete org-review evidence.
