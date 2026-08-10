@@ -79,6 +79,32 @@ class KnowledgeSchemaTests(unittest.TestCase):
             leaks = reserved_fixture_leaks(surface.read_text(encoding="utf-8"))
             self.assertEqual([], leaks, f"{surface}: reserved fixture tokens leaked: {leaks}")
 
+    def test_agent_surfaces_do_not_call_a_drifted_entry_non_effective(self) -> None:
+        """The runtime says `approved-drifted` is effective with disclosure; the prose must too.
+
+        `knowledge_store.verify_entry_citations` grades a drifted citation `warning` while
+        draft/revoked/not-effective/digest-mismatch grade `invalid`, and the binding resolver
+        accepts drifted entries. search-knowledge had been listing `drifted` among the
+        non-effective lanes, so a skill inheriting its rules by pointer silently learned the
+        opposite of what the executor does — that is how check-against-principles came to
+        contradict its own pointer target. The negative half of this test is the point: a future
+        edit may not put `drifted` back into a non-effective enumeration.
+        """
+        from scripts import knowledge_store
+
+        source = Path(knowledge_store.__file__).read_text(encoding="utf-8")
+        self.assertIn('verdict="drifted",\n                severity="warning"', source)
+
+        skill = (ROOT / ".github/skills/search-knowledge/SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("`approved-drifted` is effective, with disclosure", skill)
+        for enumeration in re.findall(r"[Nn]on-effective matches \(([^)]*)\)", skill):
+            self.assertNotIn(
+                "drifted",
+                enumeration,
+                "search-knowledge lists drifted as non-effective, contradicting "
+                "verify_entry_citations (severity 'warning', not 'invalid')",
+            )
+
     def test_legal_business_names_are_not_screened_as_fixture_leaks(self) -> None:
         """Regression for the retired name denylist (introduced in 07c1788): a real
         team's legally named metadata and rule prefixes must pass the

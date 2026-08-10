@@ -120,9 +120,16 @@ metadata type, namespace, lifecycle state.
    `.ai/knowledge/keyword-taxonomy.md` (approved terms) — candidate terms on entries are
    suggestions awaiting human curation, never evidence.
 4. Report effective facts with their citations: entries by identity + entry path + digests +
-   lifecycle lane; org usage by orgKey + observedAt. Non-effective matches (draft, drifted,
-   revoked, not-effective, org-expired) go in their own section with the reason. An empty
+   lifecycle lane; org usage by orgKey + observedAt. Non-effective matches (draft, revoked,
+   not-effective, org-expired) go in their own section with the reason. An empty
    result is "no governed Knowledge", never license to answer from memory.
+   **`approved-drifted` is effective, with disclosure** — the entry is still approved and it
+   still binds (`entry-verify-citations` returns `warning`, not `invalid`), but the source
+   fragments moved since approval, so every fact taken from it carries that caveat and names
+   re-approval as the repair. Retrieval does not serve the lane by default: `search`,
+   `context`, `explain` and `impact` return `approved-current` rows unless you pass
+   `--state approved-drifted`, and a drifted entry that was never opened this way is silence,
+   not absence. Do not report a drifted entry as unusable, and do not quote it as current.
    Cite what the executor gives you, not what the view shows: obtain the citable ref with
    `python scripts/knowledge_store.py entry-status --identity <Identity>`. A search hit, a
    `context` pack and a rendered dossier are never themselves citable — the `citation` block they

@@ -44,8 +44,9 @@ For BRD attachments:
      explicit `not covered: <type list>`
      line naming every such type present in the inventory — a result without that line reads
      as a clean bill of health it did not earn.
-   Treat only approved-current entries as facts. An empty result is a recorded gap and
-   is NEVER proof that nothing depends on the component.
+   Treat approved entries as facts — `approved-current` outright, `approved-drifted` with its
+   drift disclosed in the row. Drafts and revoked entries are never facts. An empty result is a
+   recorded gap and is NEVER proof that nothing depends on the component.
 5. Save all mandatory sections using the Feature Health template and the output envelope.
 
 ## Verdict
