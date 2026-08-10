@@ -35,6 +35,10 @@ const MAX_OUTER_MESSAGE_BYTES = 1_048_576;
 // framing, or the outer cap would fire with a less actionable error.
 const MAX_EXECUTOR_OUTPUT_BYTES = 480_000;
 const CALL_TIMEOUT_MS = 60_000;
+// Self-heal rebuilds (index build / inventory) get their own, larger budget: a full
+// rebuild on a big corpus can exceed the per-query 60 s, and SIGKILLing the heal left
+// the read surface permanently unusable through MCP (plan 2026-08-09 §3c.1 #6).
+const BUILD_TIMEOUT_MS = 300_000;
 const PROBE_TIMEOUT_MS = 15_000;
 const MAX_STRING_INPUT = 400;
 const STALE_INDEX_REASON = /^INDEX STALE/;
@@ -498,7 +502,7 @@ export function resolveInterpreter() {
   return null;
 }
 
-function runExecutor(python, scriptName, argv) {
+function runExecutor(python, scriptName, argv, timeoutMs = CALL_TIMEOUT_MS) {
   return new Promise((resolvePromise) => {
     const child = spawn(
       python[0],
@@ -518,9 +522,9 @@ function runExecutor(python, scriptName, argv) {
       child.kill("SIGKILL");
       finish({
         outcome: "ERROR",
-        reason: `EXECUTOR TIMEOUT: ${scriptName} ${argv[0]} exceeded ${CALL_TIMEOUT_MS} ms`,
+        reason: `EXECUTOR TIMEOUT: ${scriptName} ${argv[0]} exceeded ${timeoutMs} ms`,
       });
-    }, CALL_TIMEOUT_MS);
+    }, timeoutMs);
     child.stdout.on("data", (chunk) => {
       stdout += chunk;
       if (Buffer.byteLength(stdout, "utf8") > MAX_EXECUTOR_OUTPUT_BYTES) {
@@ -564,9 +568,11 @@ function isStaleIndex(envelope) {
   );
 }
 
-// resolve on a fresh checkout fails with a non-JSON "force-app inventory is missing" —
-// the same generated-cache class as INDEX STALE, healed the same bounded way (D2).
-const MISSING_INVENTORY_REASON = /inventory is missing/;
+// resolve on a fresh checkout fails with a non-JSON "force-app inventory is missing";
+// the EVERYDAY case — any force-app edit — fails with "force-app changed after
+// inventory; rerun inventory". Both are the same generated-cache class as INDEX STALE,
+// healed the same bounded way (D2; second alternation: plan 2026-08-09 §3c.1 #6).
+const MISSING_INVENTORY_REASON = /inventory is missing|rerun inventory/;
 
 function isMissingInventory(envelope) {
   return (
@@ -590,7 +596,7 @@ async function callKnowledgeTool(python, name, input) {
     // Owner decision D2: one bounded rebuild of the gitignored generated cache, then one
     // retry, so the INDEX STALE -> build -> retry dance never reaches the agent.
     assertAllowlisted("knowledge_search.py", "build");
-    const rebuild = await runExecutor(python, "knowledge_search.py", ["build"]);
+    const rebuild = await runExecutor(python, "knowledge_search.py", ["build"], BUILD_TIMEOUT_MS);
     if (rebuild?.outcome === "BUILT") {
       result = await runExecutor(python, executor.script, argv);
     } else {
@@ -599,7 +605,7 @@ async function callKnowledgeTool(python, name, input) {
   }
   if (isMissingInventory(result) && executor.script === "force_app_knowledge.py") {
     assertAllowlisted("force_app_knowledge.py", "inventory");
-    const rebuilt = await runExecutor(python, "force_app_knowledge.py", ["inventory"]);
+    const rebuilt = await runExecutor(python, "force_app_knowledge.py", ["inventory"], BUILD_TIMEOUT_MS);
     if (rebuilt?.status === "complete") {
       result = await runExecutor(python, executor.script, argv);
     } else {
