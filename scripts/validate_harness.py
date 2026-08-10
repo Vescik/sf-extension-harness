@@ -44,7 +44,7 @@ except ModuleNotFoundError:  # imported as scripts.validate_harness by unit test
 
 
 ROOT = Path(__file__).resolve().parents[1]
-EXPECTED_COUNTS = {"agents": 7, "prompts": 18, "skills": 21, "instructions": 3}
+EXPECTED_COUNTS = {"agents": 7, "prompts": 18, "skills": 22, "instructions": 3}
 # Budget for each grounding subprocess below. entry-check parses and validates every entry at
 # roughly 4.5 ms per entry (measured at 9 000), so a corpus in the low tens of thousands is the
 # constraint here, not the code. Raise this deliberately from a measurement — never to silence a
@@ -488,7 +488,7 @@ def check_customizations(audit: Audit, root: Path = ROOT) -> None:
         # Context-first skills (plan 2026-08-07 phase 3) are recipes, not governed lanes:
         # they do not load the retired execution contract. Legacy lanes keep it until
         # phase 5 rules on their freeze.
-        if folder not in {"solution-design", "org-discovery", "development", "git-workflow", "investigate-object"}:
+        if folder not in {"solution-design", "org-discovery", "development", "git-workflow", "investigate-object", "curate-knowledge"}:
             audit.require("shared execution contract" in body.lower(), f"{relative(path)}: shared execution contract is required")
         if data.get("user-invocable") is not False and isinstance(data.get("name"), str):
             public_skill_names.append(data["name"])
