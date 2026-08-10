@@ -746,12 +746,19 @@ def load_schema(name: str) -> dict[str, Any]:
     return json.loads((SCHEMA_DIR / name).read_text(encoding="utf-8"))
 
 
+def _schema_problem(error) -> str:
+    """`where: what` — a bare jsonschema message without its JSON path sends the author
+    hunting through the whole document (plan 2026-08-09 §3c.2)."""
+    where = "/".join(str(part) for part in error.absolute_path) or "(root)"
+    return f"{where}: {error.message}"
+
+
 def validate_entry(frontmatter: dict[str, Any], body: str) -> list[str]:
     from jsonschema import Draft202012Validator
 
     problems: list[str] = []
     envelope = Draft202012Validator(load_schema("knowledge-entry.schema.json"))
-    problems.extend(error.message for error in envelope.iter_errors(frontmatter))
+    problems.extend(_schema_problem(error) for error in envelope.iter_errors(frontmatter))
     metadata_type = frontmatter.get("subject", {}).get("metadataType")
     # Resolve the profile schema from the (id, version) the entry itself declares, against
     # the append-only SCHEMA_REGISTRY — never from the current PROFILES mapping for the
@@ -771,7 +778,7 @@ def validate_entry(frontmatter: dict[str, Any], body: str) -> list[str]:
             "typeFacts": frontmatter.get("typeFacts", {}),
             "intentionalErrors": frontmatter.get("intentionalErrors", []),
         }
-        problems.extend(error.message for error in profile_validator.iter_errors(payload))
+        problems.extend(_schema_problem(error) for error in profile_validator.iter_errors(payload))
     raw = yaml.dump(frontmatter, sort_keys=True) + body
     if SENTINEL_PATTERN.search(raw):
         problems.append("unfilled <AGENT_...> sentinel present (contract §6.4.6)")
@@ -2326,9 +2333,9 @@ def load_probes_file(
         payload = json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
         raise StoreError(f"probes file is not valid JSON: {exc}") from exc
-    errors = sorted(e.message for e in Draft202012Validator(PROBES_FILE_SCHEMA).iter_errors(payload))
+    errors = sorted(_schema_problem(e) for e in Draft202012Validator(PROBES_FILE_SCHEMA).iter_errors(payload))
     if errors:
-        raise StoreError("probes file failed validation: " + "; ".join(errors[:5]))
+        raise StoreError("probes file failed validation: " + "; ".join(errors))
     probes = payload["probes"]
     labels = [probe["label"] for probe in probes]
     if len(labels) != len(set(labels)):
@@ -3400,7 +3407,7 @@ def command_feature_approve(args: argparse.Namespace) -> dict[str, Any]:
         frontmatter, body, path = _load_feature(slug)
         problems = fk.validate_feature(frontmatter, body)
         if problems:
-            raise StoreError(f"{identity}: validation failed: " + "; ".join(problems[:5]))
+            raise StoreError(f"{identity}: validation failed: " + "; ".join(problems))
         digest = fk.feature_reviewed_content_digest(frontmatter, body)
         if digest != pinned:
             raise StoreError(
