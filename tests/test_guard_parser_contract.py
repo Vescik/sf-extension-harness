@@ -217,10 +217,9 @@ class GuardParserContractTests(unittest.TestCase):
             frozenset({"config-investigator", "knowledge-curator"}),
             guard.FORCE_APP_KNOWLEDGE_ROLES,
         )
-        # The curator never gains work-record authority or the org-usage attach lane
-        # (contract §6.6). Its only org surface is the review_soql_query facade MCP tool
-        # (owner decision 2026-08-04) — never an org terminal command.
-        self.assertNotIn("knowledge-curator", getattr(guard, "WORK_RECORD_COMMANDS", {}))
+        # The curator never gains the org-usage attach lane (contract §6.6). Its only org
+        # surface is the review_soql_query facade MCP tool (owner decision 2026-08-04) —
+        # never an org terminal command.
         self.assertNotIn("knowledge-curator", guard.ORG_ATTACH_ROLES)
 
 

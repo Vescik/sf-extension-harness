@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
 <Package xmlns="http://soap.sforce.com/2006/04/metadata">
-    <!-- Generic starter only. Narrow and bind to an accepted work record before org operations. -->
+    <!-- Generic starter only. Narrow to the components named by the approved
+         work-items/<id>-<slug>/design.md before org operations. -->
 <types>
 <members>*</members>
 <name>CustomObject</name>

@@ -42,8 +42,8 @@ class KnowledgeSchemaTests(unittest.TestCase):
         # Principle sources; rules now resolve straight from the declaration lines. The
         # resolution stays unambiguous only while every ID is declared exactly once across
         # the four sources — and the registry (plus its schema) must not quietly return.
-        # The work-record lane (and its RULE_SOURCE_TIERS constant) was deleted in
-        # phase 5; the declare-once invariant now scans the Principle sources directly.
+        # The declare-once invariant scans the Principle sources directly; there is no
+        # RULE_SOURCE_TIERS constant to trust instead.
         sources = [ROOT / ".github/copilot-instructions.md"] + sorted(
             (ROOT / ".github/instructions").glob("*.instructions.md")
         )

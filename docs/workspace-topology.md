@@ -32,18 +32,19 @@ skills, Knowledge, Memory, QA indexes, cache, and generated drafts. Skills must 
 searching a subfolder, parent directory, sibling directory, or other checkout.
 
 Run `Harness: Preflight` after opening the workspace. Harness CI and metadata-dependent prompts
-operate against the same checkout, so Salesforce metadata and the governing design/handoff remain
-reviewable in one pull request.
+operate against the same checkout, so Salesforce metadata and the work item's design, tasks and
+decisions remain reviewable in one pull request.
 
 The guarded Salesforce MCP launcher starts from `brain-core` and refuses to start when root
 `sfdx-project.json` is missing; it runs review (read-only) mode only — the development/write
 lane was retired 2026-08-04. Root identity does not grant root-wide write authority: role
 permissions bound file edits to approved metadata/test subpaths such as `force-app/`,
-`manifest/`, and `tests/e2e/`. Harness instructions, Knowledge, work records, configuration,
+`manifest/`, and `tests/e2e/`. Harness instructions, Knowledge, work items, configuration,
 and other governance content remain outside the Salesforce write scope.
 
-Root `manifest/package.xml` is a generic starter manifest. It must be narrowed and bound to the
-accepted work record before an org-facing operation; wildcard members are not authorization.
+Root `manifest/package.xml` is a generic starter manifest. Before an org-facing operation it must
+be narrowed to the components named by the approved `work-items/<id>-<slug>/design.md`; wildcard
+members are not authorization.
 
 Do not create a nested `.git` or `sfdx-project.json`, relocate metadata to another directory, or
 duplicate `force-app/` under a wrapper folder. Salesforce source and manifests are tracked at the
