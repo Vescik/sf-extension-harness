@@ -79,6 +79,11 @@
         "required": ["componentId", "metadataType", "name", "path", "lane", "status"],
         "properties": {
           "componentId": { "type": "string", "minLength": 1 },
+          "identity": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9]+:[^:]+:.+$",
+            "description": "The three-part Knowledge identity (<MetadataType>:<ns|c>:<FullName>) every other knowledge tool takes as input. Present when the component has an entry; the two-part componentId is the inventory key, not a knowledge identity."
+          },
           "metadataType": { "type": "string", "minLength": 1 },
           "name": { "type": "string", "minLength": 1 },
           "path": { "type": "string", "pattern": "^force-app/" },

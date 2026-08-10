@@ -4904,6 +4904,7 @@ class ForceAppKnowledge:
                 if entry is None:
                     item["status"] = "no-entry"
                 else:
+                    item["identity"] = entry["identity"]
                     item["status"] = str(entry["lane"])
                     item["described"] = bool(entry["purpose"])
             else:
@@ -5451,6 +5452,11 @@ class ForceAppKnowledge:
                     purpose = ""  # the draft sentinel is an absence, not a description
                 subject = frontmatter["subject"]
                 found[f"{subject['metadataType']}:{subject['fullName']}"] = {
+                    # The three-part Knowledge identity every other knowledge tool takes as
+                    # input. resolve() surfaces it per item so the resolve -> context handoff
+                    # is copy-paste (plan 2026-08-09 §3c.1 #2 — the two-part componentId
+                    # pasted into knowledge_context produced a false NO_ENTRY).
+                    "identity": lane["identity"],
                     "purpose": purpose, "lane": lane["lane"],
                 }
         return found
