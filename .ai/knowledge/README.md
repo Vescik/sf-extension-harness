@@ -17,12 +17,19 @@ clone is normal.
 
 ## Retrieval rule
 
-Treat an entry as established only when the executor computes lane `approved-current`
+Treat an entry as established when the executor computes an `approved` lane
 (`entry-status`/`entry-check` — never a raw file read), and cite only source-exact,
-fully-covered sections (contract §8.1). Org usage grounds only from an unexpired `orgUsage`
-block, cited with orgKey and observedAt. Drafted, drifted, revoked, or org-expired records may
-be shown as warnings but may not support a `SAFE` verdict. Existing Knowledge and generated
-views never corroborate themselves.
+fully-covered sections (contract §8.1). An `approved` entry is usable regardless of drift
+or org-usage age — both travel with the entry as a visible caveat, never as a block:
+surface `approved-drifted` to the consumer, and cite org usage with orgKey, observedAt
+and its age ("sampled N days ago"). Only `draft` and `revoked` remain unusable for
+grounding. A re-read gap caused by the described file having changed since the index was
+built is not evidence of falsehood, but it is not safe to serve with a caveat either —
+rebuild the index (`knowledge_search.py build`) and retry before answering; this is a
+cheap, mechanical fix, not a return to full discovery. A re-read gap caused by a missing
+file, an unparseable entry, or an identity/digest mismatch is an integrity finding, not a
+staleness signal — report it as an open gap, do not wave it through and do not silently
+retry. Existing Knowledge and generated views never corroborate themselves.
 
 This repository intentionally contains no organization or package facts until real, sanitized
 evidence is reviewed. Never seed examples into the live store.
