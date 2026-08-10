@@ -1397,6 +1397,42 @@ class ProfileSchemaCoverageTests(unittest.TestCase):
                 self.assertEqual([], problems, f"{metadata_type}: {problems}")
 
 
+class ErrorEnvelopeTests(KnowledgeStoreTests):
+    """Plan 2026-08-09 §3c.2: main() may never leak a raw traceback to stdout — every
+    failure is a JSON envelope with errorType; unexpected types keep their traceback on
+    stderr for the programmer."""
+
+    def run_main(self, argv):
+        import contextlib
+        import io
+
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = store.main(argv)
+        return code, out.getvalue(), err.getvalue()
+
+    def test_malformed_identity_yields_an_envelope_not_a_traceback(self) -> None:
+        purpose = self.temp / "p.md"
+        purpose.write_text("One sentence.", encoding="utf-8")
+        code, out, err = self.run_main(
+            ["entry-describe", "--identity", "Flow:OnlyTwoParts", "--purpose-file", str(purpose)]
+        )
+        self.assertEqual(1, code)
+        envelope = json.loads(out)
+        self.assertEqual("ERROR", envelope["outcome"])
+        self.assertNotEqual("StoreError", envelope["errorType"])
+        self.assertIn("Traceback", err)
+
+    def test_domain_errors_keep_a_quiet_stderr(self) -> None:
+        code, out, err = self.run_main(
+            ["entry-draft", "--metadata-type", "NoSuchType", "--full-name", "X"]
+        )
+        self.assertEqual(1, code)
+        envelope = json.loads(out)
+        self.assertEqual("StoreError", envelope["errorType"])
+        self.assertNotIn("Traceback", err)
+
+
 class FeatureBindingResolverTests(KnowledgeStoreTests):
     """Plan 2026-08-09 §F.4: approved-drifted binds too (same rule as retrieval §3.1);
     draft and revoked never do. binding_state's digest comparison — not the resolver —

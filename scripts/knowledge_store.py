@@ -1476,7 +1476,18 @@ def command_entry_approve(args: argparse.Namespace) -> dict[str, Any]:
         append_ledger([ledger_entries[-1]])  # per-file journaled stamping (contract §6.4.5)
     with (REVIEW_ARTIFACT_ROOT / f"{chunk_id}.md").open("w", encoding="utf-8", newline="\n") as handle:
         handle.write("\n".join(artifact_lines))
-    return {"outcome": "APPROVED", "chunkId": chunk_id, "entries": len(resolved)}
+    return {
+        "outcome": "APPROVED",
+        "chunkId": chunk_id,
+        "entries": len(resolved),
+        # Freshly approved entries are invisible to search until the index generation moves
+        # (plan 2026-08-09 §3c.1, "successes go blind"): through MCP the next read self-heals
+        # via the INDEX STALE rebuild; in a terminal lane run `knowledge_search.py build`.
+        "next": (
+            "approved entries become searchable after the index rebuild — automatic on the "
+            "next MCP read; in a terminal session run `python scripts/knowledge_search.py build`"
+        ),
+    }
 
 
 def classify_chunk(resolved: list[tuple[str, dict[str, Any], str, str]], latest: dict[str, dict[str, Any]]) -> dict[str, Any]:
@@ -3009,8 +3020,26 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
         result = args.func(args)
-    except StoreError as error:
-        print(json.dumps({"outcome": "ERROR", "reason": str(error)}, indent=2))
+    except Exception as error:  # noqa: BLE001 — the envelope IS the error contract
+        # Every consumer parses the JSON envelope; a raw traceback on stdout dead-ends the
+        # agent (plan 2026-08-09 §3c.2). errorType keeps "expected domain error"
+        # (StoreError) distinguishable from "unexpected bug needing a programmer"; for the
+        # latter the full traceback goes to stderr — the envelope alone would erase the
+        # one thing that class of error is diagnosed with.
+        if not isinstance(error, StoreError):
+            import traceback
+
+            traceback.print_exc()
+        print(
+            json.dumps(
+                {
+                    "outcome": "ERROR",
+                    "errorType": error.__class__.__name__,
+                    "reason": str(error),
+                },
+                indent=2,
+            )
+        )
         return 1
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0
