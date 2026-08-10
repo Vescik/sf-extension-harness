@@ -66,11 +66,12 @@ If the answer is "none", this section keeps an explicit "None" — it never disa
 ## 9. Verification Contract
 
 <!--
-Projection of the Design Case Verification Contract (`record.json.solutionDesign.verificationContract`)
-for the accepted candidate, plus any formally linked ADO Test Cases those entries reference.
+Projection of the verification plan in `work-items/<itemId>-<slug>/design.md` — with any
+approved deviation from that work item's `decisions.md` — plus any formally linked ADO Test
+Cases it references.
 This is the canonical verification plan: every in-scope acceptance criterion appears here with an
 assertion, method, pass criteria, expected evidence and executor/stage. It is not a relevance
-ranking and it is never model-ranked. When the change has no Design Case, state that explicitly
+ranking and it is never model-ranked. When the work item has no design, state that explicitly
 and list only the formally linked Test Cases from the synced inventory.
 -->
 

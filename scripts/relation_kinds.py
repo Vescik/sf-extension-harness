@@ -127,7 +127,7 @@ def edge_assurance(kind: str, heuristic_flag: bool = False) -> str:
     Reading only the per-edge flag was the bug: the collector never sets it for kind-level
     heuristics, so 414 of 595 edges in a 189-component probe corpus were stored `source-exact`.
     That marker is inside factsDigest, so a human approved it, and SAFE-CLAIM-001 v2 would then
-    ground a work record on what is really a regex match against a comment.
+    ground a design claim on what is really a regex match against a comment.
     """
 
     if heuristic_flag or kind in HEURISTIC_REF_KINDS:

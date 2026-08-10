@@ -210,8 +210,7 @@ Edition (`*.develop.my.salesforce.com`) signature, and live `Organization.IsSand
 with it — `true` for a sandbox or scratch org, `false` for a Developer Edition. Production is
 refused by design, and the facade re-proves this identity on every tool call. No toggle is
 needed for any non-production shape (owner decision 2026-08-04); the pins are optional — an
-unlisted alias is also readable, but only configured entries can anchor work-record evidence
-and Knowledge org snapshots.
+unlisted alias is also readable, but only configured entries can anchor Knowledge org snapshots.
 
 ## Part 8 — Final verification
 
@@ -245,7 +244,7 @@ re-check Part 7.1 (exact slug, no trailing spaces, VS Code fully restarted).
    denied.
 
 **Where to go next:** `README.md` for the architecture, `SETUP.md` §5–7 for the full operating
-model (work records, approvals, knowledge), and the eleven `/` prompt commands in Copilot Chat.
+model (work items, approvals, knowledge), and the eighteen `/` prompt commands in Copilot Chat.
 
 ## When something fails
 

@@ -1,10 +1,10 @@
 # Salesforce Managed-Package Copilot Brain-Core
 
 A private, team-versioned GitHub Copilot harness for Salesforce development around any configured
-closed managed package. It combines a minimal always-on safety/grounding kernel, six SDLC agents,
-twenty-four public prompt commands, twenty-five internal skills, governed but initially unseeded
-Knowledge/Memory/QA layers, reconciled read-only org review, durable handoffs, and repeatable
-validation. No object, namespace, package behavior, or business meaning is built in.
+closed managed package. It combines a minimal always-on safety/grounding kernel, seven SDLC agents,
+eighteen public prompt commands, twenty-two internal skills, governed but initially unseeded
+Knowledge/Memory/QA layers, reconciled read-only org review, durable per-work-item design files,
+and repeatable validation. No object, namespace, package behavior, or business meaning is built in.
 
 ## Current authority
 
@@ -14,7 +14,7 @@ validation. No object, namespace, package behavior, or business meaning is built
 4. [.ai/contracts/execution-contract.md](.ai/contracts/execution-contract.md) — common skill
    execution, cache, output, and failure behavior.
 5. [docs/grounding-architecture.md](docs/grounding-architecture.md) — Principles, Knowledge
-   grounding, repository/org reconciliation, and handoff architecture.
+   grounding, repository/org reconciliation, and the work-item boundary.
 6. [docs/knowledge-one-file-contract.md](docs/knowledge-one-file-contract.md) — the normative
    one-file Knowledge entry contract.
 

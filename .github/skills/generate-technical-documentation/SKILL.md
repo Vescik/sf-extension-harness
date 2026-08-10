@@ -12,8 +12,9 @@ Apply the [shared execution contract](../../../.ai/contracts/execution-contract.
 ## Inputs and gate
 
 - Positive `itemId`. When the work item has a design (`work-items/<itemId>-<slug>/design.md`
-  — today's approved-scope surface, replacing the retired work-record `recordId`), read it
-  and confirm the documented change matches it; without one, this is standalone
+  — the approved-scope surface), read it and confirm the documented change matches it;
+  read `decisions.md` alongside it when present, because an approved deviation there
+  supersedes the design's original wording. Without a design, this is standalone
   documentation of existing state — a valid lane, named as such in the output.
 - The workspace root (labeled `brain-core` in VS Code — a workspace label, not the
   repository name), which is also the SFDX root; optional manifest path defaults from
@@ -50,10 +51,12 @@ large or heterogeneous. Do not infer which manifest members belong to the work i
    a generated view are never themselves citable. An empty result from either layer is a recorded
    gap and is never proof that nothing depends on the component. Use Config Investigator only for
    a material unknown; Knowledge writes are a separate approval.
-5. Project the verification plan: read the accepted Design Case candidate's Verification
-   Contract and render it into section 9, together with the ADO Test Cases those entries
-   formally reference. Never rank or suggest Test Cases; when no Design Case exists, say so
-   and list only formally linked cases from the synced inventory.
+5. Project the verification plan: read the verification plan written in
+   `work-items/<itemId>-<slug>/design.md` (with any approved deviation from
+   `decisions.md`) and render it into section 9, together with the ADO Test Cases it
+   formally references. Never rank or suggest Test Cases; when the work item has no design,
+   say so, mark the document as standalone documentation of existing state, and list only
+   formally linked cases from the synced inventory — never fabricate a verification plan.
 6. Ask the human for non-metadata deployment steps with `vscode/askQuestions`; record explicit
    `None` when confirmed. Never infer activation/data-fix steps from absence in the manifest.
 7. Fill every section of the technical-documentation template and common output envelope,

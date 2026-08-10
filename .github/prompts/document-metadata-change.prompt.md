@@ -9,8 +9,8 @@ tools: ['read', 'search', 'edit/editFiles', 'execute/runInTerminal', 'vscode/ask
 Use the [generate-technical-documentation skill](../skills/generate-technical-documentation/SKILL.md).
 
 Require a numeric work item ID. When the item has a design
-(`work-items/<itemId>-<slug>/design.md` — today's approved-scope surface, replacing the
-retired work-record `recordId`), confirm the documented change matches it; without one this
+(`work-items/<itemId>-<slug>/design.md` — the approved-scope surface), confirm the
+documented change matches it; without one this
 is standalone documentation of existing state, a valid lane named as such. Resolve the
 workspace root (labeled `brain-core` in VS Code — a workspace label, not the repository
 name) as the one repository/SFDX root; validate the manifest and show detected scope before

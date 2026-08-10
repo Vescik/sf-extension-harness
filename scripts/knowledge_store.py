@@ -1157,7 +1157,7 @@ def _edges(component: dict[str, Any]) -> list[dict[str, Any]]:
     and regex-derived from Apex), never for kinds that are heuristic *always* (`object-token`,
     `invokes-class`, `var-field-ref`, `soql-field`). Measured on a 189-component probe corpus,
     414 of 595 edges therefore claimed `source-exact` for a regex match — inside factsDigest,
-    so a human approved the claim, and SAFE-CLAIM-001 v2 would ground a work record on it."""
+    so a human approved the claim, and SAFE-CLAIM-001 v2 would ground a design claim on it."""
 
     return [
         {

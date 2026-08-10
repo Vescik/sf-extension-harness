@@ -172,13 +172,12 @@ cached; `--force` re-runs everything (use it after re-authorizing an alias).
 1. Trust the cloned repository only after reviewing it; the single named workspace folder
    `brain-core` resolves to its root.
 2. Open **Chat: Open Customizations** / Chat Diagnostics.
-3. Confirm exactly six agents, twenty-four public prompts, twenty-five internal skills, three Principle
+3. Confirm exactly seven agents, eighteen public prompts, twenty-two internal skills, three Principle
    files, the safety hook, and two read-only MCP servers without diagnostics.
-4. Confirm `/` shows the twenty-four prompts once each and their argument hints.
-5. Verify Solution Designer and Development Assistant handoff buttons use `send: false`.
-6. Run one harmless ADO read, then the three bounded Salesforce review calls against the configured
+4. Confirm `/` shows the eighteen prompts once each and their argument hints.
+5. Run one harmless ADO read, then the three bounded Salesforce review calls against the configured
    synthetic/pilot component. Confirm no raw CLI/alias or sensitive payload appears in Chat.
-7. Run a negative canary: a request to deploy/query production must be denied.
+6. Run a negative canary: a request to deploy/query production must be denied.
 
 ### Reducing approval clicks (auto-approval)
 
@@ -253,9 +252,9 @@ owner decision of 2026-07-14.)
   confirmation click (recorded as `copilot-chat-entry-confirmation` with the
   `knowledge.chatReviewer` name from local config). Raw cache and unreviewed `output/` remain
   ignored.
-- Work-record approvals were deleted with their lane (phase 5, owner decision 2026-08-08).
-  Durable scope lives in `work-items/<id>-<slug>/` (design.md; deviations in decisions.md),
-  human review happens on the pull request, and knowledge approvals keep their digest-pinned
+- Durable scope lives in `work-items/<id>-<slug>/`: `design.md` for intent and scope, `tasks.md`
+  for the execution plan, `decisions.md` for deviations. Human review happens on the pull request
+  that carries those files next to the metadata; Knowledge approvals keep their own digest-pinned
   chat confirmation.
 
   The global Copilot hook always denies agent-originated invocation of this subcommand. Approval

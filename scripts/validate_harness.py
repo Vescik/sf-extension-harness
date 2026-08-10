@@ -486,8 +486,7 @@ def check_customizations(audit: Audit, root: Path = ROOT) -> None:
         audit.require(isinstance(description, str) and 1 <= len(description) <= 1024, f"{relative(path)}: description must be 1..1024 characters")
         audit.require(data.get("user-invocable") is False, f"{relative(path)}: internal skill must set user-invocable: false")
         # Context-first skills (plan 2026-08-07 phase 3) are recipes, not governed lanes:
-        # they do not load the retired execution contract. Legacy lanes keep it until
-        # phase 5 rules on their freeze.
+        # they do not load the shared execution contract. Every other skill must.
         if folder not in {"solution-design", "org-discovery", "development", "git-workflow", "investigate-object", "curate-knowledge"}:
             audit.require("shared execution contract" in body.lower(), f"{relative(path)}: shared execution contract is required")
         if data.get("user-invocable") is not False and isinstance(data.get("name"), str):
@@ -518,11 +517,9 @@ def check_customizations(audit: Audit, root: Path = ROOT) -> None:
         audit.require(required_link in all_agent_bodies, f"agents do not explicitly load required resource {required_link}")
     for path in agent_paths:
         data, _body = frontmatter(path, audit)
-        # The work-record and Design-Case handoff lanes were deleted with their runtime
-        # (phase 5, owner decision 2026-08-08) — the identifier-pair requirement that lived
-        # here would have re-imposed the retired identifier-pair vocabulary on the first
-        # future handoff. What survives is the durable-artifact rule: a handoff may never
-        # depend on chat context.
+        # The rule that matters for a handoff prompt: it may never depend on chat context.
+        # Durable state lives in work-items/<id>-<slug>/, so a handoff cites files, not the
+        # conversation above it.
         for handoff in data.get("handoffs", []) or []:
             if isinstance(handoff, dict):
                 prompt = str(handoff.get("prompt", "")).lower()
@@ -653,9 +650,8 @@ def check_settings_and_mcp(audit: Audit) -> None:
         knowledge.get("args") == ["scripts/knowledge_mcp_server.mjs"],
         "knowledge: exactly the guarded wrapper, no extra args — it binds no org and takes no secrets",
     )
-    # Phase 5 (owner decision 2026-08-08): the Solution Design runtime was deleted, not
-    # frozen. Its MCP server must stay gone — a re-registration would resurrect the retired
-    # process surface.
+    # No design MCP server exists; registering one would reintroduce a process surface that
+    # writes design state outside the reviewed work-items/ files.
     audit.require(
         "solution-design" not in servers,
         ".vscode/mcp.json must not register the retired solution-design server",
@@ -1096,9 +1092,8 @@ def check_grounding_contracts(audit: Audit) -> None:
     for path in principle_paths:
         source_ids.update(re.findall(r"\*\*((?:SAFE|MP|ORG|SF)-[A-Z0-9-]+)\s+—", required_text(path, audit)))
 
-    # Owner decision 2026-08-04 (kept after the work-record lane deletion, phase 5): every
-    # rule ID is DECLARED EXACTLY ONCE across the Principle sources, so a rule citation is
-    # always unambiguous.
+    # Owner decision 2026-08-04: every rule ID is DECLARED EXACTLY ONCE across the Principle
+    # sources, so a rule citation is always unambiguous.
     declarations: list[str] = []
     for path in principle_paths:
         declarations.extend(

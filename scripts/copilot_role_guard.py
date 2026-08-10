@@ -24,8 +24,7 @@ ALLOWED_PREFIXES = {
     ),
     # Repo-source Knowledge maintenance: fills draft sentinels and runs the governed knowledge
     # commands. Org surface is the read-only review_soql_query facade MCP tool only (owner
-    # decision 2026-08-04); org terminal commands stay denied and there is no work-record
-    # authority.
+    # decision 2026-08-04); org terminal commands stay denied.
     "knowledge-curator": (
         ".cache/knowledge-proposals/",
     ),
@@ -37,8 +36,7 @@ ALLOWED_PREFIXES = {
         ".cache/ado-wiki/",
         ".cache/test-cases/",
     ),
-    # Context-first roles (plan 2026-08-07 phase 3); the legacy work-record roles
-    # were deleted with their lane (phase 5, owner decision 2026-08-08).
+    # Context-first roles (plan 2026-08-07 phase 3).
     "designer": (
         ".cache/ado-items/",
         ".cache/ado-wiki/",
@@ -653,8 +651,7 @@ def role_path_allowed(relative_path: str, role: str) -> bool:
 def is_governed_record_path(relative_path: str) -> bool:
     # The one-file entry patterns match case-folded so NTFS case variants (Foo.MD, .AI/...)
     # cannot slip past the governed boundary (contract §3, review R1-10).
-    # The work-record/Design-Case arms were deleted with their lane (phase 5, owner
-    # decision 2026-08-08); only the Knowledge governed boundary remains.
+    # Knowledge is the only governed boundary: every path below is a Knowledge surface.
     lowered = relative_path.casefold()
     return bool(
         re.fullmatch(r"\.ai/knowledge/artifacts/.+\.md", lowered)

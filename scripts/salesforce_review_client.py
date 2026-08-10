@@ -1,8 +1,7 @@
 """Direct subprocess client for the read-only Salesforce review facade.
 
-Extracted verbatim from the retired work-record lane (phase 5, owner decision
-2026-08-08): the knowledge org-attach executor still calls the facade this way — the
-executor observes; the agent never carries attested bytes, so it cannot mint digests.
+The knowledge org-attach executor calls the facade this way — the executor observes;
+the agent never carries attested bytes, so it cannot mint digests.
 The returned envelope is schema-validated and digest-checked before anything trusts it.
 """
 

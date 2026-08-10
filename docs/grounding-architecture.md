@@ -19,19 +19,20 @@ it.
    bounded Salesforce review facade.
 6. **Reconciliation** — classify agreement, incompleteness, mismatch, and repository/org drift.
 7. **Human promotion** — observations become trusted Knowledge only through an immutable review.
-8. **Persisted handoff** — transition using validated work-record and handoff IDs, never chat alone.
+8. **Durable artifacts** — scope, design and decisions live in `work-items/<id>-<slug>/`, never in
+   chat alone; the commit and its pull request carry them into review.
 
 ## Repository grounding boundary
 
 The harness root and Salesforce DX project root are the same directory. The checked-in workspace
 exposes that directory once as `brain-core`; no `salesforce` workspace folder or nested SFDX root
-exists. Repository observations, design hashes, implementation paths, and handoffs therefore
+exists. Repository observations, designs, and implementation paths therefore
 refer to one commit lineage. Tools must not search a subfolder or parent directory, or substitute
 a separately cloned metadata repository.
 
 This shared root does not expand tool authority. Salesforce MCP filesystem inputs and role writes
 remain bounded to approved metadata/test subpaths such as `force-app/`, `manifest/`, and
-`tests/e2e/`. Changes to Principles, Knowledge, approvals, handoffs, configuration, or other
+`tests/e2e/`. Changes to Principles, Knowledge, approvals, work items, configuration, or other
 harness files remain governed by their role-specific mechanisms.
 
 ## Authority depends on claim type
@@ -97,12 +98,13 @@ Knowledge is the one-file entry model (the v1 claim registry retired 2026-08-03;
   not independently provider- or signature-verified; team-wide rollout remains blocked on that
   authenticity control.
 
-## Handoff boundary
+## Work-item boundary
 
-Each governed item has a per-record directory containing machine state, narrative design, immutable
-evidence references, and handoffs. Approval binds to scope/design hashes. Every mutation requires an
-expected revision. Handoff consumption validates the target role, record revision, hashes, evidence,
-and repository lineage. A new chat must resume from `recordId` and `handoffId` alone.
+Each work item has one directory, `work-items/<id>-<slug>/`: `design.md` carries the intent and
+scope, `tasks.md` the execution plan, `decisions.md` the append-only log of deviations. Those
+files are the state: durability comes from the repository, the commit, and the pull request where
+a human reviews all three next to the metadata they govern. A new chat resumes from those files
+and the ADO work item, never from chat scrollback.
 
 ## Acceptance gates
 
@@ -112,6 +114,6 @@ and repository lineage. A new chat must resume from `recordId` and `handoffId` a
 - No incomplete/mismatched org review or source/org drift yields `SAFE`.
 - Direct CLI, default org, and production remain blocked; composed read-only SOQL executes
   only through the identity-gated facade, verbatim over its REST transport.
-- Deterministic fresh-chat handoff and negative false-safe fixtures must pass locally and in CI.
+- Deterministic fresh-chat resumption and negative false-safe fixtures must pass locally and in CI.
   No cross-model behavior matrix is currently certified; model/host scenarios remain a pilot gate
   until each explicit model and version is executed and its evidence recorded.

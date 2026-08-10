@@ -48,26 +48,16 @@ receipts, removes credentials/identity details/raw sensitive values, and returns
 Raw `list_all_orgs`, raw `run_soql_query`, aliases, directories, Tooling flags, CLI commands,
 and vendor payloads are not exposed to an agent.
 
-## Solution Design runtime
+MCP and CLI agreement is transport corroboration from the same org, not independent truth.
 
-Knowledge-only because the human-bound approval surface this runtime depends on is native VS Code
-MCP elicitation, which the CLI host does not provide.
-
-Model-facing tools — exactly four: `design_open`, `design_record`, `design_check`,
-
-The request tools carry **no** answer, approval, decision or status field. They initiate an
-elicitation; the client response selects the internal operation. The internal operations —
-`record-human-input`, `confirm-candidate`, `request-candidate-revision`, `transfer-case-writer` —
-and the validator rejects it.
-
-The Node wrapper never computes a `caseVersion` or a `candidateDigest`: the Python core is the
-closure authority and gate semantics. MCP/CLI agreement is transport corroboration from
-the same org, not independent truth.
+Design work has no MCP runtime and no machine state: it is the `solution-design` prompt and
+skill writing prose into `work-items/<id>-<slug>/design.md`, reviewed by a human on the pull
+request.
 
 Policy (owner decision 2026-07-30, widened 2026-08-04): composed read-only SOQL is permitted —
 and recommended whenever a task depends on record data structure — through the governed facade's
-`review_soql_query` tool only, for the Solution Designer, Knowledge Curator, Development
-Assistant, and Config Investigator roles. The 2026-08-04 decision removed the statement
+`review_soql_query` tool only, for the designer, knowledge-curator, developer, and
+config-investigator roles. The 2026-08-04 decision removed the statement
 blockade entirely: no grammar validation, no secret-adjacent object deny-set, no LIMIT
 policing, no value redaction. The statement executes verbatim over the facade's REST transport
 child — never the CLI — against the identity-proven non-production org, and rows return
