@@ -451,6 +451,21 @@ def check_customizations(audit: Audit, root: Path = ROOT) -> None:
     audit.require("salesforce-development/*" not in reviewer_tools, "reviewer must not mutate Salesforce")
     reviewer_hooks = agents.get("reviewer", {}).get("hooks", {})
     audit.require("--role reviewer" in json.dumps(reviewer_hooks, default=str), "reviewer role guard is required")
+    # Owner decision 2026-08-11: reviewer.agent.md is the single source of the review lane's
+    # tool grants. A prompt-level `tools` key overrides the agent's list, and the override had
+    # silently removed `knowledge/*` while the skill (and §7 Set A) require `knowledge_context`.
+    # The prompt must inherit, so a future grant is reviewed in exactly one place.
+    review_prompt, _ = frontmatter(ROOT / ".github/prompts/check-against-principles.prompt.md", audit)
+    audit.require(
+        "tools" not in review_prompt,
+        ".github/prompts/check-against-principles.prompt.md must not declare `tools`: the review "
+        "lane inherits reviewer.agent.md, which is the single source of its grants",
+    )
+    audit.require(
+        "knowledge/*" in reviewer_tools,
+        "reviewer needs `knowledge/*`: the check-against-principles skill runs `knowledge_context` "
+        "as its step-1 lookup (§7 Set A)",
+    )
 
     prompt_names: list[str] = []
     for path in prompt_paths:

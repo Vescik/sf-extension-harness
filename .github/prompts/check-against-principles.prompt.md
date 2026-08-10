@@ -3,7 +3,6 @@ name: check-against-principles
 description: Ad-hoc read-only review of a persisted design or implementation against every applicable scoped Principle and its evidence.
 argument-hint: "itemId=<ID> [scope=design|implementation]"
 agent: reviewer
-tools: ['read', 'search', 'execute/runInTerminal', 'vscode/askQuestions', 'ado-readonly/*', 'salesforce-readonly/review_org_identity', 'salesforce-readonly/review_installed_packages', 'salesforce-readonly/review_object_contract']
 ---
 
 Use the [check-against-principles skill](../skills/check-against-principles/SKILL.md).
