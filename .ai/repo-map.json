@@ -519,7 +519,7 @@
     ".github/prompts/tune-test-case-keywords.prompt.md": "sha256:d11c3e84e713b5ff69ea4e6b9d019d1ce0a6ad04a4ddf774fbdf2e48cf4de32e",
     ".github/skills/adhoc-fix/SKILL.md": "sha256:f21277c4d274b06ca1cba5ce99eaf0ee58ae47413e8d798d517b2aa69ce578e2",
     ".github/skills/approve-knowledge-drafts/SKILL.md": "sha256:62c19d16c522bf0dd79ba9baca40838a9636079c8d8ae92b0df9488842506090",
-    ".github/skills/author-feature/SKILL.md": "sha256:dc6e9504e9fd79f1f547b6ef7aebf812fdbf396aed716cecf9aefe1b4116bc1b",
+    ".github/skills/author-feature/SKILL.md": "sha256:e400537f96aebfd103895831dddb3267490c9c7827838fca7972f9f27ccef63d",
     ".github/skills/check-against-principles/SKILL.md": "sha256:7762886a0f6db266b39ef2beb7e63eb2704a78fc8cf0ba7cc6dfef7785089d5c",
     ".github/skills/check-feature-coverage/SKILL.md": "sha256:e9397e6e5379fc13604cbab4b94c351c8e9169c4ba881479cd3c71c4774b1561",
     ".github/skills/development/SKILL.md": "sha256:40c2fb8d364e8983f8af535f05d3268c242c508aeca89a66303a454607b0ae99",

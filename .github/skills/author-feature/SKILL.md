@@ -62,6 +62,14 @@ Core three are mandatory and gate approval: `Purpose and boundary`, `Domain and 
 model`, `Evidence map`. The rest render only when the Feature has real content for them —
 an explicit reviewed "Not applicable" is content; silence is not completeness.
 
+Write a paragraph, not a page: when a section grows past ~10–15 sentences, that is the
+signal that part of it should be a separate claim (`FC-`) with its own `assurance`, not
+sprawling prose — the structure for that detail already exists, use it. And write to be
+found: `feature-search` scans the full body prose as its haystack, so the terms a person
+would actually search for (the business phrase, the object name, the error message
+wording) belong in these sections — a section that never names its subject makes the
+whole Feature invisible to a text query.
+
 ## Consumers
 
 `feature-search` and `feature-context` serve discovery and architecture reads (never
