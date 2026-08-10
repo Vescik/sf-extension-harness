@@ -137,7 +137,7 @@
   "directories": [
     {
       "path": ".ai",
-      "purpose": "Governed agent state: contracts, knowledge, work records, memory, QA"
+      "purpose": "Governed agent state: contracts, knowledge, memory, QA"
     },
     {
       "path": ".ai/contracts",
@@ -548,7 +548,7 @@
     ".github/skills/solution-design/SKILL.md": "sha256:70f458b98d736a2d8ee427081e6f4b76d4b123a7f04102fb58d1d91df3e0b491",
     ".github/skills/sync-test-cases/SKILL.md": "sha256:86b1af1a8415d07f548e7160a565933be7dfede396e55341345fe76ffccfe529",
     ".github/skills/tune-test-case-keywords/SKILL.md": "sha256:bf9e6961b03bf3ff00903dcef31c9ccb4ac41cb974bc32e20f4d1e10ae1e3fce",
-    "config/repo-map-seed.json": "sha256:f3af73b3080c66802abb0483b79851cfd0c1ed708989f2810bea9f4b2898d09c"
+    "config/repo-map-seed.json": "sha256:0c7a75c779f76e15890c300ee50b395be888ba788f2fffe94769577703424b9b"
   },
-  "wordCount": 793
+  "wordCount": 791
 }
