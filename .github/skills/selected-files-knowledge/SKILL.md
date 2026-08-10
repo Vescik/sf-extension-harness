@@ -70,10 +70,12 @@ Per component:
 3. Hand every described draft to `/approve-drafts-knowledge` as **one** chunk. Never approve
    from this skill.
 
-## 5 — Org sampling (default follow-up)
+## 5 — Org sampling (considered follow-up)
 
-For CustomObject and CustomField entries the entry-lane org-sampling step of
-[investigate-object](../investigate-object/SKILL.md) applies unchanged and by default: when
+For CustomObject and CustomField entries, consider the entry-lane org-sampling step of
+[investigate-object](../investigate-object/SKILL.md) — the same rule as after describe
+there: attach when fill rate or real data shape matters for what the entry is for;
+skipping is fine, forgetting should not be. Mechanics unchanged: when
 `python scripts/preflight.py --capability salesforce-review` passes and the entry's org lane
 is not `org-fresh`, compose the probes-file and run
 `python scripts/knowledge_store.py entry-org-attach --identity <id> --org <alias>
