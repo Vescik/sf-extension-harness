@@ -29,8 +29,9 @@ metadata type, namespace, lifecycle state.
    **Primary surface — the `knowledge` MCP tools**: `knowledge_context`, `knowledge_search`,
    `knowledge_impact`, `knowledge_resolve` (bare name or file path → identity),
    `knowledge_entry_status` (the citable receipt), plus the deep-dive set
-   (`knowledge_explain`, `knowledge_tree`, `knowledge_feature_drift`,
-   `knowledge_feature_dossier`, `knowledge_edge_health`, `knowledge_capabilities`). They
+   (`knowledge_explain`, `knowledge_edge_health`, `knowledge_capabilities`) and the
+   Feature reads (`knowledge_feature_search`, `knowledge_feature_context`,
+   `knowledge_feature_status`). They
    expose exactly the commands below with the same JSON envelopes, so every reading rule in
    this skill applies verbatim to the tool results. The terminal menu below is the
    **operator fallback** for sessions where the MCP server is unavailable (its startup
@@ -85,21 +86,12 @@ metadata type, namespace, lifecycle state.
      regex-derived, so the default source-exact filter returns no chain at all. Every hop carries
      its own `assurance` and the path carries `minAssurance` — report the chain as inferred, never
      as declared.
-   - **"what is in this feature right now?"** —
-     `python scripts/knowledge_search.py tree --feature <slug> [--include-heuristic]
-     [--direction incoming|outgoing]`. Membership is recomputed from the approved boundary rule,
-     never approved itself, so the member list is advisory. Read `truncated` and `limitsHit`
-     before quoting a count, and `direction`: only the default incoming walk defines the approved
-     membership digest.
-   - **"what moved in this feature since approval?"** —
-     `python scripts/knowledge_search.py feature-drift --feature <slug>`. `changed: "unknown"`
-     means no baseline is available on this machine — that is not "nothing changed". `added` /
-     `removed` of `null` means the detail is unavailable, never "nothing was added", and
-     `truncated` / `changedWithinTruncatedPrefix` scope what the answer covers.
-   - **"give me the human-readable feature write-up"** —
-     `python scripts/knowledge_search.py feature-dossier --feature <slug> [--include-heuristic]`
-     renders the dossier from the approved rule. The file is a generated view: it is never
-     Knowledge and never citable.
+   - **Feature reads** — discovery and architecture, never citable:
+     `python scripts/knowledge_store.py feature-search [--text ...]` (call with no filters to
+     list every approved feature and its slug), `feature-context --slug <slug>` (the approved
+     architecture in one read, with per-binding health), `feature-status [--slug <slug>]`
+     (lanes). Citations come only from `feature-verify-citations`
+     ([author-feature](../author-feature/SKILL.md) documents the authoring loop).
    - `python scripts/knowledge_search.py capabilities` lists the relation kinds, which of them are
      heuristic, the two directions and the per-command depth limits — do not guess them.
    - pasted error message: `search --mode intentional-flow-error --text "<exact message>"` —
