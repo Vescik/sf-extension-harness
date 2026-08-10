@@ -988,10 +988,18 @@ def all_entry_paths(include_case_twins: bool = False) -> list[Path]:
 
 
 def collector_component(metadata_type: str, full_name: str) -> dict[str, Any]:
-    from scripts.force_app_knowledge import ForceAppKnowledge
+    from scripts.force_app_knowledge import ForceAppKnowledge, KnowledgeBuildError
 
     builder = ForceAppKnowledge(ROOT)
-    inventory = builder.inventory()
+    # Reuse the cached inventory when it is fresh (plan 2026-08-09 §3c.4): a drafting wave
+    # of N entries used to pay N full rescans (walk + digest + XML parse + schema-validate
+    # + cache write). Same freshness check resolve() uses; any miss falls back to a rebuild.
+    try:
+        inventory = builder.load_inventory()
+        if inventory["sourceTreeDigest"] != builder.current_tree_digest():
+            inventory = builder.inventory()
+    except (KnowledgeBuildError, OSError, ValueError, KeyError):
+        inventory = builder.inventory()
     wanted = f"{metadata_type}:{full_name}"
     for component in inventory.get("components", []):
         if component.get("id") == wanted:
