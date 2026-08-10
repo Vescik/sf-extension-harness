@@ -11,12 +11,15 @@ Apply the [shared execution contract](../../../.ai/contracts/execution-contract.
 
 ## Inputs and gate
 
-- Positive `itemId` plus a schema-valid `recordId` whose human approval matches the current scope
-  and design hashes.
-- Named `brain-core` workspace root, which is also the SFDX root; optional manifest path defaults
-  from local config.
+- Positive `itemId`. When the work item has a design (`work-items/<itemId>-<slug>/design.md`
+  — today's approved-scope surface, replacing the retired work-record `recordId`), read it
+  and confirm the documented change matches it; without one, this is standalone
+  documentation of existing state — a valid lane, named as such in the output.
+- The workspace root (labeled `brain-core` in VS Code — a workspace label, not the
+  repository name), which is also the SFDX root; optional manifest path defaults from
+  local config.
 
-Require `brain-core` to be the only SFDX root and contain root `sfdx-project.json`. Parse the manifest safely, reject malformed
+Require the workspace root to be the only SFDX root and contain root `sfdx-project.json`. Parse the manifest safely, reject malformed
 XML/path traversal, show detected components, and require confirmation when the scope is unusually
 large or heterogeneous. Do not infer which manifest members belong to the work item.
 
@@ -54,7 +57,8 @@ large or heterogeneous. Do not infer which manifest members belong to the work i
 6. Ask the human for non-metadata deployment steps with `vscode/askQuestions`; record explicit
    `None` when confirmed. Never infer activation/data-fix steps from absence in the manifest.
 7. Fill every section of the technical-documentation template and common output envelope,
-   including `recordId` plus rule/entry references and any drifted/expired premise.
+   including the work-item/design reference (when one exists) plus rule/entry references
+   and any drifted premise, carried as a visible caveat.
 8. Write a collision-safe draft under `output/documentation/<itemId>.md`; never overwrite an
    accepted/reviewed artifact without confirmation.
 
@@ -76,7 +80,7 @@ what would make it groundable — never retry with a different ref shape.
 
 ## Return
 
-Return `recordId`, draft path, component counts, missing/ambiguous components, source
-freshness/completeness, manual-step status, suggested-test status, checks performed, work-record
-artifact reference, and publication next step. ADO wiki
+Return the `itemId` and design reference (when one exists), draft path, component counts,
+missing/ambiguous components, source freshness/completeness, manual-step status,
+suggested-test status, checks performed, and publication next step. ADO wiki
 publication remains human-controlled.

@@ -284,7 +284,7 @@
     },
     {
       "agent": "developer",
-      "argumentHint": "recordId=<ID> itemId=<ID> [manifestPath=<path>]",
+      "argumentHint": "itemId=<ID> [manifestPath=<path>]",
       "description": "Generate reviewed technical documentation for one accepted metadata change.",
       "name": "document-metadata-change",
       "path": ".github/prompts/document-metadata-change.prompt.md"
@@ -513,7 +513,7 @@
     ".github/prompts/author-feature.prompt.md": "sha256:53131bf0cfa7ed19d149ab04c34ac3098628e8f480b5e055f74712bdd7bbc59f",
     ".github/prompts/check-against-principles.prompt.md": "sha256:dd59b6193a2b873a5c9136d2c7397f59da28166c0b64fd255a763ec77fbda4f0",
     ".github/prompts/curate-knowledge.prompt.md": "sha256:818076a6aefcff40a5620d74b946ebe72d3def5f0ae52302768346b870132fed",
-    ".github/prompts/document-metadata-change.prompt.md": "sha256:48b9d6ace13d1db28af7e5cfe0b95f05259f7379c79c913b0c4b8e463f9c3830",
+    ".github/prompts/document-metadata-change.prompt.md": "sha256:e559008d042570519882d993efec0686767bb85409b56c9368c1540884d910b4",
     ".github/prompts/feature-health.prompt.md": "sha256:28647ddc5360e88de2db6f75dd4673dcf66237c5a4469ce0956f4d1a8635ea0b",
     ".github/prompts/fetch-ado-item.prompt.md": "sha256:fee6fbaca7f2ab87a0213698828fc9c625caf9e3f0ce2b56c28b1bf99cea7198",
     ".github/prompts/inventory-force-app.prompt.md": "sha256:c05375553329e51fc8781cd6190dc9884dad668055d6ec7321b7a6b11d602b04",
@@ -536,7 +536,7 @@
     ".github/skills/fetch-ado-item/SKILL.md": "sha256:02ad5d68ff86e39c27e6acd29058b617483c0b7d07cd69b007acbae2e88104c8",
     ".github/skills/fetch-test-case/SKILL.md": "sha256:56fc8adf313c98b5588890dd03eda7489673ee497c2b69efe5ccc1e4bdf2539e",
     ".github/skills/generate-release-handover/SKILL.md": "sha256:41eb1433b621bd01fe7975a23e6e2cc558abcb094e68839521eb74534bb3aa91",
-    ".github/skills/generate-technical-documentation/SKILL.md": "sha256:07d9967a9ba4f8df0be909c6ac45e658715e41d6b23c19c467ebd4274436cb2f",
+    ".github/skills/generate-technical-documentation/SKILL.md": "sha256:3c5e28f356c22b5d7b921cbf72a0ac4244b9859d93b019eb8902e91948fc88c9",
     ".github/skills/git-workflow/SKILL.md": "sha256:8f32f7e2658d4aa90763e09995c4a311416ad51efadf907238145f0655ebe4f6",
     ".github/skills/inventory-force-app/SKILL.md": "sha256:516ea22ac3cd2cdb8a5b470c0ab36fe137da0576fc3042c8b9434a5ae47d8454",
     ".github/skills/investigate-config-records/SKILL.md": "sha256:4aa9243b64a688a965fd5e0089d63342596b7fa2cc441bf05ab3a4827a2de15f",
