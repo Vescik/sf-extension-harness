@@ -79,5 +79,6 @@ non-production, human-owned environment/process values and the package/component
 Empty Knowledge produces explicit unknowns, not fabricated package facts.
 
 `manifest/package.xml` is a generic starter manifest, not an approved deployment scope. Before an
-org-facing retrieve, validation, or deployment, a human-accepted work record must narrow and bind
-the manifest to the intended components; wildcard presence is never authorization.
+org-facing retrieve, validation, or deployment, a human must narrow and bind the manifest to the
+components the approved design (`work-items/<id>-<slug>/design.md`) names; wildcard presence is
+never authorization.
