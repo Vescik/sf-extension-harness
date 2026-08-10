@@ -13,9 +13,11 @@ Apply the [shared execution contract](../../../.ai/contracts/execution-contract.
 
 - Positive `itemId`. When the work item has a design (`work-items/<itemId>-<slug>/design.md`
   — the approved-scope surface), read it and confirm the documented change matches it;
-  read `decisions.md` alongside it when present, because an approved deviation there
-  supersedes the design's original wording. Without a design, this is standalone
-  documentation of existing state — a valid lane, named as such in the output.
+  read `decisions.md` alongside it when present. Treat that file as the append-only record
+  of implementation deviations and rulings, not as proof of human approval. Apply the latest
+  recorded deviation when describing implemented state; unless current pull-request evidence
+  establishes review, report its review status as unverified. Without a design, this is
+  standalone documentation of existing state — a valid lane, named as such in the output.
 - The workspace root (labeled `brain-core` in VS Code — a workspace label, not the
   repository name), which is also the SFDX root; optional manifest path defaults from
   local config.
@@ -51,12 +53,15 @@ large or heterogeneous. Do not infer which manifest members belong to the work i
    a generated view are never themselves citable. An empty result from either layer is a recorded
    gap and is never proof that nothing depends on the component. Use Config Investigator only for
    a material unknown; Knowledge writes are a separate approval.
-5. Project the verification plan: read the verification plan written in
-   `work-items/<itemId>-<slug>/design.md` (with any approved deviation from
-   `decisions.md`) and render it into section 9, together with the ADO Test Cases it
-   formally references. Never rank or suggest Test Cases; when the work item has no design,
-   say so, mark the document as standalone documentation of existing state, and list only
-   formally linked cases from the synced inventory — never fabricate a verification plan.
+5. Project the verification plan from `work-items/<itemId>-<slug>/design.md`, reconciled
+   with recorded deviations in `decisions.md`, and render it into section 9 together with
+   the ADO Test Cases it formally references. Do not call a deviation approved unless
+   current pull-request evidence establishes that status. Never rank or suggest Test Cases.
+   When the work item has no design, say so, mark the document as standalone documentation
+   of existing state, and list only formally linked cases from the synced inventory. When a
+   design exists but contains no complete verification plan, mark section 9
+   `MISSING — design verification plan unavailable`, list only formally linked Test Cases,
+   and report the gap. Never infer assertions, pass criteria, evidence, or execution stages.
 6. Ask the human for non-metadata deployment steps with `vscode/askQuestions`; record explicit
    `None` when confirmed. Never infer activation/data-fix steps from absence in the manifest.
 7. Fill every section of the technical-documentation template and common output envelope,

@@ -495,9 +495,9 @@
     }
   ],
   "sourceDigests": {
-    ".ai/contracts/execution-contract.md": "sha256:869f429b94792f8171c412a415512ab34aecad13579e8e3ab93aa26d331c4d4c",
+    ".ai/contracts/execution-contract.md": "sha256:c0a884f1d7863ee4d4517d91288b21baaa43401f38faf3eab0cfbfe790c25caf",
     ".ai/contracts/source-authority.md": "sha256:21f45190131347752c36ced221855635b5a60126c11c67fe29b564de446d1af3",
-    ".ai/contracts/tool-capabilities.md": "sha256:dc8da49f79135b78c68cc71ba4a97acbd7587714bee7b5e5444d29696de047fa",
+    ".ai/contracts/tool-capabilities.md": "sha256:45f774b5a107b80ff20b1cf6da65fec54a40c7051dab2dbc531365f65ffbf97c",
     ".github/agents/config-investigator.agent.md": "sha256:8b73e53fc5d13f4516caa1991cab385da273942647029cb88ee570e8ee554358",
     ".github/agents/designer.agent.md": "sha256:2a277c6fbfed24cec8320a03bb3d0c2fde837b24347c79e6504c569ea41ce203",
     ".github/agents/developer.agent.md": "sha256:4b6ccbd760b39e79adb668cf166397af70a6a3c9f174bdf03fb480a97123df6f",
@@ -536,7 +536,7 @@
     ".github/skills/fetch-ado-item/SKILL.md": "sha256:02ad5d68ff86e39c27e6acd29058b617483c0b7d07cd69b007acbae2e88104c8",
     ".github/skills/fetch-test-case/SKILL.md": "sha256:56fc8adf313c98b5588890dd03eda7489673ee497c2b69efe5ccc1e4bdf2539e",
     ".github/skills/generate-release-handover/SKILL.md": "sha256:41eb1433b621bd01fe7975a23e6e2cc558abcb094e68839521eb74534bb3aa91",
-    ".github/skills/generate-technical-documentation/SKILL.md": "sha256:7a4a92f4ee08009550718b64aee49b96b75f636c17ab38c9145ca6696bc6504a",
+    ".github/skills/generate-technical-documentation/SKILL.md": "sha256:0136057a9747ad2dac5cb29a93b6b01dbffc51edfb096941a009bbae2a0a45f1",
     ".github/skills/git-workflow/SKILL.md": "sha256:8f32f7e2658d4aa90763e09995c4a311416ad51efadf907238145f0655ebe4f6",
     ".github/skills/inventory-force-app/SKILL.md": "sha256:516ea22ac3cd2cdb8a5b470c0ab36fe137da0576fc3042c8b9434a5ae47d8454",
     ".github/skills/investigate-config-records/SKILL.md": "sha256:4aa9243b64a688a965fd5e0089d63342596b7fa2cc441bf05ab3a4827a2de15f",
