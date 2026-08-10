@@ -1239,3 +1239,33 @@ for clarification: the corrupted "…-investigator → org-discovery" reference.
 
 Full gate after the series: 1065 unit tests OK, 43 safety evals PASS, validate_harness
 coherent.
+
+## 2026-08-10 — Knowledge plan 4/4 executed: agents, peripheral prompts, one-source convention
+
+Plan 4/4 (7 commits 784085b..e4202e2): test-strategist inherits the retrieval rules by
+pointer (the validator's Set A pins kept the lookup-command and hydrated-rule sentences
+inline — a named deviation from the plan's exact diff); knowledge-curator consolidated
+into one skill (.github/skills/curate-knowledge/SKILL.md) with a thin agent and thin
+prompt — this is also the home of the 2.2d describe guidance (four dimensions +
+worked example), which unblocks and closes Plan 1's deferred 2.2d; the worked example
+is labeled ILLUSTRATIVE because this mirror holds zero approved entries — swap in a
+real Purpose when one exists. document-metadata-change runs again: the dead recordId
+gate is replaced by work-items/<id>/design.md in both the prompt and the
+generate-technical-documentation skill (first executed instance of the broadened
+recordId audit); 'brain-core' explained as a workspace label. Org-attach wording
+standardized on 'consider' (the owner-approved 2.2f rationale) in
+selected-files-knowledge. docs/design-guides.md created in its planned CONTENT-TODO §3
+shape with the 'one source per procedure' convention as its first section. Pins moved:
+skills 21 -> 22 in BOTH validate_harness EXPECTED_COUNTS and tests/test_repo_map.py.
+
+F.5 (BM25F golden set) deferred per the plan: shape/runner can come with the owner
+session that authors the 5-10 query/expected pairs from whatever approved corpus exists
+then; the file follows the same privacy rule as other client-domain content (private
+working repo, public mirror gets at most template + runner). F.1 and pin-knowledge's
+knowledge/* were already done in the Plan 3 session.
+
+Gate: full suite post-P4 showed exactly two non-green results — the repo-map count pin
+(fixed, e4202e2) and test_salesforce_review refresh-rebind, which fails identically on
+a clean origin/main worktree under the machine's external load (~18 loadavg), proving
+it environmental, not a regression; it was green in the post-P3 full gate on the same
+tree. 43 safety evals PASS; validate_harness coherent.
