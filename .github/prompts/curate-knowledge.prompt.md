@@ -3,7 +3,7 @@ name: curate-knowledge
 description: Knowledge maintenance session - entry coverage, drafting, description, drift and feature boundaries, with human-approved promotion.
 argument-hint: "health | entries | build <MetadataType> | describe | drafts | drift | feature <slug>"
 agent: knowledge-curator
-tools: ['read', 'search', 'edit/editFiles', 'execute/runInTerminal']
+tools: ['read', 'search', 'edit/editFiles', 'execute/runInTerminal', 'knowledge/*']
 ---
 
 Use the [search-knowledge skill](../skills/search-knowledge/SKILL.md) for drill-downs.
