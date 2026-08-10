@@ -1397,6 +1397,91 @@ class ProfileSchemaCoverageTests(unittest.TestCase):
                 self.assertEqual([], problems, f"{metadata_type}: {problems}")
 
 
+class FeatureBindingResolverTests(KnowledgeStoreTests):
+    """Plan 2026-08-09 §F.4: approved-drifted binds too (same rule as retrieval §3.1);
+    draft and revoked never do. binding_state's digest comparison — not the resolver —
+    is what downgrades stale citations."""
+
+    def drift_source(self) -> None:
+        flow = self.temp / "force-app/main/default/flows/HarnessAlphaRouter.flow-meta.xml"
+        flow.write_text(
+            FLOW_XML.replace("Update</recordTriggerType>", "Create</recordTriggerType>"),
+            encoding="utf-8",
+        )
+
+    def test_resolver_accepts_an_approved_drifted_entry(self) -> None:
+        drafted = self.draft()
+        self.approve([f"{drafted['identity']}:{drafted['reviewedContentDigest']}"])
+        self.drift_source()
+        self.assertEqual("approved-drifted", self.lane_of(drafted["identity"])["lane"])
+        receipt = store._feature_binding_resolver(drafted["identity"])
+        self.assertEqual(drafted["reviewedContentDigest"], receipt["reviewedContentDigest"])
+
+    def test_resolver_still_rejects_draft_and_revoked(self) -> None:
+        drafted = self.draft()
+        with self.assertRaises(store.StoreError) as ctx:
+            store._feature_binding_resolver(drafted["identity"])
+        self.assertIn("draft", str(ctx.exception))
+        self.approve([f"{drafted['identity']}:{drafted['reviewedContentDigest']}"])
+        store.command_entry_revoke(
+            argparse.Namespace(identity=drafted["identity"], rationale="mis-approved")
+        )
+        with self.assertRaises(store.StoreError):
+            store._feature_binding_resolver(drafted["identity"])
+
+    def test_binding_health_reports_drifted_not_unknown(self) -> None:
+        # The confirmed bonus from the plan: feature-context's binding_health used to
+        # collapse to "unknown" (resolver StoreError swallowed) for drifted bindings;
+        # with the resolver accepting approved-drifted it must now say "drifted".
+        drafted = self.draft()
+        self.approve([f"{drafted['identity']}:{drafted['reviewedContentDigest']}"])
+        store.command_feature_open(
+            argparse.Namespace(slug="binding-health", name="Binding Health")
+        )
+        ops = self.temp / "binding-health-ops.json"
+        ops.write_text(
+            json.dumps(
+                {
+                    "operations": [
+                        {"kind": "binding", "op": "bind", "data": {"entryId": drafted["identity"]}},
+                        {"kind": "section", "op": "replace",
+                         "data": {"name": "Purpose and boundary", "text": "Routes."}},
+                        {"kind": "section", "op": "replace",
+                         "data": {"name": "Domain and data model", "text": "Flow."}},
+                        {"kind": "section", "op": "replace",
+                         "data": {"name": "Evidence map", "text": "FB-001."}},
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        store.command_feature_record(
+            argparse.Namespace(slug="binding-health", expected_version=0, operations_file=str(ops))
+        )
+        review = store.command_feature_review(argparse.Namespace(slug=["binding-health"]))
+        pin = review["approveCommand"].split('--feature "')[1].rstrip('"')
+        store.command_feature_approve(argparse.Namespace(feature=[pin]))
+        # Source drift alone: the entry is approved-drifted, but the citation still matches
+        # what was approved — before this fix the resolver's StoreError collapsed this to
+        # "unknown"; now it is an honest "current". (The plan's bonus predicted "drifted"
+        # here — imprecise: binding_state compares APPROVAL digests, and those move only
+        # on re-approval, not on source drift. Reported as a deviation.)
+        self.drift_source()
+        context = store.command_feature_context(argparse.Namespace(slug="binding-health"))
+        self.assertEqual({"FB-001": "current"}, context["bindingHealth"])
+        # Re-approve the entry with different content: now the stored binding digest no
+        # longer matches the live approval, and health must say "drifted", not "unknown".
+        purpose = self.temp / "new-purpose.md"
+        purpose.write_text("Routes alpha cases to the correct queue on create.", encoding="utf-8")
+        store.command_entry_describe(
+            argparse.Namespace(identity=drafted["identity"], purpose_file=str(purpose))
+        )
+        rereview = store.command_entry_review(argparse.Namespace(identity=[drafted["identity"]]))
+        self.approve([pin.strip() for pin in rereview["approveCommand"].split("--entry ")[1:]])
+        context = store.command_feature_context(argparse.Namespace(slug="binding-health"))
+        self.assertEqual({"FB-001": "drifted"}, context["bindingHealth"])
+
+
 class PackageExtensionPointTests(KnowledgeStoreTests):
     """packageExtensionPoint (plan 2026-08-09, Problem 4): a conscious, human-approved
     classification in the envelope — digest-included like sensitivity, unlike orgUsage."""

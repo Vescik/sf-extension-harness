@@ -501,7 +501,7 @@ def apply_operations(
                 applied.append(f"unbind {data['id']}")
                 continue
             entry_id = data.get("entryId") or ""
-            receipt = binding_resolver(entry_id)  # raises unless approved-current
+            receipt = binding_resolver(entry_id)  # raises unless approved (current or drifted)
             binding = {
                 "id": allocate_id(fm, "FB"),
                 "entryId": entry_id,

@@ -3041,9 +3041,12 @@ def _fk():
 
 
 def _feature_binding_resolver(entry_id: str) -> dict[str, Any]:
-    """A live receipt for an artifact binding — approved-current or refused. Bindings are
-    created only from the store's own lane computation, never assembled from search hits
-    or caller-pasted digests (master plan §9.3)."""
+    """A live receipt for an artifact binding — approved (current or drifted) or refused.
+    Bindings are created only from the store's own lane computation, never assembled from
+    search hits or caller-pasted digests (master plan §9.3). approved-drifted binds too
+    (plan 2026-08-09 §F.4, same rule as retrieval §3.1): source drift is a visible caveat,
+    not a block — binding_state's digest comparison downgrades stale citations on its own.
+    draft, revoked and not-effective never bind."""
     parts = (entry_id or "").split(":", 2)
     if len(parts) != 3:
         raise StoreError(f"binding target {entry_id!r} is not an Artifact identity")
@@ -3053,9 +3056,10 @@ def _feature_binding_resolver(entry_id: str) -> dict[str, Any]:
     if not path.is_file():
         raise StoreError(f"binding target {entry_id} has no Knowledge Entry")
     lane = compute_lane(path, ledger_latest(read_ledger()))
-    if lane.get("lane") != "approved-current":
+    if lane.get("lane") not in ("approved-current", "approved-drifted"):
         raise StoreError(
-            f"binding target {entry_id} is {lane.get('lane')}; only approved-current entries bind"
+            f"binding target {entry_id} is {lane.get('lane')}; only approved entries bind "
+            "(approved-current or approved-drifted — draft and revoked never do)"
         )
     return {
         "reviewedContentDigest": lane["reviewedContentDigest"],

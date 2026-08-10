@@ -33,7 +33,9 @@ ignored proposal file, applied by the executor.
    The file is `{"operations": [{"kind", "op", "data"}...]}` (≤40 per batch). Kinds:
    `node` (set/remove), `relation` (set/remove), `claim` (set/withdraw), `binding`
    (bind/unbind — you give an entry identity, the EXECUTOR reads the live entry and pins
-   the digests; approved-current is required and a pasted receipt is never accepted),
+   the digests; an approved entry is required — `approved-drifted` binds too, drift is a
+   visible caveat and the citation verdict downgrades on its own; draft and revoked never
+   bind, and a pasted receipt is never accepted),
    `section` (replace one narrative section), `meta` (set name/entryPoints/limitations/
    keywords/sensitivity, add-question, resolve-question). Keywords come from the approved
    taxonomy, exactly like artifact entries.
