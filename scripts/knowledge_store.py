@@ -351,6 +351,43 @@ PROFILES = {
     },
 }
 
+# Versioned schema resolution (plan 2026-08-09 §2.1). Two structures with two different
+# keys, deliberately not one:
+#
+# - PROFILES above is the CURRENT-profile-for-type map, keyed by metadataType. It is
+#   consulted only when a NEW entry is drafted (`entry-draft` asks "which profile does a
+#   new draft of this type use today"). A schema consolidation repoints a type here.
+# - SCHEMA_REGISTRY below resolves validation, keyed by (profile id, version) — the pair
+#   every entry already records in its frontmatter. Metadata types are not 1:1 with
+#   profile ids (ApexClass and ApexTrigger share `salesforce.apex`), so the two keys are
+#   not interchangeable.
+#
+# The registry key is (id, MAJOR), not the full version: the approval digest already binds
+# `profileMajor` only (reviewed_content_digest), and a patch/minor bump is pinned as
+# non-material (test r23) — so schema identity, like approval identity, lives at the major.
+#
+# The registry is append-only. When a consolidation repoints a type in PROFILES to a new
+# profile major, add the retired (id, major) -> schema row to RETIRED_SCHEMA_VERSIONS and
+# keep the old schema file on disk — entries drafted under the old major then keep
+# validating against the exact schema they were drafted with, with no migration and no
+# fallback path.
+RETIRED_SCHEMA_VERSIONS: dict[tuple[str, str], str] = {
+    # (profile id, major) -> schema file. Rows are only ever added, never edited.
+}
+
+
+def profile_major(version: str) -> str:
+    return str(version).split(".", 1)[0]
+
+
+SCHEMA_REGISTRY: dict[tuple[str, str], str] = {
+    **RETIRED_SCHEMA_VERSIONS,
+    **{
+        (profile["id"], profile_major(profile["version"])): profile["schema"]
+        for profile in PROFILES.values()
+    },
+}
+
 # Storage families group the artifacts tree for navigation; a family is never evidence and
 # never creates a graph relation. ApexClass always lives under code/ even when it serves as
 # a UI controller. Lives here next to PROFILES so the one pin test and every future consumer
@@ -711,11 +748,20 @@ def validate_entry(frontmatter: dict[str, Any], body: str) -> list[str]:
     envelope = Draft202012Validator(load_schema("knowledge-entry.schema.json"))
     problems.extend(error.message for error in envelope.iter_errors(frontmatter))
     metadata_type = frontmatter.get("subject", {}).get("metadataType")
-    profile = PROFILES.get(metadata_type or "")
-    if profile is None:
-        problems.append(f"unsupported profile for metadataType {metadata_type!r}")
+    # Resolve the profile schema from the (id, version) the entry itself declares, against
+    # the append-only SCHEMA_REGISTRY — never from the current PROFILES mapping for the
+    # type. A consolidation that repoints PROFILES therefore never re-validates existing
+    # entries against a schema they were not drafted with (plan 2026-08-09 §2.1).
+    declared = frontmatter.get("profile") or {}
+    declared_major = profile_major(declared.get("version") or "")
+    schema_name = SCHEMA_REGISTRY.get((declared.get("id"), declared_major))
+    if schema_name is None:
+        problems.append(
+            "no registered schema for profile "
+            f"{declared.get('id')!r}@{declared_major!r} (metadataType {metadata_type!r})"
+        )
     else:
-        profile_validator = Draft202012Validator(load_schema(profile["schema"]))
+        profile_validator = Draft202012Validator(load_schema(schema_name))
         payload = {
             "typeFacts": frontmatter.get("typeFacts", {}),
             "intentionalErrors": frontmatter.get("intentionalErrors", []),

@@ -1376,6 +1376,60 @@ class ProfileSchemaCoverageTests(unittest.TestCase):
                 self.assertEqual([], problems, f"{metadata_type}: {problems}")
 
 
+class VersionedSchemaResolutionTests(KnowledgeStoreTests):
+    """Validation resolves the profile schema from the (id, version) the entry declares,
+    against the append-only SCHEMA_REGISTRY — never from the current PROFILES row for the
+    type (plan 2026-08-09 §2.1). A consolidation that repoints PROFILES must NOT
+    re-validate existing entries against a schema they were not drafted with."""
+
+    def test_every_current_profile_resolves_through_the_registry(self) -> None:
+        for metadata_type, profile in store.PROFILES.items():
+            with self.subTest(metadataType=metadata_type):
+                self.assertEqual(
+                    profile["schema"],
+                    store.SCHEMA_REGISTRY.get(
+                        (profile["id"], store.profile_major(profile["version"]))
+                    ),
+                )
+
+    def test_existing_entry_survives_a_profiles_repoint_unchanged(self) -> None:
+        drafted = self.draft()
+        frontmatter, body = store.split_entry(
+            (self.temp / drafted["path"]).read_text(encoding="utf-8")
+        )
+        # Simulate a §2.2 consolidation: Flow drafts now use a family profile whose schema
+        # would reject the old typeFacts. The registry keeps the retired (id, version) row;
+        # the entry's frontmatter is not touched.
+        consolidated = {
+            "id": "salesforce.automation-family",
+            "version": "2.0.0",
+            "schema": "knowledge-profile-customfield.schema.json",
+        }
+        with unittest.mock.patch.dict(
+            store.PROFILES, {"Flow": consolidated}
+        ), unittest.mock.patch.dict(
+            store.SCHEMA_REGISTRY,
+            {
+                (consolidated["id"], store.profile_major(consolidated["version"])): (
+                    consolidated["schema"]
+                )
+            },
+        ):
+            self.assertEqual([], store.validate_entry(frontmatter, body))
+
+    def test_unregistered_profile_pair_is_a_named_problem(self) -> None:
+        drafted = self.draft()
+        frontmatter, body = store.split_entry(
+            (self.temp / drafted["path"]).read_text(encoding="utf-8")
+        )
+        frontmatter["profile"]["version"] = "9.9.9"
+        problems = store.validate_entry(frontmatter, body)
+        self.assertTrue(
+            any("no registered schema for profile" in problem for problem in problems),
+            problems,
+        )
+
+
 class AgentDescriptionTests(KnowledgeStoreTests):
     """The description is the one part of an entry a model writes rather than extracts."""
 
