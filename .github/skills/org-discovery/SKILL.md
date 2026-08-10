@@ -23,7 +23,11 @@ question — a one-field question does not need the full sweep.
 4. **`knowledge_context` — per subject.** What the team already knows about the artifact,
    including recorded `limitations` — read them before relying on the artifact, they are
    the accumulated burn marks.
-5. **`review_soql_query` — when the design depends on data shape.** Structure, fill
+5. **`knowledge_impact` (direction: incoming) — before proposing a change to anything
+   others may consume** (CustomMetadata, RecordType, Layout, shared objects): see what
+   already depends on it, computed live from the whole corpus. An empty result is
+   normal — continue discovery regardless.
+6. **`review_soql_query` — when the design depends on data shape.** Structure, fill
    rates, real record shapes: prefer a bounded read over a guess or a blocking question.
    Never paste raw record rows into a design, a knowledge entry, or an ADO artifact —
    derive the counts and shapes you need.
