@@ -291,42 +291,42 @@
     },
     {
       "agent": "test-strategist",
-      "argumentHint": "itemId=<Feature ID> [recordId=<ID>]",
+      "argumentHint": "itemId=<Feature ID>",
       "description": "Run the Feature/BRD-to-Story coverage gate before Solution Design.",
       "name": "feature-health",
       "path": ".github/prompts/feature-health.prompt.md"
     },
     {
       "agent": "designer",
-      "argumentHint": "itemId=<ID> [recordId=<ID>] [mode=single|hierarchy] [childDetail=summary|full] [includeTestCases=true|false]",
+      "argumentHint": "itemId=<ID> [mode=single|hierarchy] [childDetail=summary|full] [includeTestCases=true|false]",
       "description": "Fetch a validated Azure DevOps work item context and begin Solution Design.",
       "name": "fetch-ado-item",
       "path": ".github/prompts/fetch-ado-item.prompt.md"
     },
     {
       "agent": "config-investigator",
-      "argumentHint": "[recordId=<ID>]",
+      "argumentHint": "(no arguments — repository inventory)",
       "description": "Inventory the root force-app as sanitized Knowledge evidence candidates without drafting entries.",
       "name": "inventory-force-app",
       "path": ".github/prompts/inventory-force-app.prompt.md"
     },
     {
       "agent": "config-investigator",
-      "argumentHint": "objectApiName=<API name> [org=<alias>] [fields=<A,B,C>] [recordId=<ID>]",
+      "argumentHint": "objectApiName=<API name> [org=<alias>] [fields=<A,B,C>]",
       "description": "Snapshot the configuration records held in one allowlisted reference-data object (statuses, settings) and report it read-only with a recorded digest.",
       "name": "investigate-config-records",
       "path": ".github/prompts/investigate-config-records.prompt.md"
     },
     {
       "agent": "config-investigator",
-      "argumentHint": "objectApiName=<API name> [recordId=<ID>]",
+      "argumentHint": "objectApiName=<API name>",
       "description": "Collect bounded, sanitized, reconciled evidence for one Salesforce object or component and report it read-only; persist org numbers only via entry-org-attach.",
       "name": "investigate-object",
       "path": ".github/prompts/investigate-object.prompt.md"
     },
     {
       "agent": "config-investigator",
-      "argumentHint": "[files=<path|name,...>] [recordId=<ID>]",
+      "argumentHint": "[files=<path|name,...>]",
       "description": "Turn a small pinned or named selection of force-app files into governed Knowledge — mechanical resolution, a human-approved plan, then per-lane draft/describe/propose with one approval pass.",
       "name": "pin-knowledge",
       "path": ".github/prompts/pin-knowledge.prompt.md"
@@ -514,12 +514,12 @@
     ".github/prompts/check-against-principles.prompt.md": "sha256:1270d798db301f9c0f87f1ba23a152803440f79a0722b693038b472560d4b0fe",
     ".github/prompts/curate-knowledge.prompt.md": "sha256:818076a6aefcff40a5620d74b946ebe72d3def5f0ae52302768346b870132fed",
     ".github/prompts/document-metadata-change.prompt.md": "sha256:e559008d042570519882d993efec0686767bb85409b56c9368c1540884d910b4",
-    ".github/prompts/feature-health.prompt.md": "sha256:28647ddc5360e88de2db6f75dd4673dcf66237c5a4469ce0956f4d1a8635ea0b",
-    ".github/prompts/fetch-ado-item.prompt.md": "sha256:fee6fbaca7f2ab87a0213698828fc9c625caf9e3f0ce2b56c28b1bf99cea7198",
-    ".github/prompts/inventory-force-app.prompt.md": "sha256:c05375553329e51fc8781cd6190dc9884dad668055d6ec7321b7a6b11d602b04",
-    ".github/prompts/investigate-config-records.prompt.md": "sha256:2c8f7f05491f41c9eae32ab9280a2dcfa06ef264c6454ba1bad12743acd61417",
-    ".github/prompts/investigate-object.prompt.md": "sha256:cb6bbe4316fe56dced9e0bdbb1043ef2a44dffd52ffe4ef2bdecbc9deac6c23b",
-    ".github/prompts/pin-knowledge.prompt.md": "sha256:733273fec342df2597e39158d223d0babf006c2cd96a4a484d410b729a6ffb3a",
+    ".github/prompts/feature-health.prompt.md": "sha256:908ec77718be0e7b6fdc578cba0430c968e4e0d20b9a4c1218e54dae51144305",
+    ".github/prompts/fetch-ado-item.prompt.md": "sha256:4c2e07af48a85793b7279c1542843c82914bec9fb128c1a792b959c469d6262f",
+    ".github/prompts/inventory-force-app.prompt.md": "sha256:4a2654cd23811d92d29fe357cecc7e2b378a34cf301c2493eab7f658bfbad0ca",
+    ".github/prompts/investigate-config-records.prompt.md": "sha256:7b0b01aa9fc67a0b1341262ded2b7697b58b23da943b77aa27f5ebda64f51c7f",
+    ".github/prompts/investigate-object.prompt.md": "sha256:9a34e5f1b55df46efe47956e42434c966f7ea4010169f168c9f532dbab4ac8e0",
+    ".github/prompts/pin-knowledge.prompt.md": "sha256:00cab2578d66741c3d01d762039e2fb093b592a6b143306f691a333e001c2091",
     ".github/prompts/release-handover.prompt.md": "sha256:723b90811dac3acd2a604baaa9dc5c35ed00640a9920755fefaaecbb01c5f18c",
     ".github/prompts/search-ado.prompt.md": "sha256:2542fd8b73bb7241a547dceb6c317ceae8846c52b8aa1b07fa5c8bf95ed0ac8e",
     ".github/prompts/search-knowledge.prompt.md": "sha256:4216ccfa6c977f0aa1c831c1b0d3c68d6a1de1e947a3819f9f8aadc672230b14",

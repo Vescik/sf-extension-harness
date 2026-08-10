@@ -1,7 +1,7 @@
 ---
 name: feature-health
 description: Run the Feature/BRD-to-Story coverage gate before Solution Design.
-argument-hint: "itemId=<Feature ID> [recordId=<ID>]"
+argument-hint: "itemId=<Feature ID>"
 agent: test-strategist
 ---
 
@@ -12,5 +12,5 @@ complete. If the ID is missing, ask once with `#tool:vscode/askQuestions`.
 
 Save the report under `output/feature-health/`, return its `PASS`, `WARN`, `BLOCKED`, or
 `INCOMPLETE` status, and surface every gap, orphan, ambiguity, partial source, and package warning.
-The health check is a read and does not require a work record: only when the caller provided
-`recordId` attach the report/evidence references to that record.
+The health check is a standalone read; when it was raised by delivery work, link the report
+from the relevant `work-items/<id>-<slug>/` folder.

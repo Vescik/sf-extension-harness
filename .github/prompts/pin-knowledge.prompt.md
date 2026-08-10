@@ -1,7 +1,7 @@
 ---
 name: pin-knowledge
 description: Turn a small pinned or named selection of force-app files into governed Knowledge — mechanical resolution, a human-approved plan, then per-lane draft/describe/propose with one approval pass.
-argument-hint: "[files=<path|name,...>] [recordId=<ID>]"
+argument-hint: "[files=<path|name,...>]"
 agent: config-investigator
 tools: ['read', 'search', 'edit/editFiles', 'execute/runInTerminal', 'vscode/askQuestions', 'salesforce-readonly/review_org_identity', 'salesforce-readonly/review_object_contract', 'salesforce-readonly/review_soql_query', 'knowledge/*']
 ---
@@ -17,5 +17,5 @@ Resolve the selection mechanically with `python scripts/force_app_knowledge.py r
 map a path to a component by eye — and present the resolution plus the per-component plan for
 the human's explicit go-ahead before drafting anything. Mixed metadata types are expected and
 legal here; a selection beyond 25 components is refused — narrow the selection or split it
-type instead, or re-pin at most 25. `recordId` is optional and used only to attach references:
-documenting existing state is record-free.
+type instead, or re-pin at most 25. Documenting existing state needs no work item; when the pinning was raised by delivery
+work, link the resulting entries from the relevant `work-items/<id>-<slug>/` folder.
