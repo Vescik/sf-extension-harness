@@ -30,15 +30,22 @@ ignored proposal file, applied by the executor.
      --expected-version <N> --operations-file .cache/knowledge-proposals/<slug>-ops.json
    ```
 
-   The file is `{"operations": [{"kind", "op", "data"}...]}` (≤40 per batch). Kinds:
+   The file is `{"operations": [{"kind", "op", "data"}...]}` (≤40 per batch); the exact
+   `data` shapes per kind are pinned in `schemas/knowledge-feature.schema.json` — read it
+   before composing the first batch instead of learning the shapes from rejections, and
+   `--validate-only` dry-runs the batch through the same apply path without writing. Kinds:
    `node` (set/remove), `relation` (set/remove), `claim` (set/withdraw), `binding`
    (bind/unbind — you give an entry identity, the EXECUTOR reads the live entry and pins
-   the digests; approved-current is required and a pasted receipt is never accepted),
+   the digests; an approved entry is required — `approved-drifted` binds too, drift is a
+   visible caveat and the citation verdict downgrades on its own; draft and revoked never
+   bind, and a pasted receipt is never accepted),
    `section` (replace one narrative section), `meta` (set name/entryPoints/limitations/
    keywords/sensitivity, add-question, resolve-question). Keywords come from the approved
    taxonomy, exactly like artifact entries.
 3. **Existing Knowledge first** — for every name the user mentions: `knowledge_resolve` →
-   `knowledge_context` on exact candidates → `knowledge_entry_status` before any binding.
+   `knowledge_context` on exact candidates. No `knowledge_entry_status` before binding: the
+   executor reads the live entry and pins the digests itself, and a pre-fetched receipt is
+   never accepted — its refusal IS the check.
    `NO_ENTRY` is a gap to record, never absence. Order candidates source-exact containment
    first; heuristic candidates go in a separate optional queue; never auto-expand shared
    hubs (User, Account) without the user asking.
@@ -59,6 +66,14 @@ ignored proposal file, applied by the executor.
 Core three are mandatory and gate approval: `Purpose and boundary`, `Domain and data
 model`, `Evidence map`. The rest render only when the Feature has real content for them —
 an explicit reviewed "Not applicable" is content; silence is not completeness.
+
+Write a paragraph, not a page: when a section grows past ~10–15 sentences, that is the
+signal that part of it should be a separate claim (`FC-`) with its own `assurance`, not
+sprawling prose — the structure for that detail already exists, use it. And write to be
+found: `feature-search` scans the full body prose as its haystack, so the terms a person
+would actually search for (the business phrase, the object name, the error message
+wording) belong in these sections — a section that never names its subject makes the
+whole Feature invisible to a text query.
 
 ## Consumers
 

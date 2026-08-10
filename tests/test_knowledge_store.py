@@ -401,15 +401,36 @@ class KnowledgeStoreTests(unittest.TestCase):
             f"the refusal must name why: {result['problems']}",
         )
 
-    def test_entry_review_enforces_the_prose_chunk_cap(self) -> None:
+    def test_entry_review_auto_chunks_past_the_prose_cap(self) -> None:
+        # Plan 2026-08-09 §2.2e: exceeding the cap no longer dead-ends in CHUNK_TOO_LARGE —
+        # the sorted draft list is cut into ≤cap rounds, each with its own artifact and
+        # digest-pinned approve command. The cap itself (25 full bodies per human round)
+        # is unchanged; only the manual selection of round boundaries is removed.
         self.draft()
         self.draft(metadata_type="CustomField", full_name="HarnessAlphaCase__c.Status__c")
         saved = store.PROSE_CHUNK_LIMIT
         store.PROSE_CHUNK_LIMIT = 1
         self.addCleanup(setattr, store, "PROSE_CHUNK_LIMIT", saved)
         result = self.review()
-        self.assertEqual("CHUNK_TOO_LARGE", result["outcome"])
-        self.assertTrue(result["capViolations"])
+        self.assertEqual("REVIEW_READY_CHUNKED", result["outcome"])
+        self.assertEqual(2, result["entries"])
+        self.assertEqual(2, len(result["chunks"]))
+        for chunk in result["chunks"]:
+            self.assertEqual(1, chunk["entries"])
+            self.assertEqual([], chunk["capViolations"])
+            self.assertTrue((self.temp / chunk["reviewArtifact"]).is_file())
+            self.assertEqual(1, chunk["approveCommand"].count("--entry "))
+
+    def test_auto_chunked_approve_commands_actually_approve(self) -> None:
+        self.draft()
+        self.draft(metadata_type="CustomField", full_name="HarnessAlphaCase__c.Status__c")
+        saved = store.PROSE_CHUNK_LIMIT
+        store.PROSE_CHUNK_LIMIT = 1
+        self.addCleanup(setattr, store, "PROSE_CHUNK_LIMIT", saved)
+        result = self.review()
+        for chunk in result["chunks"]:
+            pins = [pin.strip() for pin in chunk["approveCommand"].split("--entry ")[1:]]
+            self.assertEqual("APPROVED", self.approve(pins)["outcome"])
 
     def test_facts_only_reapproval_is_classified_separately(self) -> None:
         drafted = self.draft()
@@ -1374,6 +1395,271 @@ class ProfileSchemaCoverageTests(unittest.TestCase):
                     for error in Draft202012Validator(schema).iter_errors(payload)
                 )
                 self.assertEqual([], problems, f"{metadata_type}: {problems}")
+
+
+class ErrorEnvelopeTests(KnowledgeStoreTests):
+    """Plan 2026-08-09 §3c.2: main() may never leak a raw traceback to stdout — every
+    failure is a JSON envelope with errorType; unexpected types keep their traceback on
+    stderr for the programmer."""
+
+    def run_main(self, argv):
+        import contextlib
+        import io
+
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = store.main(argv)
+        return code, out.getvalue(), err.getvalue()
+
+    def test_malformed_identity_yields_an_envelope_not_a_traceback(self) -> None:
+        purpose = self.temp / "p.md"
+        purpose.write_text("One sentence.", encoding="utf-8")
+        code, out, err = self.run_main(
+            ["entry-describe", "--identity", "Flow:OnlyTwoParts", "--purpose-file", str(purpose)]
+        )
+        self.assertEqual(1, code)
+        envelope = json.loads(out)
+        self.assertEqual("ERROR", envelope["outcome"])
+        self.assertNotEqual("StoreError", envelope["errorType"])
+        self.assertIn("Traceback", err)
+
+    def test_inline_purpose_describes_without_a_scratch_file(self) -> None:
+        drafted = self.draft(purpose_file=None)
+        result = store.command_entry_describe(
+            argparse.Namespace(
+                identity=drafted["identity"],
+                purpose_file=None,
+                purpose="Routes alpha cases to the correct queue on create.",
+            )
+        )
+        self.assertEqual("DESCRIBED", result["outcome"])
+        with self.assertRaises(store.StoreError):
+            store.command_entry_describe(
+                argparse.Namespace(identity=drafted["identity"], purpose_file=None, purpose=None)
+            )
+        with self.assertRaises(store.StoreError):
+            store.command_entry_describe(
+                argparse.Namespace(
+                    identity=drafted["identity"], purpose_file="x.md", purpose="Both given."
+                )
+            )
+
+    def test_sentence_counter_skips_abbreviations_and_echoes_the_split(self) -> None:
+        text = (
+            "Routes cases by type, e.g. billing disputes, to the right queue. "
+            "Requires API v. 64.0 or later. Uses Acct. No. as the natural key."
+        )
+        self.assertEqual(3, len(store.split_sentences(text)))
+        with self.assertRaises(store.StoreError) as ctx:
+            purpose = self.temp / "long.md"
+            purpose.write_text("One. Two. Three. Four. Five. Six. Seven. Eight. Nine.", encoding="utf-8")
+            drafted = self.draft(purpose_file=None)
+            store.command_entry_describe(
+                argparse.Namespace(identity=drafted["identity"], purpose_file=str(purpose))
+            )
+        self.assertIn("Counted as:", str(ctx.exception))
+
+    def test_entry_status_typo_is_a_named_error_not_an_empty_success(self) -> None:
+        drafted = self.draft()
+        with self.assertRaises(store.StoreError) as ctx:
+            store.command_entry_status(argparse.Namespace(identity="Flow:c:NoSuchFlow"))
+        self.assertIn("no entry matches", str(ctx.exception))
+        with self.assertRaises(store.StoreError):
+            store.command_entry_status(argparse.Namespace(identity="Flow:OnlyTwoParts"))
+        result = store.command_entry_status(argparse.Namespace(identity=drafted["identity"]))
+        self.assertEqual(1, len(result["entries"]))
+
+    def test_domain_errors_keep_a_quiet_stderr(self) -> None:
+        code, out, err = self.run_main(
+            ["entry-draft", "--metadata-type", "NoSuchType", "--full-name", "X"]
+        )
+        self.assertEqual(1, code)
+        envelope = json.loads(out)
+        self.assertEqual("StoreError", envelope["errorType"])
+        self.assertNotIn("Traceback", err)
+
+
+class FeatureBindingResolverTests(KnowledgeStoreTests):
+    """Plan 2026-08-09 §F.4: approved-drifted binds too (same rule as retrieval §3.1);
+    draft and revoked never do. binding_state's digest comparison — not the resolver —
+    is what downgrades stale citations."""
+
+    def drift_source(self) -> None:
+        flow = self.temp / "force-app/main/default/flows/HarnessAlphaRouter.flow-meta.xml"
+        flow.write_text(
+            FLOW_XML.replace("Update</recordTriggerType>", "Create</recordTriggerType>"),
+            encoding="utf-8",
+        )
+
+    def test_resolver_accepts_an_approved_drifted_entry(self) -> None:
+        drafted = self.draft()
+        self.approve([f"{drafted['identity']}:{drafted['reviewedContentDigest']}"])
+        self.drift_source()
+        self.assertEqual("approved-drifted", self.lane_of(drafted["identity"])["lane"])
+        receipt = store._feature_binding_resolver(drafted["identity"])
+        self.assertEqual(drafted["reviewedContentDigest"], receipt["reviewedContentDigest"])
+
+    def test_resolver_still_rejects_draft_and_revoked(self) -> None:
+        drafted = self.draft()
+        with self.assertRaises(store.StoreError) as ctx:
+            store._feature_binding_resolver(drafted["identity"])
+        self.assertIn("draft", str(ctx.exception))
+        self.approve([f"{drafted['identity']}:{drafted['reviewedContentDigest']}"])
+        store.command_entry_revoke(
+            argparse.Namespace(identity=drafted["identity"], rationale="mis-approved")
+        )
+        with self.assertRaises(store.StoreError):
+            store._feature_binding_resolver(drafted["identity"])
+
+    def test_binding_health_reports_drifted_not_unknown(self) -> None:
+        # The confirmed bonus from the plan: feature-context's binding_health used to
+        # collapse to "unknown" (resolver StoreError swallowed) for drifted bindings;
+        # with the resolver accepting approved-drifted it must now say "drifted".
+        drafted = self.draft()
+        self.approve([f"{drafted['identity']}:{drafted['reviewedContentDigest']}"])
+        store.command_feature_open(
+            argparse.Namespace(slug="binding-health", name="Binding Health")
+        )
+        ops = self.temp / "binding-health-ops.json"
+        ops.write_text(
+            json.dumps(
+                {
+                    "operations": [
+                        {"kind": "binding", "op": "bind", "data": {"entryId": drafted["identity"]}},
+                        {"kind": "section", "op": "replace",
+                         "data": {"name": "Purpose and boundary", "text": "Routes."}},
+                        {"kind": "section", "op": "replace",
+                         "data": {"name": "Domain and data model", "text": "Flow."}},
+                        {"kind": "section", "op": "replace",
+                         "data": {"name": "Evidence map", "text": "FB-001."}},
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        store.command_feature_record(
+            argparse.Namespace(slug="binding-health", expected_version=0, operations_file=str(ops))
+        )
+        review = store.command_feature_review(argparse.Namespace(slug=["binding-health"]))
+        pin = review["approveCommand"].split('--feature "')[1].rstrip('"')
+        store.command_feature_approve(argparse.Namespace(feature=[pin]))
+        # Source drift alone: the entry is approved-drifted, but the citation still matches
+        # what was approved — before this fix the resolver's StoreError collapsed this to
+        # "unknown"; now it is an honest "current". (The plan's bonus predicted "drifted"
+        # here — imprecise: binding_state compares APPROVAL digests, and those move only
+        # on re-approval, not on source drift. Reported as a deviation.)
+        self.drift_source()
+        context = store.command_feature_context(argparse.Namespace(slug="binding-health"))
+        self.assertEqual({"FB-001": "current"}, context["bindingHealth"])
+        # Re-approve the entry with different content: now the stored binding digest no
+        # longer matches the live approval, and health must say "drifted", not "unknown".
+        purpose = self.temp / "new-purpose.md"
+        purpose.write_text("Routes alpha cases to the correct queue on create.", encoding="utf-8")
+        store.command_entry_describe(
+            argparse.Namespace(identity=drafted["identity"], purpose_file=str(purpose))
+        )
+        rereview = store.command_entry_review(argparse.Namespace(identity=[drafted["identity"]]))
+        self.approve([pin.strip() for pin in rereview["approveCommand"].split("--entry ")[1:]])
+        context = store.command_feature_context(argparse.Namespace(slug="binding-health"))
+        self.assertEqual({"FB-001": "drifted"}, context["bindingHealth"])
+
+
+class PackageExtensionPointTests(KnowledgeStoreTests):
+    """packageExtensionPoint (plan 2026-08-09, Problem 4): a conscious, human-approved
+    classification in the envelope — digest-included like sensitivity, unlike orgUsage."""
+
+    FIELD = {"recognized": True, "rule": "MP-EXT-001", "note": "vendor-documented field set"}
+
+    def test_absence_keeps_the_digest_of_pre_field_entries(self) -> None:
+        drafted = self.draft()
+        frontmatter, body = store.split_entry(
+            (self.temp / drafted["path"]).read_text(encoding="utf-8")
+        )
+        self.assertEqual(
+            drafted["reviewedContentDigest"], store.reviewed_content_digest(frontmatter, body)
+        )
+        stamped = copy.deepcopy(frontmatter)
+        stamped["packageExtensionPoint"] = dict(self.FIELD)
+        self.assertNotEqual(
+            drafted["reviewedContentDigest"], store.reviewed_content_digest(stamped, body)
+        )
+
+    def test_schema_accepts_the_field_and_pins_its_shape(self) -> None:
+        drafted = self.draft()
+        frontmatter, body = store.split_entry(
+            (self.temp / drafted["path"]).read_text(encoding="utf-8")
+        )
+        frontmatter["packageExtensionPoint"] = dict(self.FIELD)
+        self.assertEqual([], store.validate_entry(frontmatter, body))
+        frontmatter["packageExtensionPoint"] = {"recognized": True, "rule": "SOMETHING-ELSE"}
+        self.assertTrue(store.validate_entry(frontmatter, body))
+
+    def test_r10_clone_field_change_after_approval_invalidates(self) -> None:
+        drafted = self.draft()
+        self.approve([f"{drafted['identity']}:{drafted['reviewedContentDigest']}"])
+        path = self.temp / drafted["path"]
+        text = path.read_text(encoding="utf-8")
+        frontmatter, body = store.split_entry(text)
+        frontmatter["packageExtensionPoint"] = dict(self.FIELD)
+        path.write_text(
+            "---\n" + store.yaml.safe_dump(frontmatter, sort_keys=False) + "---\n\n" + body,
+            encoding="utf-8",
+        )
+        self.assertNotEqual("approved-current", self.lane_of(drafted["identity"])["lane"])
+
+
+class VersionedSchemaResolutionTests(KnowledgeStoreTests):
+    """Validation resolves the profile schema from the (id, version) the entry declares,
+    against the append-only SCHEMA_REGISTRY — never from the current PROFILES row for the
+    type (plan 2026-08-09 §2.1). A consolidation that repoints PROFILES must NOT
+    re-validate existing entries against a schema they were not drafted with."""
+
+    def test_every_current_profile_resolves_through_the_registry(self) -> None:
+        for metadata_type, profile in store.PROFILES.items():
+            with self.subTest(metadataType=metadata_type):
+                self.assertEqual(
+                    profile["schema"],
+                    store.SCHEMA_REGISTRY.get(
+                        (profile["id"], store.profile_major(profile["version"]))
+                    ),
+                )
+
+    def test_existing_entry_survives_a_profiles_repoint_unchanged(self) -> None:
+        drafted = self.draft()
+        frontmatter, body = store.split_entry(
+            (self.temp / drafted["path"]).read_text(encoding="utf-8")
+        )
+        # Simulate a §2.2 consolidation: Flow drafts now use a family profile whose schema
+        # would reject the old typeFacts. The registry keeps the retired (id, version) row;
+        # the entry's frontmatter is not touched.
+        consolidated = {
+            "id": "salesforce.automation-family",
+            "version": "2.0.0",
+            "schema": "knowledge-profile-customfield.schema.json",
+        }
+        with unittest.mock.patch.dict(
+            store.PROFILES, {"Flow": consolidated}
+        ), unittest.mock.patch.dict(
+            store.SCHEMA_REGISTRY,
+            {
+                (consolidated["id"], store.profile_major(consolidated["version"])): (
+                    consolidated["schema"]
+                )
+            },
+        ):
+            self.assertEqual([], store.validate_entry(frontmatter, body))
+
+    def test_unregistered_profile_pair_is_a_named_problem(self) -> None:
+        drafted = self.draft()
+        frontmatter, body = store.split_entry(
+            (self.temp / drafted["path"]).read_text(encoding="utf-8")
+        )
+        frontmatter["profile"]["version"] = "9.9.9"
+        problems = store.validate_entry(frontmatter, body)
+        self.assertTrue(
+            any("no registered schema for profile" in problem for problem in problems),
+            problems,
+        )
 
 
 class AgentDescriptionTests(KnowledgeStoreTests):

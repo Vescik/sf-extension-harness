@@ -35,8 +35,17 @@ const MAX_OUTER_MESSAGE_BYTES = 1_048_576;
 // framing, or the outer cap would fire with a less actionable error.
 const MAX_EXECUTOR_OUTPUT_BYTES = 480_000;
 const CALL_TIMEOUT_MS = 60_000;
+// Self-heal rebuilds (index build / inventory) get their own, larger budget: a full
+// rebuild on a big corpus can exceed the per-query 60 s, and SIGKILLing the heal left
+// the read surface permanently unusable through MCP (plan 2026-08-09 §3c.1 #6).
+const BUILD_TIMEOUT_MS = 300_000;
 const PROBE_TIMEOUT_MS = 15_000;
 const MAX_STRING_INPUT = 400;
+// The `text` argument carries mode=intentional-flow-error's PASTED exact error message —
+// real Flow fault surfaces (preamble + element name + message) routinely exceed 400
+// characters, and hand-trimming the evidence breaks exact matching (plan 2026-08-09
+// §3c.1 #8). Own bound; the 1 MB request and 480 KB output caps still hold.
+const MAX_TEXT_INPUT = 4000;
 const STALE_INDEX_REASON = /^INDEX STALE/;
 
 // The only executor surface reachable through this server. `build` is spawnable by the
@@ -89,7 +98,29 @@ const IDENTITY_HINT =
   "Exact identity `<MetadataType>:<ns|c>:<FullName>` — use knowledge_resolve first to turn " +
   "a bare name or file path into one.";
 
-const FEATURE_HINT = "Feature slug — lowercase alphanumeric with single hyphens.";
+const FEATURE_HINT =
+  "Feature slug (the tail of featureId from knowledge_feature_search) — lowercase " +
+  "alphanumeric with single hyphens.";
+
+// Mirrors knowledge_search.py ALL_LANES (argparse --state choices). Opted-in lanes are
+// served in the *NonCurrent sibling keys, never merged into the approved buckets — the
+// engine's own remediation hints ("add --state draft") were unfollowable through MCP
+// until this parameter existed (plan 2026-08-09 §3c.1 #4).
+const STATE_PROP = Object.freeze({
+  type: "array",
+  maxItems: 7,
+  items: {
+    type: "string",
+    maxLength: 24,
+    enum: [
+      "approved-current", "approved-drifted", "draft", "revoked",
+      "scope-mismatch", "unsupported-profile", "not-effective",
+    ],
+  },
+  description:
+    "Opt into extra lifecycle lanes (e.g. [\"draft\"]). Opted-in rows arrive in the " +
+    "*NonCurrent sibling keys and are never merged into the approved buckets.",
+});
 
 export const TOOL_DEFINITIONS = Object.freeze([
   {
@@ -108,6 +139,7 @@ export const TOOL_DEFINITIONS = Object.freeze([
       properties: {
         identity: { type: "string", maxLength: MAX_STRING_INPUT, description: IDENTITY_HINT },
         top: { type: "integer", minimum: 1, maximum: 50, description: "Cap per result section." },
+        state: STATE_PROP,
         direction: {
           type: "string",
           enum: ["incoming", "outgoing"],
@@ -131,7 +163,7 @@ export const TOOL_DEFINITIONS = Object.freeze([
       type: "object",
       additionalProperties: false,
       properties: {
-        text: { type: "string", maxLength: MAX_STRING_INPUT, description: "Free-text query or pasted error message." },
+        text: { type: "string", maxLength: MAX_TEXT_INPUT, description: "Free-text query or pasted error message (paste the exact message untrimmed)." },
         identity: { type: "string", maxLength: MAX_STRING_INPUT, description: IDENTITY_HINT },
         metadataType: { type: "string", maxLength: MAX_STRING_INPUT, description: "Filter by metadata type, e.g. CustomObject." },
         namespace: { type: "string", maxLength: MAX_STRING_INPUT, description: "Filter by namespace (`c` for local)." },
@@ -147,6 +179,7 @@ export const TOOL_DEFINITIONS = Object.freeze([
         includeHeuristic: { type: "boolean", description: "Also match heuristic edges." },
         mode: { type: "string", enum: ["hybrid", "intentional-flow-error"], description: "intentional-flow-error matches pasted Flow/VR error surfaces." },
         top: { type: "integer", minimum: 1, maximum: 50, description: "Result cap (default 10)." },
+        state: STATE_PROP,
       },
     },
     annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
@@ -169,6 +202,7 @@ export const TOOL_DEFINITIONS = Object.freeze([
         depth: { type: "integer", minimum: 1, maximum: 2, description: "Traversal depth (default 1; 2 is the executor's impact limit)." },
         top: { type: "integer", minimum: 1, maximum: 50, description: "Cap per level." },
         includeHeuristic: { type: "boolean", description: "Also traverse heuristic edges." },
+        state: STATE_PROP,
       },
     },
     annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
@@ -207,9 +241,11 @@ export const TOOL_DEFINITIONS = Object.freeze([
     name: "knowledge_entry_status",
     title: "Citable lane receipt for one Knowledge entry",
     description:
-      "The ONLY citable receipt for Knowledge: the computed lane for one identity. Call it " +
+      "The ONLY citable receipt for Knowledge: the computed lane for ONE identity. Call it " +
       "before citing any entry in an answer or record — search and context hits carry only " +
-      "a profileDigest and hand-built entryRefs are rejected by validation.",
+      "a profileDigest and hand-built entryRefs are rejected by validation. Per-entry by " +
+      "design: corpus questions (which entries are drifted) belong to search/context or " +
+      "the terminal entry-coverage report, not here.",
     inputSchema: {
       type: "object",
       additionalProperties: false,
@@ -235,6 +271,7 @@ export const TOOL_DEFINITIONS = Object.freeze([
         identity: { type: "string", maxLength: MAX_STRING_INPUT, description: IDENTITY_HINT },
         top: { type: "integer", minimum: 1, maximum: 50, description: "Cap per usage table." },
         includeHeuristic: { type: "boolean", description: "Also list heuristic edges." },
+        state: STATE_PROP,
       },
     },
     annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
@@ -255,7 +292,7 @@ export const TOOL_DEFINITIONS = Object.freeze([
         layer: { type: "string", maxLength: 40 },
         role: { type: "string", maxLength: 40 },
         claimType: { type: "string", maxLength: 40 },
-        top: { type: "integer", minimum: 1, maximum: 40 },
+        top: { type: "integer", minimum: 1, maximum: 50 },
       },
     },
     annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
@@ -284,16 +321,16 @@ export const TOOL_DEFINITIONS = Object.freeze([
       "Claim-level verification of one or more approved Feature claims/relations: " +
       "authority, transitive artifact-binding currency and document lane. Returns the " +
       "citable featureRef receipt when the verdict is current or degraded; ambiguous or " +
-      "missing ids fail explicitly.",
+      "missing ids fail explicitly. Omit claimIds for a whole-feature verdict " +
+      "(is this feature approved and its bindings current) without a receipt.",
     inputSchema: {
       type: "object",
       additionalProperties: false,
-      required: ["feature", "claimIds"],
+      required: ["feature"],
       properties: {
         feature: { type: "string", maxLength: MAX_STRING_INPUT, description: FEATURE_HINT },
         claimIds: {
           type: "array",
-          minItems: 1,
           maxItems: 40,
           items: { type: "string", maxLength: 12 },
           description: "Exact FC-/FR- ids to cite; a bare feature reference is not grounding.",
@@ -356,7 +393,13 @@ function validateToolInput(name, input) {
     if (!schema.properties[key]) return `unknown argument: ${key}`;
   }
   for (const required of schema.required ?? []) {
-    if (input[required] === undefined) return `missing required argument: ${required}`;
+    if (input[required] === undefined) {
+      const remedy =
+        required === "identity"
+          ? " — call knowledge_resolve with the bare name or file path to obtain one"
+          : "";
+      return `missing required argument: ${required}${remedy}`;
+    }
   }
   for (const [key, value] of Object.entries(input)) {
     const spec = schema.properties[key];
@@ -380,6 +423,9 @@ function validateToolInput(name, input) {
       for (const item of value) {
         if (typeof item !== "string" || item.length === 0 || item.length > spec.items.maxLength) {
           return `argument ${key} items must be non-empty strings of at most ${spec.items.maxLength} characters`;
+        }
+        if (spec.items.enum && !spec.items.enum.includes(item)) {
+          return `argument ${key} items must be one of: ${spec.items.enum.join(", ")}`;
         }
       }
     }
@@ -436,6 +482,7 @@ function argvForTool(name, input) {
   if (input.metadataType !== undefined) argv.push(`--metadata-type=${input.metadataType}`);
   if (input.namespace !== undefined) argv.push(`--namespace=${input.namespace}`);
   for (const value of input.facet ?? []) argv.push(`--facet=${value}`);
+  for (const value of input.state ?? []) argv.push(`--state=${value}`);
   if (input.relationAnchor !== undefined) argv.push(`--relation-anchor=${input.relationAnchor}`);
   if (input.relationKind !== undefined) argv.push(`--relation-kind=${input.relationKind}`);
   if (input.direction !== undefined) argv.push(`--direction=${input.direction}`);
@@ -470,7 +517,7 @@ export function resolveInterpreter() {
   return null;
 }
 
-function runExecutor(python, scriptName, argv) {
+function runExecutor(python, scriptName, argv, timeoutMs = CALL_TIMEOUT_MS) {
   return new Promise((resolvePromise) => {
     const child = spawn(
       python[0],
@@ -490,9 +537,9 @@ function runExecutor(python, scriptName, argv) {
       child.kill("SIGKILL");
       finish({
         outcome: "ERROR",
-        reason: `EXECUTOR TIMEOUT: ${scriptName} ${argv[0]} exceeded ${CALL_TIMEOUT_MS} ms`,
+        reason: `EXECUTOR TIMEOUT: ${scriptName} ${argv[0]} exceeded ${timeoutMs} ms`,
       });
-    }, CALL_TIMEOUT_MS);
+    }, timeoutMs);
     child.stdout.on("data", (chunk) => {
       stdout += chunk;
       if (Buffer.byteLength(stdout, "utf8") > MAX_EXECUTOR_OUTPUT_BYTES) {
@@ -536,9 +583,11 @@ function isStaleIndex(envelope) {
   );
 }
 
-// resolve on a fresh checkout fails with a non-JSON "force-app inventory is missing" —
-// the same generated-cache class as INDEX STALE, healed the same bounded way (D2).
-const MISSING_INVENTORY_REASON = /inventory is missing/;
+// resolve on a fresh checkout fails with a non-JSON "force-app inventory is missing";
+// the EVERYDAY case — any force-app edit — fails with "force-app changed after
+// inventory; rerun inventory". Both are the same generated-cache class as INDEX STALE,
+// healed the same bounded way (D2; second alternation: plan 2026-08-09 §3c.1 #6).
+const MISSING_INVENTORY_REASON = /inventory is missing|rerun inventory/;
 
 function isMissingInventory(envelope) {
   return (
@@ -562,7 +611,7 @@ async function callKnowledgeTool(python, name, input) {
     // Owner decision D2: one bounded rebuild of the gitignored generated cache, then one
     // retry, so the INDEX STALE -> build -> retry dance never reaches the agent.
     assertAllowlisted("knowledge_search.py", "build");
-    const rebuild = await runExecutor(python, "knowledge_search.py", ["build"]);
+    const rebuild = await runExecutor(python, "knowledge_search.py", ["build"], BUILD_TIMEOUT_MS);
     if (rebuild?.outcome === "BUILT") {
       result = await runExecutor(python, executor.script, argv);
     } else {
@@ -571,7 +620,7 @@ async function callKnowledgeTool(python, name, input) {
   }
   if (isMissingInventory(result) && executor.script === "force_app_knowledge.py") {
     assertAllowlisted("force_app_knowledge.py", "inventory");
-    const rebuilt = await runExecutor(python, "force_app_knowledge.py", ["inventory"]);
+    const rebuilt = await runExecutor(python, "force_app_knowledge.py", ["inventory"], BUILD_TIMEOUT_MS);
     if (rebuilt?.status === "complete") {
       result = await runExecutor(python, executor.script, argv);
     } else {

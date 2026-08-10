@@ -3,7 +3,7 @@ name: search-knowledge
 description: Search governed Knowledge - approved one-file Entries and their org-usage blocks; effective facts are reported separately from non-effective records.
 argument-hint: "keyword=<term> | text=<fragment> | subject=<identity> | anchor=<Identity> | error=<pasted message> [type=<MetadataType>] [namespace=<ns>]"
 agent: config-investigator
-tools: ['read', 'search', 'execute/runInTerminal', 'vscode/askQuestions']
+tools: ['read', 'search', 'execute/runInTerminal', 'vscode/askQuestions', 'knowledge/*']
 ---
 
 Use the [search-knowledge skill](../skills/search-knowledge/SKILL.md).

@@ -11,12 +11,15 @@ Apply the [shared execution contract](../../../.ai/contracts/execution-contract.
 
 ## Inputs and gate
 
-- Positive `itemId` plus a schema-valid `recordId` whose human approval matches the current scope
-  and design hashes.
-- Named `brain-core` workspace root, which is also the SFDX root; optional manifest path defaults
-  from local config.
+- Positive `itemId`. When the work item has a design (`work-items/<itemId>-<slug>/design.md`
+  — today's approved-scope surface, replacing the retired work-record `recordId`), read it
+  and confirm the documented change matches it; without one, this is standalone
+  documentation of existing state — a valid lane, named as such in the output.
+- The workspace root (labeled `brain-core` in VS Code — a workspace label, not the
+  repository name), which is also the SFDX root; optional manifest path defaults from
+  local config.
 
-Require `brain-core` to be the only SFDX root and contain root `sfdx-project.json`. Parse the manifest safely, reject malformed
+Require the workspace root to be the only SFDX root and contain root `sfdx-project.json`. Parse the manifest safely, reject malformed
 XML/path traversal, show detected components, and require confirmation when the scope is unusually
 large or heterogeneous. Do not infer which manifest members belong to the work item.
 
@@ -54,33 +57,30 @@ large or heterogeneous. Do not infer which manifest members belong to the work i
 6. Ask the human for non-metadata deployment steps with `vscode/askQuestions`; record explicit
    `None` when confirmed. Never infer activation/data-fix steps from absence in the manifest.
 7. Fill every section of the technical-documentation template and common output envelope,
-   including `recordId` plus rule/entry references and any drifted/expired premise.
+   including the work-item/design reference (when one exists) plus rule/entry references
+   and any drifted premise, carried as a visible caveat.
 8. Write a collision-safe draft under `output/documentation/<itemId>.md`; never overwrite an
    accepted/reviewed artifact without confirmation.
 
 ## Knowledge grounding: two layers
 
-Query both layers through [search-knowledge](../search-knowledge/SKILL.md) and keep their
-authorities apart. Approved one-file Knowledge Entries ground intended repository-source facts
-(what a component declares, what touches a field) and are cited as `entryRef` with the entry
-path and digests. Org usage is grounded only by an unexpired entry `orgUsage` block, cited
-with its orgKey and observedAt; runtime behavior, business meaning, and vendor guarantees have
-no governed Knowledge surface — mark them `UNVERIFIED` with their source instead of citing
-the entry. Absence, deployed state, and semantics are never grounded by an entry, and a missing
-search hit is never proof of absence.
-
-An entry can be approved, current and still refuse to ground a fact: contract §8.1 grounds only
-sections marked `source-exact` with full coverage, and the executor enforces that when the
-`entryRef` is bound. **Apex-layer entries generally cannot be cited as positive grounding** —
-their facts are regex-derived and honestly marked heuristic. Measured on the 189-component
-reference package: 48 of 52 ApexClass, 5 of 5 ApexTrigger, 3 of 93 CustomField and 2 of 2
-ValidationRule entries are refused. Read them for orientation, report the fact as inferred, and
-report the fact as ungrounded instead. The refusal is the contract working, not a tooling
-failure — never retry it with a different ref shape.
+Query both layers through the knowledge tools and read their envelopes by the
+[search-knowledge](../search-knowledge/SKILL.md) rules — authorities, lane handling and
+citation mechanics live there, once; do not re-derive them here. In short: approved
+entries ground intended repository-source facts, cited as `entryRef` via the
+`knowledge_entry_status` tool (a search result, a `context` pack and a generated view are
+never themselves citable); org usage grounds usage numbers cited with orgKey, observedAt
+and their age; runtime behavior, business meaning and vendor guarantees have no governed
+Knowledge surface — mark them `UNVERIFIED` with their source. A missing hit is never
+proof of absence. An approved entry can still refuse to ground a fact: contract §8.1
+grounds only `source-exact`, fully covered sections — check the entry's
+`extractionCoverage` and `assurance` (heuristic-derived facts, common across the Apex
+layer, are refused). Take the refusal as the answer: report the fact as inferred and name
+what would make it groundable — never retry with a different ref shape.
 
 ## Return
 
-Return `recordId`, draft path, component counts, missing/ambiguous components, source
-freshness/completeness, manual-step status, suggested-test status, checks performed, work-record
-artifact reference, and publication next step. ADO wiki
+Return the `itemId` and design reference (when one exists), draft path, component counts,
+missing/ambiguous components, source freshness/completeness, manual-step status,
+suggested-test status, checks performed, and publication next step. ADO wiki
 publication remains human-controlled.

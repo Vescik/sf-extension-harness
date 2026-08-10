@@ -183,7 +183,8 @@ def validate_feature(frontmatter: dict[str, Any], body: str) -> list[str]:
     problems: list[str] = []
     schema = json.loads(FEATURE_SCHEMA_PATH.read_text(encoding="utf-8"))
     problems.extend(
-        error.message for error in Draft202012Validator(schema).iter_errors(frontmatter)
+        ks._schema_problem(error)
+        for error in Draft202012Validator(schema).iter_errors(frontmatter)
     )
     if problems:
         return problems  # closure checks below assume a schema-valid shape
@@ -338,7 +339,7 @@ def verify_feature_citations(
     not complete). Only `current` and `degraded` return a receipt."""
     problems = validate_feature(frontmatter, body)
     if problems:
-        return {"verdict": "invalid", "problems": problems[:5]}
+        return {"verdict": "invalid", "problems": problems}
     digest = feature_reviewed_content_digest(frontmatter, body)
     if frontmatter["lifecycle"]["state"] != "approved" or not latest_record \
             or latest_record.get("action") == "revoke" \
@@ -501,7 +502,7 @@ def apply_operations(
                 applied.append(f"unbind {data['id']}")
                 continue
             entry_id = data.get("entryId") or ""
-            receipt = binding_resolver(entry_id)  # raises unless approved-current
+            receipt = binding_resolver(entry_id)  # raises unless approved (current or drifted)
             binding = {
                 "id": allocate_id(fm, "FB"),
                 "entryId": entry_id,
@@ -536,6 +537,16 @@ def apply_operations(
                 )
                 applied.append(f"resolve {data['id']}")
             else:
+                # A typo'd key used to fall through silently and still return RECORDED with
+                # a bumped draft version — a false success worse than a refusal
+                # (plan 2026-08-09 §3c.2). Unknown keys reject the batch.
+                known = {"name", "entryPoints", "limitations", "keywords", "candidateKeywords", "sensitivity"}
+                unknown = sorted(set(data) - known)
+                if unknown:
+                    raise FeatureError(
+                        f"operation {index}: unknown meta key(s) {', '.join(unknown)}; "
+                        f"known: {', '.join(sorted(known))}"
+                    )
                 if data.get("name"):
                     fm["subject"]["name"] = str(data["name"])
                 if data.get("entryPoints") is not None:
@@ -554,7 +565,7 @@ def apply_operations(
         if "sentinel" not in p and "core narrative" not in p
     ]
     if problems:
-        raise FeatureError("batch rejected: " + "; ".join(problems[:5]))
+        raise FeatureError("batch rejected: " + "; ".join(problems))
     fm["draft"]["version"] = int(fm["draft"]["version"]) + 1
     fm["lifecycle"]["state"] = "draft"
     fm["approval"] = {"reviewedContentDigest": None, "reviewedBy": None, "reviewedAt": None, "mechanism": None}

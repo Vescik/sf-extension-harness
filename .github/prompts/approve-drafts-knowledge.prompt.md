@@ -3,7 +3,7 @@ name: approve-drafts-knowledge
 description: Review and promote draft one-file Knowledge Entries; the executor renders the review surface and the human confirms the digest-pinned approval in chat.
 argument-hint: "[identity=<MetadataType>:<ns|c>:<FullName>] [identity=...]"
 agent: knowledge-curator
-tools: ['read', 'search', 'execute/runInTerminal', 'vscode/askQuestions']
+tools: ['read', 'search', 'execute/runInTerminal', 'vscode/askQuestions', 'knowledge/*']
 ---
 
 Use the [approve-knowledge-drafts skill](../skills/approve-knowledge-drafts/SKILL.md).

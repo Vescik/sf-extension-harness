@@ -333,5 +333,97 @@ class SeparationTests(unittest.TestCase):
                 self.assertEqual([], store.all_entry_paths())
 
 
+class ValidateOnlyTests(FeatureFixture):
+    """Plan 2026-08-09 §3c.2: --validate-only runs the SAME apply_operations pass and
+    skips the write — check-fix-apply instead of a blind 40-op retry."""
+
+    def record_validate_only(self, operations, slug="invoice-finance"):
+        frontmatter, _, _ = store._load_feature(slug)
+        ops_path = self.temp / "dry-ops.json"
+        ops_path.write_text(json.dumps({"operations": operations}), encoding="utf-8")
+        return store.command_feature_record(
+            ns(
+                slug=slug,
+                expected_version=frontmatter["draft"]["version"],
+                operations_file=str(ops_path),
+                validate_only=True,
+            )
+        )
+
+    def test_dry_run_validates_without_writing(self) -> None:
+        self.open_and_seed()
+        before, _, _ = store._load_feature("invoice-finance")
+        result = self.record_validate_only(
+            [{"kind": "meta", "op": "set", "data": {"keywords": ["billing"]}}]
+        )
+        self.assertEqual("VALIDATED", result["outcome"])
+        self.assertEqual(["set meta"], result["wouldApply"])
+        after, _, _ = store._load_feature("invoice-finance")
+        self.assertEqual(before, after)
+
+    def test_dry_run_rejects_exactly_like_a_real_write(self) -> None:
+        self.open_and_seed()
+        with self.assertRaises(store.StoreError) as ctx:
+            self.record_validate_only(
+                [{"kind": "meta", "op": "set", "data": {"entryPoint": ["typo"]}}]
+            )
+        self.assertIn("unknown meta key", str(ctx.exception))
+
+
+class MetaSetValidationTests(FeatureFixture):
+    """Plan 2026-08-09 §3c.2: a typo'd meta key must reject the batch, never return a
+    false RECORDED with a bumped version."""
+
+    def test_unknown_meta_key_rejects_the_batch(self) -> None:
+        self.open_and_seed()
+        before, _, _ = store._load_feature("invoice-finance")
+        with self.assertRaises(store.StoreError) as ctx:
+            self.record([{"kind": "meta", "op": "set", "data": {"entryPoint": ["typo"]}}])
+        self.assertIn("unknown meta key", str(ctx.exception))
+        after, _, _ = store._load_feature("invoice-finance")
+        self.assertEqual(before["draft"]["version"], after["draft"]["version"])
+
+    def test_known_meta_keys_still_apply(self) -> None:
+        self.open_and_seed()
+        result = self.record([
+            {"kind": "meta", "op": "set", "data": {"keywords": ["billing"], "name": "Invoice Finance"}},
+        ])
+        self.assertEqual("RECORDED", result["outcome"])
+
+
+class CompactRendererTests(FeatureFixture):
+    """Plan 2026-08-09 §F.1: model rows serialize flow-style — same schema, same
+    validation, same digests (canonical over parsed data, never file bytes)."""
+
+    def test_model_rows_render_flow_style_and_round_trip(self) -> None:
+        self.open_and_seed()
+        path = fk.feature_path("invoice-finance")
+        text = path.read_text(encoding="utf-8")
+        flow_rows = [line for line in text.splitlines() if line.lstrip().startswith("- {")]
+        # one flow line per live node/claim (1 node + 2 claims seeded here)
+        self.assertGreaterEqual(len(flow_rows), 3, text)
+        frontmatter, body = store.split_entry(text)
+        self.assertEqual([], fk.validate_feature(frontmatter, body))
+        # round-trip: parse -> re-render -> parse yields identical digests
+        reparsed, rebody = store.split_entry(store.render_feature(frontmatter, body))
+        self.assertEqual(fk.model_digest(frontmatter), fk.model_digest(reparsed))
+        self.assertEqual(
+            fk.feature_reviewed_content_digest(frontmatter, body),
+            fk.feature_reviewed_content_digest(reparsed, rebody),
+        )
+
+    def test_special_characters_in_claims_survive_flow_style(self) -> None:
+        self.open_and_seed()
+        self.record([
+            {"kind": "claim", "op": "set", "data": {
+                "type": "feature-purpose", "layer": "domain-data", "authority": "human-attested",
+                "text": "Commas, colons: braces {and} quotes \"survive\" — em-dash too.",
+                "citationPolicy": "citable-after-approval"}},
+        ])
+        frontmatter, _, _ = store._load_feature("invoice-finance")
+        texts = [claim["text"] for claim in frontmatter["model"]["claims"]]
+        self.assertIn("Commas, colons: braces {and} quotes \"survive\" — em-dash too.", texts)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -154,6 +154,17 @@
       "description": "Advisory suggestions; excluded from established search ranking."
     },
     "sensitivity": { "enum": ["public", "internal-sanitized"] },
+    "packageExtensionPoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["recognized", "rule"],
+      "properties": {
+        "recognized": { "type": "boolean" },
+        "rule": { "const": "MP-EXT-001" },
+        "note": { "type": "string", "maxLength": 300 }
+      },
+      "description": "Conscious, human-approved classification: whether this artifact is a recognized official extension point of the managed package (MP-EXT-001, managed-package.instructions.md). Digest-INCLUDED like sensitivity — changing it invalidates the approval — unlike orgUsage, which is machine-attested and digest-excluded. Optional: absence means unclassified, and an absent field keeps reviewedContentDigest byte-identical to entries approved before this field existed."
+    },
     "approval": {
       "type": "object",
       "additionalProperties": false,

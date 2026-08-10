@@ -23,10 +23,28 @@ question — a one-field question does not need the full sweep.
 4. **`knowledge_context` — per subject.** What the team already knows about the artifact,
    including recorded `limitations` — read them before relying on the artifact, they are
    the accumulated burn marks.
-5. **`review_soql_query` — when the design depends on data shape.** Structure, fill
+5. **`knowledge_impact` (direction: incoming) — before proposing a change to anything
+   others may consume** (CustomMetadata, RecordType, Layout, shared objects): see what
+   already depends on it, computed live from the whole corpus. An empty result is
+   normal — continue discovery regardless.
+6. **`review_soql_query` — when the design depends on data shape.** Structure, fill
    rates, real record shapes: prefer a bounded read over a guess or a blocking question.
    Never paste raw record rows into a design, a knowledge entry, or an ADO artifact —
-   derive the counts and shapes you need.
+   derive the counts and shapes you need. When the question outgrows a bounded read — a
+   persisted snapshot of configuration records, org-usage numbers attached to an entry,
+   a deeper package investigation — hand it to `config-investigator` (its
+   investigate-object / investigate-config-records lanes) instead of widening discovery.
+
+## Knowledge freshness flags
+
+Freshness on a knowledge entry has three different fates, not one. **Drift and expired
+org-usage** are not grounds to reject the entry or to redo discovery — they go into the
+design/review as an explicit caveat, exactly like `limitations`. **A failed re-read
+caused by the file changing since the index was built** — rebuild the index and retry
+(`knowledge_search.py build`); a cheap mechanical step, not a caveat and not discovery
+from zero. **A failed re-read for any other reason** (file missing, entry does not
+parse, identity/digest mismatch) remains a real gap: report it, do not build on that
+entry.
 
 ## When a tool fails
 

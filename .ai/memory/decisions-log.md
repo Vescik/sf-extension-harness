@@ -1153,3 +1153,119 @@ immovable ~60 s timeout because each call booted an oclif child and re-proved id
 - NOT yet done, deliberately: live verification against the slow org (plan §7 tests 1, 2,
   9 — latency, process count, explain selectivity) runs only on explicit owner
   instruction against the configured non-production alias.
+
+## 2026-08-10 — Knowledge plan 1/4 executed: versioned schema resolution, lifecycle loosening, review auto-chunking
+
+Owner-approved session (8 commits, e82cdc2..cfa7450) implementing the immediate list of
+plan 1/4 (knowledge entry creation/lifecycle/search, productivity first):
+
+- **Schema resolution is versioned, keyed (profile id, MAJOR)** — `SCHEMA_REGISTRY`
+  resolves validation from the pair every entry already records; `PROFILES` keeps only
+  the what-does-a-new-draft-use-today job. Owner approved the deviation from the plan's
+  exact `(id, version)` key: profile identity was already pinned at the major
+  (reviewedContentDigest binds profileMajor; test r23), so the registry follows the
+  existing contract instead of silently breaking it. Consolidation later adds retired
+  rows to `RETIRED_SCHEMA_VERSIONS`; old schema files never leave disk.
+- **Retrieval rule loosened (README + org-discovery + check-against-principles +
+  investigate-object):** approved entries ground work regardless of drift or org-usage
+  age — both travel as visible caveats; only draft/revoked stay non-grounding. Re-read
+  gaps split three ways: index-stale file = rebuild+retry; missing/unparseable/
+  digest-mismatch = integrity finding, report and stop.
+- **entry-review auto-chunks** past the cap (REVIEW_READY_CHUNKED, N artifacts + N
+  pinned approve commands from the already-sorted list) instead of CHUNK_TOO_LARGE;
+  caps and approve-side manifest limits unchanged. Applies to explicit --identity
+  selections too (owner-approved uniform behavior).
+- **packageExtensionPoint** added to the envelope, digest-included like sensitivity but
+  only when present (pre-field digests byte-identical). Two follow-ups deliberately
+  deferred by the owner: a per-type schema pin (FieldSet/CompactLayout, orgUsage wave-1
+  pattern) at the next touch of this code, and the write path — owner's recommendation
+  is an optional flag on entry-describe (human-judgment field, same nature as Purpose),
+  as its own small task, not decided final yet.
+- **investigate-object rewritten context-first** (recordId/work-record plumbing and
+  contract application lines removed; absence-proof softened to "report what you
+  checked; the reviewer judges sufficiency"; org-attach reminder step added).
+  org-discovery now points the designer at `knowledge_impact --direction incoming`
+  before proposing changes to consumable artifacts (replaces the cancelled consumedBy
+  schema field).
+- **3.2.3 localized, not executed:** the retrieval-side org-expired gate lives in
+  `org_usage_bucket()` (knowledge_search.py) — one place, ready. The entry-review
+  render withholding expired values stays untouched on purpose: that is the approval
+  surface (§14.3/§5.7 "expired means absent"), a different axis the owner explicitly
+  chose not to change.
+
+Full gate green after every commit: 984 unit tests OK, 43 safety evals PASS,
+validate_harness coherent.
+
+## 2026-08-10 — Knowledge plans 2/4 and 3/4 executed: feature bindings, usability, false successes, ceremony
+
+Plan 2/4 (Feature Knowledge, 3 commits 7dcc79c..e376600): binding resolver accepts
+approved-drifted (same rule as retrieval §3.1; draft/revoked/not-effective still never
+bind; binding_state's digest comparison untouched — Feature keeps its higher rigor);
+narration guidance (paragraph-not-page, searchability signal); dedicated flow-style
+feature renderer (digests canonical over parsed data, so approved features unaffected).
+Deviation pinned in tests: for a source-drifted binding, binding_health reads "current"
+(citation still matches what was approved; was "unknown" via swallowed StoreError) —
+"drifted" appears on re-approval with changed content, not on source drift as the plan
+predicted.
+
+Plan 3/4 (external usability audit, 24 commits f51ba5e..765c46f), highlights:
+- knowledge_resolve surfaces the three-part identity (the audit's top trap: false
+  NO_ENTRY from the two-part componentId); seven prompts gain knowledge/*; phantom
+  tools cut from search-knowledge and the real Feature reads documented; --state
+  reachable through MCP; self-heal catches "rerun inventory" with its own 300 s build
+  budget; pasted-error text accepts 4000 chars.
+- False successes closed: error envelopes for every exception type (traceback to
+  stderr for unexpected ones), meta set rejects unknown keys, entry-status names a
+  missing identity (MCP wiring test re-pinned accordingly), schema problems carry
+  their JSON path and lists stop truncating at 5, sentence counter skips
+  abbreviations and echoes its split, feature-record --validate-only dry-runs the
+  real apply path.
+- Ceremony cut: grounding block deduplicated to search-knowledge (fossil "48 of 52"
+  counts removed), approve-knowledge-drafts stops re-teaching describe, config-records
+  citation ceremony cut + numbering fixed, curator sweep scales to the question,
+  entry-readiness prints the worklist, author-feature drops the pre-binding
+  entry_status call and links the ops-file schema, config-investigator says 1-8.
+- Ergonomics: entry-draft reuses a fresh inventory; entry-status resolves one
+  identity directly; entry-approve hoists the ledger sequence; claimIds optional on
+  knowledge_feature_status; top cap unified at 50; entry-describe --purpose inline.
+
+Open design decisions deliberately NOT taken (plan 3/4): check-feature-coverage
+unreachable PASS (fix condition vs drop PASS/WARN); explain's future (align with
+context/impact vs absorb into context — plan's direction: absorb). Deferred: keywords
+taxonomy (#7, owner decision pending); recordId/work-record audit executes as the
+broadened File-1 §2.3 step. Out of scope by name: tool-capabilities.md knowledge rows,
+corpus-wide entry_status, ROW_LIFECYCLE_DISCLOSURE token cost. One audit item returned
+for clarification: the corrupted "…-investigator → org-discovery" reference.
+
+Full gate after the series: 1065 unit tests OK, 43 safety evals PASS, validate_harness
+coherent.
+
+## 2026-08-10 — Knowledge plan 4/4 executed: agents, peripheral prompts, one-source convention
+
+Plan 4/4 (7 commits 784085b..e4202e2): test-strategist inherits the retrieval rules by
+pointer (the validator's Set A pins kept the lookup-command and hydrated-rule sentences
+inline — a named deviation from the plan's exact diff); knowledge-curator consolidated
+into one skill (.github/skills/curate-knowledge/SKILL.md) with a thin agent and thin
+prompt — this is also the home of the 2.2d describe guidance (four dimensions +
+worked example), which unblocks and closes Plan 1's deferred 2.2d; the worked example
+is labeled ILLUSTRATIVE because this mirror holds zero approved entries — swap in a
+real Purpose when one exists. document-metadata-change runs again: the dead recordId
+gate is replaced by work-items/<id>/design.md in both the prompt and the
+generate-technical-documentation skill (first executed instance of the broadened
+recordId audit); 'brain-core' explained as a workspace label. Org-attach wording
+standardized on 'consider' (the owner-approved 2.2f rationale) in
+selected-files-knowledge. docs/design-guides.md created in its planned CONTENT-TODO §3
+shape with the 'one source per procedure' convention as its first section. Pins moved:
+skills 21 -> 22 in BOTH validate_harness EXPECTED_COUNTS and tests/test_repo_map.py.
+
+F.5 (BM25F golden set) deferred per the plan: shape/runner can come with the owner
+session that authors the 5-10 query/expected pairs from whatever approved corpus exists
+then; the file follows the same privacy rule as other client-domain content (private
+working repo, public mirror gets at most template + runner). F.1 and pin-knowledge's
+knowledge/* were already done in the Plan 3 session.
+
+Gate: full suite post-P4 showed exactly two non-green results — the repo-map count pin
+(fixed, e4202e2) and test_salesforce_review refresh-rebind, which fails identically on
+a clean origin/main worktree under the machine's external load (~18 loadavg), proving
+it environmental, not a regression; it was green in the post-P3 full gate on the same
+tree. 43 safety evals PASS; validate_harness coherent.

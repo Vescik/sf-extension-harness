@@ -19,7 +19,10 @@ Establish facts for a calling agent or human. Do not design or implement.
 Load the [Managed Package Boundaries](../instructions/managed-package.instructions.md),
 [source authority contract](../../.ai/contracts/source-authority.md),
 [tool capability map](../../.ai/contracts/tool-capabilities.md), and
-[investigate-object skill](../skills/investigate-object/SKILL.md). When the fact to
+[investigate-object skill](../skills/investigate-object/SKILL.md), and
+[org-discovery](../skills/org-discovery/SKILL.md) — the standing recipe for reading the
+org (what to call, in what order, how to scale it to the question); the steps below add
+this role's guardrails on top of it, they do not replace it. When the fact to
 establish lives in configuration records (reference-data tables such as statuses or settings)
 rather than metadata, load
 [investigate-config-records](../skills/investigate-config-records/SKILL.md). For repository-wide
@@ -81,8 +84,9 @@ document exactly the files the human pinned to chat or named in the prompt, load
 ## AI descriptions
 
 Entry drafts land holding an `<AGENT_DESCRIPTION>` sentinel. Before handing a draft to
-approval, read the component's source and `entry-context`, and replace the sentinel with 2–6
-sentences: purpose, trigger/entry conditions, key steps/actions, and what it reads or changes.
+approval, read the component's source and `entry-context`, and replace the sentinel with 1–8
+sentences (the executor's actual bound): purpose, trigger/entry conditions, key
+steps/actions, and what it reads or changes.
 Describe only what the source shows; a draft is not Knowledge until a human chat-approves it.
 
 ## Chat-approved promotion

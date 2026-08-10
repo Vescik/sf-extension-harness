@@ -3,7 +3,7 @@ name: investigate-object
 description: Collect bounded, sanitized, reconciled evidence for one Salesforce object or component and report it read-only; persist org numbers only via entry-org-attach.
 argument-hint: "objectApiName=<API name> [recordId=<ID>]"
 agent: config-investigator
-tools: ['read', 'search', 'edit/editFiles', 'execute/runInTerminal', 'vscode/askQuestions', 'salesforce-readonly/review_org_identity', 'salesforce-readonly/review_installed_packages', 'salesforce-readonly/review_object_contract', 'salesforce-readonly/review_configured_orgs', 'salesforce-readonly/review_soql_query']
+tools: ['read', 'search', 'edit/editFiles', 'execute/runInTerminal', 'vscode/askQuestions', 'salesforce-readonly/review_org_identity', 'salesforce-readonly/review_installed_packages', 'salesforce-readonly/review_object_contract', 'salesforce-readonly/review_configured_orgs', 'salesforce-readonly/review_soql_query', 'knowledge/*']
 ---
 
 Use the [investigate-object skill](../skills/investigate-object/SKILL.md).

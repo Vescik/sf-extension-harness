@@ -28,9 +28,8 @@ Require exactly one `objectApiName` and one `org` — a configured review-org al
 the `review_configured_orgs` facade tool); there is no default alias. The object must be on
 `salesforce.review.allowedObjectApiNames`; if it is not, stop and report the missing allowlist
 entry instead of widening scope. Optional: `fields` (must remain a subset of the reviewed field
-contract), `slice` (a predicate that bounds the snapshot to the configuration the design needs),
-`recordId` (work record to attach evidence to). Reject a generic "dump the org" or multiple
-objects in one call.
+contract) and `slice` (a predicate that bounds the snapshot to the configuration the design
+needs). Reject a generic "dump the org" or multiple objects in one call.
 
 **Row count is not a classification.** A configuration table with thousands of rows is still
 configuration, and a small table is not automatically reference data. Classify from what the
@@ -39,28 +38,26 @@ effective windows, who maintains them — not from how many there are.
 
 ## Procedure
 
-1. Check existing Knowledge for the object's source-declared shape — its fields, record types
-   and validation rules — with
-   the `knowledge_context` tool (identity `CustomObject:<ns|c>:<Object>`). Read
-   the shape from `parts`, `permissions` and `incoming` — the approved-current buckets; the
-   `*NonCurrent` siblings hold opted-in lanes and must not be treated as the object's declared
-   shape. `incoming` and `outgoing` are keyed by relation kind, so iterate the keys, and never
-   read a missing kind as an absence proof. A row with `hydrated: false` failed re-reading and
-   is not part of the object's declared shape. Cite what the executor gives you, not what the
-   view shows: obtain the citable ref with
-   the `knowledge_entry_status` tool; the `context` pack
-   is never itself citable, and Apex-layer entries generally cannot be cited as positive
-   grounding at all (contract §8.1 grounds only `source-exact`, fully covered sections).
+1. Read the `knowledge_context` tool (identity `CustomObject:<ns|c>:<Object>`) for the
+   object's source-declared shape — fields, record types, validation rules — as
+   orientation. A row with `hydrated: false` failed re-reading — re-read it from its entry
+   file (an index-stale re-read is a rebuild-and-retry, not a finding) before treating it
+   as part of the declared shape. No citation machinery here: this report is not citable
+   Knowledge, so no citable ref is needed
+   ([search-knowledge](../search-knowledge/SKILL.md) has the envelope-reading rules if the
+   pack raises questions).
 2. Call `review_org_identity` first. Stop unless it is `VERIFIED` for the exact configured org with `nonProduction: true` (a Developer Edition legitimately reports `isSandbox: false`).
 3. Call `review_object_contract` for the object's accessible field contract. Choose the snapshot
    fields from that contract only: the natural key (`Name`, a `DeveloperName`-like field, or an
    external-id field) plus the configuration-bearing fields (status values, flags, ordering,
    defaults). Exclude record Ids, audit fields (`CreatedBy`, `LastModifiedBy`, timestamps), owner
    fields, and free-text/long-text fields.
-4. Scope before you snapshot. Run aggregates first through the facade — a row count, a
-   distribution over the type/status discriminator, and a churn profile (recent creates and
-   modifications) — so you know the shape of the table before selecting rows from it. Aggregates
-   may cover the whole population; they carry no row values.
+4. Scope before you snapshot — when the table's size or shape is unknown. Aggregates through
+   the facade (a row count, a distribution over the type/status discriminator, a churn
+   profile) tell you the shape of the table before selecting rows from it and may cover the
+   whole population; they carry no row values. A small, enumerable table the design already
+   understands can be read directly — three round-trips to learn what one `SELECT` shows is
+   ceremony, not scoping.
 5. Snapshot only the slice the design needs. Read records through the governed
    `review_soql_query` facade tool, selecting every field explicitly — never `Id`, which must
    never be persisted:
@@ -72,28 +69,28 @@ effective windows, who maintains them — not from how many there are.
    record the count before and after, the page count and the final watermark. Do not paginate
    because a table is large; paginate because the design's conclusion depends on having seen
    every row of the slice.
-5. Sanitize each returned row before any other use: the facade already strips vendor
+7. Sanitize each returned row before any other use: the facade already strips vendor
    `attributes`; additionally drop any value outside the requested field list, keeping the
    `ORDER BY` order.
-7. State completeness honestly, in one of three forms: `complete` (the slice was fully
+8. State completeness honestly, in one of three forms: `complete` (the slice was fully
    enumerated, with the pagination evidence to show it), `partial` (the read hit its limit and
    more rows exist), or `slice-bounded` (the snapshot deliberately covers only the predicate the
    design needs). A `partial` result supports no absence claim. A `slice-bounded` result supports
    no claim about the rest of the table — never generalize a slice to the whole object. Never
    treat a missing row as proof a config value does not exist.
-8. Build the snapshot: object identity, the natural-key-ordered sanitized record list, row
+9. Build the snapshot: object identity, the natural-key-ordered sanitized record list, row
    count, and `contentDigest` = `sha256:<64 hex>` over the canonical JSON (sorted keys, compact
    separators) of the ordered sanitized rows. Identity convention for records inside the
    snapshot: `<ObjectApiName>.<NaturalKey>` (mirrors the `Type__mdt.Record` CustomMetadata
    convention).
-9. Write the snapshot report under `output/` (e.g.
+10. Write the snapshot report under `output/` (e.g.
    `output/reference-data/<objectApiName>-<orgKey>.md`): scope (exact `environment`, `orgKey`,
    namespace prefix), `observedAt`/`retrievedAt`, the sanitized rows, the completeness block,
    the `contentDigest`, a `sanitization` note naming the stripped surfaces, and limitations —
    above all that the values drift without any repository signal and expire with the org's
    refresh cadence.
-10. The investigation is a standalone read; link the report from the relevant
-   `work-items/<id>-<slug>/` folder when one exists.
+11. The investigation is a standalone read; link the report from the relevant
+    `work-items/<id>-<slug>/` folder when one exists.
 
 ## Prohibitions
 
@@ -107,10 +104,11 @@ effective windows, who maintains them — not from how many there are.
   values, or free-text business content; snapshot values are limited to the configuration-bearing
   fields the human scoped via the allowlist.
 - Never call a snapshot `confirmed` or `verified`, and never present the report as citable
-  Knowledge — later work cites approved entries and unexpired org-usage blocks, or re-observes.
+  Knowledge — later work cites approved entries (drift and org-usage age travel as visible
+  caveats), or re-observes.
 
 ## Return
 
-Return `EVIDENCE COLLECTED` or `UNRESOLVED`; `recordId` when provided; the report path; exact
+Return `EVIDENCE COLLECTED` or `UNRESOLVED`; the report path; exact
 scope; row count and `enumerationComplete`; the content digest; limitations; and what a human
 should verify next. No mutation of Salesforce is permitted.

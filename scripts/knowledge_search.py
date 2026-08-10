@@ -2940,8 +2940,9 @@ def run_context(args: argparse.Namespace) -> dict[str, Any]:
             "entryExists": False,
             "gaps": [
                 f"No Knowledge Entry projects {args.identity} in this index generation. That is "
-                "absence of an ENTRY, not absence of the artifact — check `entry-coverage` for "
-                "the source-side denominator."
+                "absence of an ENTRY, not absence of the artifact — report the gap; entry "
+                "creation is the curation lane's job (the source-side denominator is "
+                "`entry-coverage`, a terminal/CI report, not an MCP tool)."
             ],
             "indexGeneration": manifest["generation"],
         }
@@ -3072,8 +3073,8 @@ def run_context(args: argparse.Namespace) -> dict[str, Any]:
         gaps.append(f"{excluded['cap']} row(s) beyond --top {top} were not returned.")
     gaps.append(
         "`parts` lists artifacts that have a Knowledge Entry in this index generation, not the "
-        "object's declared composition. Run `python scripts/knowledge_store.py entry-coverage` "
-        "for the source-side denominator."
+        "object's declared composition (the source-side denominator is `entry-coverage`, a "
+        "terminal/CI report, not an MCP tool)."
     )
     gaps.extend(truncation_gaps(documents, {row["kind"] for row in incoming}))
     non_current = parts_non_current + permissions_non_current + other_non_current

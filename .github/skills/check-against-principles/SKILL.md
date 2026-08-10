@@ -37,8 +37,15 @@ identity when applicable, and accepted design/approval hashes. Reject unspecifie
      no governed dependency lookup — name them explicitly when present, or the result looks
      clean while a whole class went unchecked.
    An empty result from either layer is a recorded gap, never proof that nothing depends on it. Then, for every material factual premise,
-   require an `approved-current`, scope-matched entry (or an unexpired org-usage block for
-   usage numbers). Drafts and model inference are not trusted facts. When a cited envelope
+   require an `approved`, scope-matched entry — `approved-drifted` counts, carried into the
+   review as an explicit caveat, and org-usage numbers count with their age stated
+   ("sampled N days ago"). Drafts, revoked entries and model inference are not trusted
+   facts. Knowledge freshness has three different fates, not one: drift and expired
+   org-usage travel as caveats exactly like `limitations`; a failed re-read caused by the
+   file changing since the index was built is a rebuild-and-retry
+   (`knowledge_search.py build`), not a finding; a failed re-read for any other reason
+   (file missing, entry does not parse, identity/digest mismatch) is a real gap — report
+   it, do not build on that entry. When a cited envelope
    carries entry references, `python scripts/knowledge_store.py entry-verify-citations
    --envelope <path>` reports any that no longer resolve to a current approved entry.
 4. Compare intended customer-owned repository state with the latest complete org-review evidence.
@@ -64,24 +71,16 @@ State `recordId`, evidence completeness, repository/org drift, and that nothing 
 
 ## Knowledge grounding: two layers
 
-Query both layers through [search-knowledge](../search-knowledge/SKILL.md) and keep their
-authorities apart. Approved one-file Knowledge Entries ground intended repository-source facts
-(what a component declares, what touches a field) and are cited as `entryRef` with the entry
-path and digests. Org usage is grounded only by an unexpired entry `orgUsage` block, cited
-with its orgKey and observedAt; runtime behavior, business meaning, and vendor guarantees have
-no governed Knowledge surface — mark them `UNVERIFIED` with their source instead of citing
-the entry. Absence, deployed state, and semantics are never grounded by an entry, and a missing
-search hit is never proof of absence.
-
-Cite what the executor gives you, not what the view shows: obtain the citable ref with
-the `knowledge_entry_status` tool. A search result, a
-`context` pack and a generated dossier are never themselves citable.
-
-An entry can be approved, current and still refuse to ground a fact: contract §8.1 grounds only
-sections marked `source-exact` with full coverage, and the executor enforces that when the
-`entryRef` is bound. **Apex-layer entries generally cannot be cited as positive grounding** —
-their facts are regex-derived and honestly marked heuristic. Measured on the 189-component
-reference package: 48 of 52 ApexClass, 5 of 5 ApexTrigger, 3 of 93 CustomField and 2 of 2
-ValidationRule entries are refused. Read them for orientation, report the fact as inferred, and
-report the fact as ungrounded instead. The refusal is the contract working, not a tooling
-failure — never retry it with a different ref shape.
+Query both layers through the knowledge tools and read their envelopes by the
+[search-knowledge](../search-knowledge/SKILL.md) rules — authorities, lane handling and
+citation mechanics live there, once; do not re-derive them here. In short: approved
+entries ground intended repository-source facts, cited as `entryRef` via the
+`knowledge_entry_status` tool (a search result, a `context` pack and a generated view are
+never themselves citable); org usage grounds usage numbers cited with orgKey, observedAt
+and their age; runtime behavior, business meaning and vendor guarantees have no governed
+Knowledge surface — mark them `UNVERIFIED` with their source. A missing hit is never
+proof of absence. An approved entry can still refuse to ground a fact: contract §8.1
+grounds only `source-exact`, fully covered sections — check the entry's
+`extractionCoverage` and `assurance` (heuristic-derived facts, common across the Apex
+layer, are refused). Take the refusal as the answer: report the fact as inferred and name
+what would make it groundable — never retry with a different ref shape.

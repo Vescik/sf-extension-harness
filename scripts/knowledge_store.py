@@ -351,6 +351,43 @@ PROFILES = {
     },
 }
 
+# Versioned schema resolution (plan 2026-08-09 §2.1). Two structures with two different
+# keys, deliberately not one:
+#
+# - PROFILES above is the CURRENT-profile-for-type map, keyed by metadataType. It is
+#   consulted only when a NEW entry is drafted (`entry-draft` asks "which profile does a
+#   new draft of this type use today"). A schema consolidation repoints a type here.
+# - SCHEMA_REGISTRY below resolves validation, keyed by (profile id, version) — the pair
+#   every entry already records in its frontmatter. Metadata types are not 1:1 with
+#   profile ids (ApexClass and ApexTrigger share `salesforce.apex`), so the two keys are
+#   not interchangeable.
+#
+# The registry key is (id, MAJOR), not the full version: the approval digest already binds
+# `profileMajor` only (reviewed_content_digest), and a patch/minor bump is pinned as
+# non-material (test r23) — so schema identity, like approval identity, lives at the major.
+#
+# The registry is append-only. When a consolidation repoints a type in PROFILES to a new
+# profile major, add the retired (id, major) -> schema row to RETIRED_SCHEMA_VERSIONS and
+# keep the old schema file on disk — entries drafted under the old major then keep
+# validating against the exact schema they were drafted with, with no migration and no
+# fallback path.
+RETIRED_SCHEMA_VERSIONS: dict[tuple[str, str], str] = {
+    # (profile id, major) -> schema file. Rows are only ever added, never edited.
+}
+
+
+def profile_major(version: str) -> str:
+    return str(version).split(".", 1)[0]
+
+
+SCHEMA_REGISTRY: dict[tuple[str, str], str] = {
+    **RETIRED_SCHEMA_VERSIONS,
+    **{
+        (profile["id"], profile_major(profile["version"])): profile["schema"]
+        for profile in PROFILES.values()
+    },
+}
+
 # Storage families group the artifacts tree for navigation; a family is never evidence and
 # never creates a graph relation. ApexClass always lives under code/ even when it serves as
 # a UI controller. Lives here next to PROFILES so the one pin test and every future consumer
@@ -650,15 +687,20 @@ def semantics_digest(body: str) -> str:
 def reviewed_content_digest(frontmatter: dict[str, Any], body: str) -> str:
     subject = frontmatter["subject"]
     profile = frontmatter["profile"]
-    return canonical_digest(
-        {
-            "identity": identity_of(subject["metadataType"], subject.get("namespace"), subject["fullName"]),
-            "profileMajor": f"{profile['id']}@{profile['version'].split('.', 1)[0]}",
-            "factsDigest": facts_digest(frontmatter),
-            "semanticsDigest": semantics_digest(body),
-            "sensitivity": frontmatter["sensitivity"],
-        }
-    )
+    payload = {
+        "identity": identity_of(subject["metadataType"], subject.get("namespace"), subject["fullName"]),
+        "profileMajor": f"{profile['id']}@{profile['version'].split('.', 1)[0]}",
+        "factsDigest": facts_digest(frontmatter),
+        "semanticsDigest": semantics_digest(body),
+        "sensitivity": frontmatter["sensitivity"],
+    }
+    # packageExtensionPoint is digest-INCLUDED like sensitivity (a conscious classification
+    # the human approves), unlike orgUsage (machine-attested, digest-excluded) — but only
+    # when present, so every entry approved before the field existed keeps its digest
+    # (plan 2026-08-09, Problem 4 / Korekta C).
+    if "packageExtensionPoint" in frontmatter:
+        payload["packageExtensionPoint"] = frontmatter["packageExtensionPoint"]
+    return canonical_digest(payload)
 
 
 # --- ledger (contract §6.1) ------------------------------------------------------------
@@ -686,15 +728,23 @@ def ledger_latest(records: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     return latest
 
 
-def append_ledger(entries: list[dict[str, Any]], path: Path | None = None) -> None:
+def append_ledger(
+    entries: list[dict[str, Any]], path: Path | None = None, *, sequence: int | None = None
+) -> int:
+    """Append entries; returns the new sequence high-water mark.
+
+    Pass `sequence` when the caller already read the ledger (a per-entry approve loop used
+    to re-read and re-validate the WHOLE file once per entry — quadratic on the one command
+    a human is waiting on, plan 2026-08-09 §3c.4). Default behavior is unchanged."""
     ledger = path or LEDGER_PATH
-    records = read_ledger(ledger)
-    sequence = len(records)
+    if sequence is None:
+        sequence = len(read_ledger(ledger))
     ledger.parent.mkdir(parents=True, exist_ok=True)
     with ledger.open("a", encoding="utf-8", newline="\n") as handle:
         for entry in entries:
             sequence += 1
             handle.write(json.dumps({"sequence": sequence, **entry}, sort_keys=True) + "\n")
+    return sequence
 
 
 # --- validation and lanes (contract §4) -------------------------------------------------
@@ -704,23 +754,59 @@ def load_schema(name: str) -> dict[str, Any]:
     return json.loads((SCHEMA_DIR / name).read_text(encoding="utf-8"))
 
 
+# Abbreviations the naive sentence splitter must not count as sentence ends ("e.g.",
+# "v. 64.0", "Acct. No." each minted a phantom sentence — plan 2026-08-09 §3c.2). Kept
+# deliberately small: common English/technical forms, not a linguistics project.
+_NON_TERMINAL_ABBREVIATIONS = (
+    "e.g.", "i.e.", "etc.", "vs.", "v.", "cf.", "approx.", "no.", "acct.", "dept.",
+)
+
+
+def split_sentences(text: str) -> list[str]:
+    parts = [part for part in re.split(r"(?<=[.!?])\s+", text.strip()) if part.strip()]
+    merged: list[str] = []
+    for part in parts:
+        previous = merged[-1].lower() if merged else ""
+        if merged and any(previous.endswith(abbr) for abbr in _NON_TERMINAL_ABBREVIATIONS):
+            merged[-1] = f"{merged[-1]} {part}"
+        else:
+            merged.append(part)
+    return merged
+
+
+def _schema_problem(error) -> str:
+    """`where: what` — a bare jsonschema message without its JSON path sends the author
+    hunting through the whole document (plan 2026-08-09 §3c.2)."""
+    where = "/".join(str(part) for part in error.absolute_path) or "(root)"
+    return f"{where}: {error.message}"
+
+
 def validate_entry(frontmatter: dict[str, Any], body: str) -> list[str]:
     from jsonschema import Draft202012Validator
 
     problems: list[str] = []
     envelope = Draft202012Validator(load_schema("knowledge-entry.schema.json"))
-    problems.extend(error.message for error in envelope.iter_errors(frontmatter))
+    problems.extend(_schema_problem(error) for error in envelope.iter_errors(frontmatter))
     metadata_type = frontmatter.get("subject", {}).get("metadataType")
-    profile = PROFILES.get(metadata_type or "")
-    if profile is None:
-        problems.append(f"unsupported profile for metadataType {metadata_type!r}")
+    # Resolve the profile schema from the (id, version) the entry itself declares, against
+    # the append-only SCHEMA_REGISTRY — never from the current PROFILES mapping for the
+    # type. A consolidation that repoints PROFILES therefore never re-validates existing
+    # entries against a schema they were not drafted with (plan 2026-08-09 §2.1).
+    declared = frontmatter.get("profile") or {}
+    declared_major = profile_major(declared.get("version") or "")
+    schema_name = SCHEMA_REGISTRY.get((declared.get("id"), declared_major))
+    if schema_name is None:
+        problems.append(
+            "no registered schema for profile "
+            f"{declared.get('id')!r}@{declared_major!r} (metadataType {metadata_type!r})"
+        )
     else:
-        profile_validator = Draft202012Validator(load_schema(profile["schema"]))
+        profile_validator = Draft202012Validator(load_schema(schema_name))
         payload = {
             "typeFacts": frontmatter.get("typeFacts", {}),
             "intentionalErrors": frontmatter.get("intentionalErrors", []),
         }
-        problems.extend(error.message for error in profile_validator.iter_errors(payload))
+        problems.extend(_schema_problem(error) for error in profile_validator.iter_errors(payload))
     raw = yaml.dump(frontmatter, sort_keys=True) + body
     if SENTINEL_PATTERN.search(raw):
         problems.append("unfilled <AGENT_...> sentinel present (contract §6.4.6)")
@@ -910,10 +996,18 @@ def all_entry_paths(include_case_twins: bool = False) -> list[Path]:
 
 
 def collector_component(metadata_type: str, full_name: str) -> dict[str, Any]:
-    from scripts.force_app_knowledge import ForceAppKnowledge
+    from scripts.force_app_knowledge import ForceAppKnowledge, KnowledgeBuildError
 
     builder = ForceAppKnowledge(ROOT)
-    inventory = builder.inventory()
+    # Reuse the cached inventory when it is fresh (plan 2026-08-09 §3c.4): a drafting wave
+    # of N entries used to pay N full rescans (walk + digest + XML parse + schema-validate
+    # + cache write). Same freshness check resolve() uses; any miss falls back to a rebuild.
+    try:
+        inventory = builder.load_inventory()
+        if inventory["sourceTreeDigest"] != builder.current_tree_digest():
+            inventory = builder.inventory()
+    except (KnowledgeBuildError, OSError, ValueError, KeyError):
+        inventory = builder.inventory()
     wanted = f"{metadata_type}:{full_name}"
     for component in inventory.get("components", []):
         if component.get("id") == wanted:
@@ -1398,6 +1492,7 @@ def command_entry_approve(args: argparse.Namespace) -> dict[str, Any]:
     REVIEW_ARTIFACT_ROOT.mkdir(parents=True, exist_ok=True)
     artifact_lines = [f"# Knowledge approval chunk {chunk_id}", ""]
     ledger_entries = []
+    sequence = len(records)
     for path, frontmatter, body, digest in resolved:
         subject = frontmatter["subject"]
         identity = identity_of(subject["metadataType"], subject.get("namespace"), subject["fullName"])
@@ -1422,10 +1517,23 @@ def command_entry_approve(args: argparse.Namespace) -> dict[str, Any]:
                 "chunkId": chunk_id,
             }
         )
-        append_ledger([ledger_entries[-1]])  # per-file journaled stamping (contract §6.4.5)
+        # Per-file journaled stamping (contract §6.4.5) with a hoisted sequence counter —
+        # the ledger was read once at the top of this command.
+        sequence = append_ledger([ledger_entries[-1]], sequence=sequence)
     with (REVIEW_ARTIFACT_ROOT / f"{chunk_id}.md").open("w", encoding="utf-8", newline="\n") as handle:
         handle.write("\n".join(artifact_lines))
-    return {"outcome": "APPROVED", "chunkId": chunk_id, "entries": len(resolved)}
+    return {
+        "outcome": "APPROVED",
+        "chunkId": chunk_id,
+        "entries": len(resolved),
+        # Freshly approved entries are invisible to search until the index generation moves
+        # (plan 2026-08-09 §3c.1, "successes go blind"): through MCP the next read self-heals
+        # via the INDEX STALE rebuild; in a terminal lane run `knowledge_search.py build`.
+        "next": (
+            "approved entries become searchable after the index rebuild — automatic on the "
+            "next MCP read; in a terminal session run `python scripts/knowledge_search.py build`"
+        ),
+    }
 
 
 def classify_chunk(resolved: list[tuple[str, dict[str, Any], str, str]], latest: dict[str, dict[str, Any]]) -> dict[str, Any]:
@@ -1534,14 +1642,31 @@ def command_entry_describe(args: argparse.Namespace) -> dict[str, Any]:
     if not path.is_file():
         raise StoreError(f"no entry to describe: {args.identity}")
     frontmatter, previous_body = split_entry(path.read_text(encoding="utf-8"))
-    description = normalize_body(Path(args.purpose_file).read_text(encoding="utf-8"))
+    # --purpose carries the 1-8 sentences inline; --purpose-file stays for longer prep.
+    # Exactly one of the two (plan 2026-08-09 §3c.4: a curation wave of N entries paid N
+    # scratch-file writes for prose the command could take directly).
+    inline = getattr(args, "purpose", None)
+    if (inline is None) == (args.purpose_file is None):
+        raise StoreError("pass exactly one of --purpose or --purpose-file")
+    if inline is not None:
+        description = normalize_body(inline)
+    else:
+        purpose_path = Path(args.purpose_file)
+        if not purpose_path.is_file():
+            raise StoreError(f"purpose file does not exist: {args.purpose_file}")
+        description = normalize_body(purpose_path.read_text(encoding="utf-8"))
     if not description.strip():
-        raise StoreError("the description file is empty")
-    sentences = [part for part in re.split(r"(?<=[.!?])\s+", description.strip()) if part.strip()]
+        raise StoreError("the description is empty")
+    sentences = split_sentences(description)
     if not 1 <= len(sentences) <= 8:
+        # Echo the split (plan 2026-08-09 §3c.2): an author told "you wrote 9" with no way
+        # to see where the counter cut is stuck in a blind retry loop.
+        preview = " | ".join(
+            sentence if len(sentence) <= 60 else sentence[:57] + "..." for sentence in sentences
+        )
         raise StoreError(
             f"a description must be 1-8 sentences, got {len(sentences)} — it states what the "
-            "component does, it is not a transcript of its source"
+            f"component does, it is not a transcript of its source. Counted as: {preview}"
         )
     body = "## Purpose\n\n" + description
     limitations = [str(item).strip() for item in (getattr(args, "limitation", None) or []) if str(item).strip()]
@@ -1608,6 +1733,40 @@ def command_entry_review(args: argparse.Namespace) -> dict[str, Any]:
     if not resolved:
         return {"outcome": "NOTHING_TO_REVIEW", "problems": problems}
 
+    # Auto-chunking (plan 2026-08-09 §2.2e): when the draft set exceeds the applicable cap,
+    # cut the already-sorted list (all_entry_paths() sorts, so family/type grouping is free)
+    # into ≤cap rounds and render every round's artifact + pinned approve command in one
+    # call. The human still reads full bodies and approves per round — only the manual
+    # selection of round boundaries is removed. CHUNK_TOO_LARGE is no longer an outcome
+    # here; the approve-side manifest caps (§6.4.4) are untouched.
+    whole = classify_chunk(resolved, latest)
+    size = PROSE_CHUNK_LIMIT if whole["proseChanges"] else MANIFEST_CHUNK_LIMIT
+    if len(resolved) > size:
+        chunks = [
+            _render_review_chunk(resolved[start : start + size], latest)
+            for start in range(0, len(resolved), size)
+        ]
+        return {
+            "outcome": "REVIEW_READY_CHUNKED",
+            "entries": len(resolved),
+            "chunkSize": size,
+            "chunks": chunks,
+            "problems": problems,
+            "note": (
+                f"{len(resolved)} drafts exceed the {size}-entry cap; the sorted list was "
+                f"cut into {len(chunks)} review rounds — read each round's artifact and "
+                "run its approve command separately"
+            ),
+        }
+    single = _render_review_chunk(resolved, latest)
+    single["problems"] = problems
+    return single
+
+
+def _render_review_chunk(
+    resolved: list[tuple[str, dict[str, Any], str, str]],
+    latest: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
     classification = classify_chunk(resolved, latest)
     chunk_id = canonical_digest(sorted((identity, digest) for identity, _f, _b, digest in resolved))[7:19]
     lines = [
@@ -1697,7 +1856,6 @@ def command_entry_review(args: argparse.Namespace) -> dict[str, Any]:
         "entries": len(resolved),
         "classification": classification,
         "capViolations": caps,
-        "problems": problems,
         "approveCommand": f"python scripts/knowledge_store.py entry-approve {pins}",
     }
 
@@ -1782,7 +1940,28 @@ def command_entry_status(args: argparse.Namespace) -> dict[str, Any]:
     latest = ledger_latest(read_ledger())
     org_latest = org_ledger_latest()
     lanes = []
-    for path in all_entry_paths():
+    if args.identity:
+        # Direct path resolution (plan 2026-08-09 §3c.4): the path is a function of the
+        # identity, so one entry's status must not pay a full-corpus lane recompute. And a
+        # typo'd identity is a named error, not an empty success indistinguishable from
+        # "no entry" (§3c.2).
+        parts = args.identity.split(":", 2)
+        if len(parts) != 3:
+            raise StoreError(
+                f"--identity {args.identity!r} is not <MetadataType>:<ns|c>:<FullName>"
+            )
+        metadata_type, namespace_segment, full_name = parts
+        namespace = None if namespace_segment == "c" else namespace_segment
+        path = entry_path(metadata_type, namespace, full_name)
+        if not path.is_file():
+            raise StoreError(
+                f"no entry matches {args.identity} (path {relative_path(path)} does not "
+                "exist) — check the identity or draft the entry first"
+            )
+        candidates = [path]
+    else:
+        candidates = all_entry_paths()
+    for path in candidates:
         lane = compute_lane(path, latest)
         if args.identity and lane["identity"] != args.identity:
             continue
@@ -2210,9 +2389,9 @@ def load_probes_file(
         payload = json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
         raise StoreError(f"probes file is not valid JSON: {exc}") from exc
-    errors = sorted(e.message for e in Draft202012Validator(PROBES_FILE_SCHEMA).iter_errors(payload))
+    errors = sorted(_schema_problem(e) for e in Draft202012Validator(PROBES_FILE_SCHEMA).iter_errors(payload))
     if errors:
-        raise StoreError("probes file failed validation: " + "; ".join(errors[:5]))
+        raise StoreError("probes file failed validation: " + "; ".join(errors))
     probes = payload["probes"]
     labels = [probe["label"] for probe in probes]
     if len(labels) != len(set(labels)):
@@ -2803,7 +2982,8 @@ def build_parser() -> argparse.ArgumentParser:
         "entry-describe", help="write the agent-authored description into an existing entry"
     )
     describe.add_argument("--identity", required=True)
-    describe.add_argument("--purpose-file", required=True)
+    describe.add_argument("--purpose-file", default=None)
+    describe.add_argument("--purpose", default=None)
     describe.add_argument("--limitation", action="append", default=None)
     describe.add_argument("--clear-limitations", action="store_true")
     describe.set_defaults(func=command_entry_describe)
@@ -2876,6 +3056,7 @@ def build_parser() -> argparse.ArgumentParser:
     frecord.add_argument("--slug", required=True)
     frecord.add_argument("--expected-version", required=True, type=int)
     frecord.add_argument("--operations-file", required=True)
+    frecord.add_argument("--validate-only", action="store_true")
     frecord.set_defaults(func=command_feature_record)
 
     fstatus = commands.add_parser("feature-status", help="lanes for every feature")
@@ -2925,8 +3106,26 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
         result = args.func(args)
-    except StoreError as error:
-        print(json.dumps({"outcome": "ERROR", "reason": str(error)}, indent=2))
+    except Exception as error:  # noqa: BLE001 — the envelope IS the error contract
+        # Every consumer parses the JSON envelope; a raw traceback on stdout dead-ends the
+        # agent (plan 2026-08-09 §3c.2). errorType keeps "expected domain error"
+        # (StoreError) distinguishable from "unexpected bug needing a programmer"; for the
+        # latter the full traceback goes to stderr — the envelope alone would erase the
+        # one thing that class of error is diagnosed with.
+        if not isinstance(error, StoreError):
+            import traceback
+
+            traceback.print_exc()
+        print(
+            json.dumps(
+                {
+                    "outcome": "ERROR",
+                    "errorType": error.__class__.__name__,
+                    "reason": str(error),
+                },
+                indent=2,
+            )
+        )
         return 1
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0
@@ -2957,9 +3156,12 @@ def _fk():
 
 
 def _feature_binding_resolver(entry_id: str) -> dict[str, Any]:
-    """A live receipt for an artifact binding — approved-current or refused. Bindings are
-    created only from the store's own lane computation, never assembled from search hits
-    or caller-pasted digests (master plan §9.3)."""
+    """A live receipt for an artifact binding — approved (current or drifted) or refused.
+    Bindings are created only from the store's own lane computation, never assembled from
+    search hits or caller-pasted digests (master plan §9.3). approved-drifted binds too
+    (plan 2026-08-09 §F.4, same rule as retrieval §3.1): source drift is a visible caveat,
+    not a block — binding_state's digest comparison downgrades stale citations on its own.
+    draft, revoked and not-effective never bind."""
     parts = (entry_id or "").split(":", 2)
     if len(parts) != 3:
         raise StoreError(f"binding target {entry_id!r} is not an Artifact identity")
@@ -2969,9 +3171,10 @@ def _feature_binding_resolver(entry_id: str) -> dict[str, Any]:
     if not path.is_file():
         raise StoreError(f"binding target {entry_id} has no Knowledge Entry")
     lane = compute_lane(path, ledger_latest(read_ledger()))
-    if lane.get("lane") != "approved-current":
+    if lane.get("lane") not in ("approved-current", "approved-drifted"):
         raise StoreError(
-            f"binding target {entry_id} is {lane.get('lane')}; only approved-current entries bind"
+            f"binding target {entry_id} is {lane.get('lane')}; only approved entries bind "
+            "(approved-current or approved-drifted — draft and revoked never do)"
         )
     return {
         "reviewedContentDigest": lane["reviewedContentDigest"],
@@ -2981,11 +3184,52 @@ def _feature_binding_resolver(entry_id: str) -> dict[str, Any]:
     }
 
 
+class _FlowMap(dict):
+    """Marker: a model row rendered flow-style (one line per node/relation/claim)."""
+
+
+class _FeatureDumper(yaml.Dumper):
+    pass
+
+
+_FeatureDumper.add_representer(
+    _FlowMap,
+    lambda dumper, data: dumper.represent_mapping(
+        "tag:yaml.org,2002:map", dict(data), flow_style=True
+    ),
+)
+
+
+def render_feature(frontmatter: dict[str, Any], body: str) -> str:
+    """Feature serialization (plan 2026-08-09 §F.1) — a denser file, nothing else.
+
+    Same schema, same validation, same digests: every feature digest is canonical over
+    the PARSED structures (model_digest / feature_reviewed_content_digest), never file
+    bytes, so the format change is invisible to approval. Model rows render flow-style
+    because block YAML made the structural layer dominate the document (~8 lines per
+    row) and the executor is the only writer ("You write NOTHING by hand")."""
+    fm = copy.deepcopy(frontmatter)
+    model = fm.get("model")
+    if isinstance(model, dict):
+        for key in ("nodes", "relations", "claims"):
+            rows = model.get(key)
+            if isinstance(rows, list):
+                model[key] = [_FlowMap(row) if isinstance(row, dict) else row for row in rows]
+    return (
+        "---\n"
+        + yaml.dump(
+            fm, Dumper=_FeatureDumper, sort_keys=True, allow_unicode=True, default_flow_style=False
+        )
+        + "---\n\n"
+        + normalize_body(body)
+    )
+
+
 def _write_feature(slug: str, frontmatter: dict[str, Any], body: str) -> Path:
     fk = _fk()
     path = fk.feature_path(slug)
     path.parent.mkdir(parents=True, exist_ok=True)
-    atomic_write(path, render_entry(frontmatter, body))
+    atomic_write(path, render_feature(frontmatter, body))
     return path
 
 
@@ -3049,6 +3293,17 @@ def command_feature_record(args: argparse.Namespace) -> dict[str, Any]:
     frontmatter, body, applied = fk.apply_operations(
         frontmatter, body, operations, _feature_binding_resolver
     )
+    if getattr(args, "validate_only", False):
+        # Dry-run (plan 2026-08-09 §3c.2): the same apply_operations pass as a real write
+        # — validation and result always agree because it IS the write path — with the
+        # file write skipped. Turns the 40-op blind retry into check-fix-apply.
+        return {
+            "outcome": "VALIDATED",
+            "identity": fk.feature_identity(args.slug),
+            "draftVersion": int(args.expected_version),
+            "wouldApply": applied,
+            "note": "nothing written; re-run without --validate-only to apply",
+        }
     _write_feature(args.slug, frontmatter, body)
     return {
         "outcome": "RECORDED",
@@ -3221,7 +3476,7 @@ def command_feature_approve(args: argparse.Namespace) -> dict[str, Any]:
         frontmatter, body, path = _load_feature(slug)
         problems = fk.validate_feature(frontmatter, body)
         if problems:
-            raise StoreError(f"{identity}: validation failed: " + "; ".join(problems[:5]))
+            raise StoreError(f"{identity}: validation failed: " + "; ".join(problems))
         digest = fk.feature_reviewed_content_digest(frontmatter, body)
         if digest != pinned:
             raise StoreError(

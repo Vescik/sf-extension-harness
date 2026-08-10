@@ -3504,6 +3504,25 @@ class EntryEdgeHealthTests(unittest.TestCase):
             )
         return drafted["identity"]
 
+    def test_resolve_surfaces_the_three_part_identity_for_entries(self) -> None:
+        # Plan 2026-08-09 §3c.1 #2: the two-part componentId pasted into knowledge_context
+        # produced an authoritative false NO_ENTRY. resolve() must hand over the exact
+        # three-part identity the other knowledge tools take as input.
+        identity = self.approved_entry("HarnessEngagement__c.Invoice__c")
+        shutil.copy2(
+            ROOT / "schemas/force-app-knowledge-resolve.schema.json",
+            self.root / "schemas/force-app-knowledge-resolve.schema.json",
+        )
+        result = self.builder.resolve(
+            ["force-app/main/default/objects/HarnessEngagement__c/fields/Invoice__c.field-meta.xml"],
+            [],
+            False,
+        )
+        items = {item["componentId"]: item for item in result["components"]}
+        item = items["CustomField:HarnessEngagement__c.Invoice__c"]
+        self.assertEqual(identity, item["identity"])
+        self.assertEqual("approved-current", item["status"])
+
     def drop_invoice_object(self) -> None:
         shutil.rmtree(self.root / "force-app/main/default/objects/HarnessInvoice__c")
         self.commit("delete HarnessInvoice__c")
