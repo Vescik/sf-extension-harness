@@ -333,6 +333,27 @@ class SeparationTests(unittest.TestCase):
                 self.assertEqual([], store.all_entry_paths())
 
 
+class MetaSetValidationTests(FeatureFixture):
+    """Plan 2026-08-09 §3c.2: a typo'd meta key must reject the batch, never return a
+    false RECORDED with a bumped version."""
+
+    def test_unknown_meta_key_rejects_the_batch(self) -> None:
+        self.open_and_seed()
+        before, _, _ = store._load_feature("invoice-finance")
+        with self.assertRaises(store.StoreError) as ctx:
+            self.record([{"kind": "meta", "op": "set", "data": {"entryPoint": ["typo"]}}])
+        self.assertIn("unknown meta key", str(ctx.exception))
+        after, _, _ = store._load_feature("invoice-finance")
+        self.assertEqual(before["draft"]["version"], after["draft"]["version"])
+
+    def test_known_meta_keys_still_apply(self) -> None:
+        self.open_and_seed()
+        result = self.record([
+            {"kind": "meta", "op": "set", "data": {"keywords": ["billing"], "name": "Invoice Finance"}},
+        ])
+        self.assertEqual("RECORDED", result["outcome"])
+
+
 class CompactRendererTests(FeatureFixture):
     """Plan 2026-08-09 §F.1: model rows serialize flow-style — same schema, same
     validation, same digests (canonical over parsed data, never file bytes)."""

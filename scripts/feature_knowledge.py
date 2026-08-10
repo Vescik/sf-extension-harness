@@ -536,6 +536,16 @@ def apply_operations(
                 )
                 applied.append(f"resolve {data['id']}")
             else:
+                # A typo'd key used to fall through silently and still return RECORDED with
+                # a bumped draft version — a false success worse than a refusal
+                # (plan 2026-08-09 §3c.2). Unknown keys reject the batch.
+                known = {"name", "entryPoints", "limitations", "keywords", "candidateKeywords", "sensitivity"}
+                unknown = sorted(set(data) - known)
+                if unknown:
+                    raise FeatureError(
+                        f"operation {index}: unknown meta key(s) {', '.join(unknown)}; "
+                        f"known: {', '.join(sorted(known))}"
+                    )
                 if data.get("name"):
                     fm["subject"]["name"] = str(data["name"])
                 if data.get("entryPoints") is not None:
