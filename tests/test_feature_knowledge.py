@@ -333,5 +333,39 @@ class SeparationTests(unittest.TestCase):
                 self.assertEqual([], store.all_entry_paths())
 
 
+class CompactRendererTests(FeatureFixture):
+    """Plan 2026-08-09 §F.1: model rows serialize flow-style — same schema, same
+    validation, same digests (canonical over parsed data, never file bytes)."""
+
+    def test_model_rows_render_flow_style_and_round_trip(self) -> None:
+        self.open_and_seed()
+        path = fk.feature_path("invoice-finance")
+        text = path.read_text(encoding="utf-8")
+        flow_rows = [line for line in text.splitlines() if line.lstrip().startswith("- {")]
+        # one flow line per live node/claim (1 node + 2 claims seeded here)
+        self.assertGreaterEqual(len(flow_rows), 3, text)
+        frontmatter, body = store.split_entry(text)
+        self.assertEqual([], fk.validate_feature(frontmatter, body))
+        # round-trip: parse -> re-render -> parse yields identical digests
+        reparsed, rebody = store.split_entry(store.render_feature(frontmatter, body))
+        self.assertEqual(fk.model_digest(frontmatter), fk.model_digest(reparsed))
+        self.assertEqual(
+            fk.feature_reviewed_content_digest(frontmatter, body),
+            fk.feature_reviewed_content_digest(reparsed, rebody),
+        )
+
+    def test_special_characters_in_claims_survive_flow_style(self) -> None:
+        self.open_and_seed()
+        self.record([
+            {"kind": "claim", "op": "set", "data": {
+                "type": "feature-purpose", "layer": "domain-data", "authority": "human-attested",
+                "text": "Commas, colons: braces {and} quotes \"survive\" — em-dash too.",
+                "citationPolicy": "citable-after-approval"}},
+        ])
+        frontmatter, _, _ = store._load_feature("invoice-finance")
+        texts = [claim["text"] for claim in frontmatter["model"]["claims"]]
+        self.assertIn("Commas, colons: braces {and} quotes \"survive\" — em-dash too.", texts)
+
+
 if __name__ == "__main__":
     unittest.main()

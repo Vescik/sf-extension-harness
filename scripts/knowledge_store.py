@@ -3069,11 +3069,52 @@ def _feature_binding_resolver(entry_id: str) -> dict[str, Any]:
     }
 
 
+class _FlowMap(dict):
+    """Marker: a model row rendered flow-style (one line per node/relation/claim)."""
+
+
+class _FeatureDumper(yaml.Dumper):
+    pass
+
+
+_FeatureDumper.add_representer(
+    _FlowMap,
+    lambda dumper, data: dumper.represent_mapping(
+        "tag:yaml.org,2002:map", dict(data), flow_style=True
+    ),
+)
+
+
+def render_feature(frontmatter: dict[str, Any], body: str) -> str:
+    """Feature serialization (plan 2026-08-09 §F.1) — a denser file, nothing else.
+
+    Same schema, same validation, same digests: every feature digest is canonical over
+    the PARSED structures (model_digest / feature_reviewed_content_digest), never file
+    bytes, so the format change is invisible to approval. Model rows render flow-style
+    because block YAML made the structural layer dominate the document (~8 lines per
+    row) and the executor is the only writer ("You write NOTHING by hand")."""
+    fm = copy.deepcopy(frontmatter)
+    model = fm.get("model")
+    if isinstance(model, dict):
+        for key in ("nodes", "relations", "claims"):
+            rows = model.get(key)
+            if isinstance(rows, list):
+                model[key] = [_FlowMap(row) if isinstance(row, dict) else row for row in rows]
+    return (
+        "---\n"
+        + yaml.dump(
+            fm, Dumper=_FeatureDumper, sort_keys=True, allow_unicode=True, default_flow_style=False
+        )
+        + "---\n\n"
+        + normalize_body(body)
+    )
+
+
 def _write_feature(slug: str, frontmatter: dict[str, Any], body: str) -> Path:
     fk = _fk()
     path = fk.feature_path(slug)
     path.parent.mkdir(parents=True, exist_ok=True)
-    atomic_write(path, render_entry(frontmatter, body))
+    atomic_write(path, render_feature(frontmatter, body))
     return path
 
 
