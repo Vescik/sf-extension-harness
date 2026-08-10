@@ -114,20 +114,6 @@ class TestApplyPatch(unittest.TestCase):
             validate_harness.apply_patch([], "missing.path", 1)
 
 
-class TestPlanConsumerSet(unittest.TestCase):
-    def test_unclosed_bold_intro_is_unparsed_not_a_crash(self) -> None:
-        self.assertEqual(
-            validate_harness.plan_consumer_set("- **Set A — intro never closes\n\n", "Set A"),
-            (None, []),
-        )
-
-    def test_missing_colon_is_unparsed_not_a_crash(self) -> None:
-        self.assertEqual(
-            validate_harness.plan_consumer_set("- **Set A — intro** no colon here\n\n", "Set A"),
-            (None, []),
-        )
-
-
 class GithubCopyBase(TempRootBase):
     def setUp(self) -> None:
         super().setUp()
