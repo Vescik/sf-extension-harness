@@ -1397,6 +1397,50 @@ class ProfileSchemaCoverageTests(unittest.TestCase):
                 self.assertEqual([], problems, f"{metadata_type}: {problems}")
 
 
+class PackageExtensionPointTests(KnowledgeStoreTests):
+    """packageExtensionPoint (plan 2026-08-09, Problem 4): a conscious, human-approved
+    classification in the envelope — digest-included like sensitivity, unlike orgUsage."""
+
+    FIELD = {"recognized": True, "rule": "MP-EXT-001", "note": "vendor-documented field set"}
+
+    def test_absence_keeps_the_digest_of_pre_field_entries(self) -> None:
+        drafted = self.draft()
+        frontmatter, body = store.split_entry(
+            (self.temp / drafted["path"]).read_text(encoding="utf-8")
+        )
+        self.assertEqual(
+            drafted["reviewedContentDigest"], store.reviewed_content_digest(frontmatter, body)
+        )
+        stamped = copy.deepcopy(frontmatter)
+        stamped["packageExtensionPoint"] = dict(self.FIELD)
+        self.assertNotEqual(
+            drafted["reviewedContentDigest"], store.reviewed_content_digest(stamped, body)
+        )
+
+    def test_schema_accepts_the_field_and_pins_its_shape(self) -> None:
+        drafted = self.draft()
+        frontmatter, body = store.split_entry(
+            (self.temp / drafted["path"]).read_text(encoding="utf-8")
+        )
+        frontmatter["packageExtensionPoint"] = dict(self.FIELD)
+        self.assertEqual([], store.validate_entry(frontmatter, body))
+        frontmatter["packageExtensionPoint"] = {"recognized": True, "rule": "SOMETHING-ELSE"}
+        self.assertTrue(store.validate_entry(frontmatter, body))
+
+    def test_r10_clone_field_change_after_approval_invalidates(self) -> None:
+        drafted = self.draft()
+        self.approve([f"{drafted['identity']}:{drafted['reviewedContentDigest']}"])
+        path = self.temp / drafted["path"]
+        text = path.read_text(encoding="utf-8")
+        frontmatter, body = store.split_entry(text)
+        frontmatter["packageExtensionPoint"] = dict(self.FIELD)
+        path.write_text(
+            "---\n" + store.yaml.safe_dump(frontmatter, sort_keys=False) + "---\n\n" + body,
+            encoding="utf-8",
+        )
+        self.assertNotEqual("approved-current", self.lane_of(drafted["identity"])["lane"])
+
+
 class VersionedSchemaResolutionTests(KnowledgeStoreTests):
     """Validation resolves the profile schema from the (id, version) the entry declares,
     against the append-only SCHEMA_REGISTRY — never from the current PROFILES row for the

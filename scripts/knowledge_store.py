@@ -687,15 +687,20 @@ def semantics_digest(body: str) -> str:
 def reviewed_content_digest(frontmatter: dict[str, Any], body: str) -> str:
     subject = frontmatter["subject"]
     profile = frontmatter["profile"]
-    return canonical_digest(
-        {
-            "identity": identity_of(subject["metadataType"], subject.get("namespace"), subject["fullName"]),
-            "profileMajor": f"{profile['id']}@{profile['version'].split('.', 1)[0]}",
-            "factsDigest": facts_digest(frontmatter),
-            "semanticsDigest": semantics_digest(body),
-            "sensitivity": frontmatter["sensitivity"],
-        }
-    )
+    payload = {
+        "identity": identity_of(subject["metadataType"], subject.get("namespace"), subject["fullName"]),
+        "profileMajor": f"{profile['id']}@{profile['version'].split('.', 1)[0]}",
+        "factsDigest": facts_digest(frontmatter),
+        "semanticsDigest": semantics_digest(body),
+        "sensitivity": frontmatter["sensitivity"],
+    }
+    # packageExtensionPoint is digest-INCLUDED like sensitivity (a conscious classification
+    # the human approves), unlike orgUsage (machine-attested, digest-excluded) — but only
+    # when present, so every entry approved before the field existed keeps its digest
+    # (plan 2026-08-09, Problem 4 / Korekta C).
+    if "packageExtensionPoint" in frontmatter:
+        payload["packageExtensionPoint"] = frontmatter["packageExtensionPoint"]
+    return canonical_digest(payload)
 
 
 # --- ledger (contract §6.1) ------------------------------------------------------------
