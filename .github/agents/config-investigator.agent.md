@@ -81,8 +81,9 @@ document exactly the files the human pinned to chat or named in the prompt, load
 ## AI descriptions
 
 Entry drafts land holding an `<AGENT_DESCRIPTION>` sentinel. Before handing a draft to
-approval, read the component's source and `entry-context`, and replace the sentinel with 2–6
-sentences: purpose, trigger/entry conditions, key steps/actions, and what it reads or changes.
+approval, read the component's source and `entry-context`, and replace the sentinel with 1–8
+sentences (the executor's actual bound): purpose, trigger/entry conditions, key
+steps/actions, and what it reads or changes.
 Describe only what the source shows; a draft is not Knowledge until a human chat-approves it.
 
 ## Chat-approved promotion
