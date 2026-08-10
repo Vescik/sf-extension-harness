@@ -7,7 +7,7 @@ the deep directory tree lives in `docs/workspace-topology.md`.
 
 | Path | Purpose |
 |---|---|
-| `.ai` | Governed agent state: contracts, knowledge, work records, memory, QA |
+| `.ai` | Governed agent state: contracts, knowledge, memory, QA |
 | `.ai/contracts` | Normative execution/knowledge/workflow/tooling contracts, loaded per role |
 | `.ai/knowledge` | One-file Knowledge Entries + approval ledgers, feature entries, keyword taxonomy |
 | `.ai/memory` | Human-curated decisions-log.md |

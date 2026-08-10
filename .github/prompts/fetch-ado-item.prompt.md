@@ -1,7 +1,7 @@
 ---
 name: fetch-ado-item
 description: Fetch a validated Azure DevOps work item context and begin Solution Design.
-argument-hint: "itemId=<ID> [recordId=<ID>] [mode=single|hierarchy] [childDetail=summary|full] [includeTestCases=true|false]"
+argument-hint: "itemId=<ID> [mode=single|hierarchy] [childDetail=summary|full] [includeTestCases=true|false]"
 agent: designer
 ---
 
@@ -12,7 +12,7 @@ unknown option or invalid enum before using a tool. If `itemId` is missing, ask 
 `#tool:vscode/askQuestions`; never guess.
 
 Fetch the context, disclose cache freshness/completeness, then continue the Solution Designer
-procedure. Fetching context is a read and does not require a work record: only when the caller
-provided `recordId` (or explicitly asks to open governed work) create or validate the deterministic
-work record and return its `recordId`; otherwise return the normalized context directly.
+procedure. Fetching context is a read; return the normalized context directly. Delivery work
+that follows lands in `work-items/<itemId>-<slug>/` (design.md first) — there is no work
+record to create or validate.
 Do not merely print raw ADO content and stop; ADO intent is not implementation evidence.

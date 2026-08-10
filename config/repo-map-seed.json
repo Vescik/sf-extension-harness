@@ -4,7 +4,7 @@
   "directories": [
     {
       "path": ".ai",
-      "purpose": "Governed agent state: contracts, knowledge, work records, memory, QA"
+      "purpose": "Governed agent state: contracts, knowledge, memory, QA"
     },
     {
       "path": ".ai/contracts",

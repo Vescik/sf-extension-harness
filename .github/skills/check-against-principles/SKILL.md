@@ -11,9 +11,11 @@ Apply the [shared execution contract](../../../.ai/contracts/execution-contract.
 
 ## Inputs
 
-Require a valid `recordId`, optional incoming `handoffId`, exact proposed/implemented scope,
-repository revisions/diff, environment proof, rule/entry references, current package
-identity when applicable, and accepted design/approval hashes. Reject unspecified or chat-only scope.
+Require the persisted subject under review — `work-items/<id>-<slug>/design.md` for a design
+(with `decisions.md` for deviations), or the exact repository diff for an implementation —
+plus exact proposed/implemented scope, repository revisions, environment proof, rule/entry
+references, and current package identity when applicable. Reject unspecified or chat-only
+scope: chat summaries are not review input.
 
 ## Procedure
 
@@ -67,7 +69,8 @@ reconciliation, finding, and required action. End with exactly one verdict:
 - `INCOMPLETE — NEEDS HUMAN`
 - `STOP — TOO RISKY`
 
-State `recordId`, evidence completeness, repository/org drift, and that nothing was changed.
+State the reviewed subject (work-item/design reference or diff), evidence completeness,
+repository/org drift, and that nothing was changed.
 
 ## Knowledge grounding: two layers
 

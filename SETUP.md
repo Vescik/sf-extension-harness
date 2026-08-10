@@ -78,7 +78,8 @@ and `salesforce.review.deniedOrganizationIds` hard-blocks specific organization 
 alias resolves to them.
 
 The checked-in `manifest/package.xml` is only a generic starter. Narrow it to the exact components
-in the accepted work record before retrieve, validation, or deployment; a wildcard does not grant
+the approved design (`work-items/<id>-<slug>/design.md`) names before retrieve, validation, or
+deployment; a wildcard does not grant
 scope and must not be used as a substitute for claim-backed ownership or human approval. Deploys
 are performed by a human, and that human review is where manifest narrowing is checked (the
 automated wildcard gate retired with the write capability, 2026-08-04).
@@ -126,7 +127,7 @@ and runs the verification gates.
 > **Developer Edition orgs:** the script records them like any other non-production org
 > (host + organization ID; `IsSandbox=false` is expected there). A config entry is optional
 > for reading — an unlisted alias is proven live by the facade — but only configured entries
-> can anchor work-record evidence and Knowledge org snapshots. To sanity-check an alias
+> can anchor Knowledge org snapshots. To sanity-check an alias
 > up front, run `python scripts/verify_salesforce_org.py --org <alias>`.
 
 ```bash
@@ -252,10 +253,10 @@ owner decision of 2026-07-14.)
   confirmation click (recorded as `copilot-chat-entry-confirmation` with the
   `knowledge.chatReviewer` name from local config). Raw cache and unreviewed `output/` remain
   ignored.
-- Resume governed work from `recordId` and `handoffId`. Validate record revision, role, scope/design
-  Work-record approvals were deleted with their lane (phase 5, owner decision
-  2026-08-08); human review now happens on the pull request, and knowledge approvals keep
-  their digest-pinned chat confirmation.
+- Work-record approvals were deleted with their lane (phase 5, owner decision 2026-08-08).
+  Durable scope lives in `work-items/<id>-<slug>/` (design.md; deviations in decisions.md),
+  human review happens on the pull request, and knowledge approvals keep their digest-pinned
+  chat confirmation.
 
   The global Copilot hook always denies agent-originated invocation of this subcommand. Approval
   never comes from chat text, an agent confirmation, or a manually edited record. In the current

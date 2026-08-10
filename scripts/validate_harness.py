@@ -517,27 +517,16 @@ def check_customizations(audit: Audit, root: Path = ROOT) -> None:
     ):
         audit.require(required_link in all_agent_bodies, f"agents do not explicitly load required resource {required_link}")
     for path in agent_paths:
-        data, body = frontmatter(path, audit)
-        # A handoff must name durable identifiers, never chat context. The Design Case lane names
-        # a caseId plus a candidateId; the legacy work-record lane names a recordId plus a
-        # handoffId. Both are durable; neither may be reconstructed from the conversation.
-        identifier_pairs = (("recordid", "handoffid"), ("caseid", "candidateid"))
+        data, _body = frontmatter(path, audit)
+        # The work-record and Design-Case handoff lanes were deleted with their runtime
+        # (phase 5, owner decision 2026-08-08) — the identifier-pair requirement that lived
+        # here would have re-imposed the retired recordId/handoffId vocabulary on the first
+        # future handoff. What survives is the durable-artifact rule: a handoff may never
+        # depend on chat context.
         for handoff in data.get("handoffs", []) or []:
             if isinstance(handoff, dict):
                 prompt = str(handoff.get("prompt", "")).lower()
-                audit.require(
-                    any(all(token in prompt for token in pair) for pair in identifier_pairs),
-                    f"{relative(path)}: handoff must require durable identifiers "
-                    f"(recordId+handoffId, or caseId+candidateId for a Design Case)",
-                )
                 audit.require(" above" not in prompt and "previous response" not in prompt, f"{relative(path)}: handoff depends on chat context")
-        if data.get("handoffs"):
-            lowered = body.lower()
-            audit.require(
-                any(all(token in lowered for token in pair) for pair in identifier_pairs),
-                f"{relative(path)}: completion contract must return durable identifiers "
-                f"(recordId+handoffId, or caseId+candidateId for a Design Case)",
-            )
 
 
 def check_links(audit: Audit) -> None:
