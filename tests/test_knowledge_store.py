@@ -401,15 +401,36 @@ class KnowledgeStoreTests(unittest.TestCase):
             f"the refusal must name why: {result['problems']}",
         )
 
-    def test_entry_review_enforces_the_prose_chunk_cap(self) -> None:
+    def test_entry_review_auto_chunks_past_the_prose_cap(self) -> None:
+        # Plan 2026-08-09 §2.2e: exceeding the cap no longer dead-ends in CHUNK_TOO_LARGE —
+        # the sorted draft list is cut into ≤cap rounds, each with its own artifact and
+        # digest-pinned approve command. The cap itself (25 full bodies per human round)
+        # is unchanged; only the manual selection of round boundaries is removed.
         self.draft()
         self.draft(metadata_type="CustomField", full_name="HarnessAlphaCase__c.Status__c")
         saved = store.PROSE_CHUNK_LIMIT
         store.PROSE_CHUNK_LIMIT = 1
         self.addCleanup(setattr, store, "PROSE_CHUNK_LIMIT", saved)
         result = self.review()
-        self.assertEqual("CHUNK_TOO_LARGE", result["outcome"])
-        self.assertTrue(result["capViolations"])
+        self.assertEqual("REVIEW_READY_CHUNKED", result["outcome"])
+        self.assertEqual(2, result["entries"])
+        self.assertEqual(2, len(result["chunks"]))
+        for chunk in result["chunks"]:
+            self.assertEqual(1, chunk["entries"])
+            self.assertEqual([], chunk["capViolations"])
+            self.assertTrue((self.temp / chunk["reviewArtifact"]).is_file())
+            self.assertEqual(1, chunk["approveCommand"].count("--entry "))
+
+    def test_auto_chunked_approve_commands_actually_approve(self) -> None:
+        self.draft()
+        self.draft(metadata_type="CustomField", full_name="HarnessAlphaCase__c.Status__c")
+        saved = store.PROSE_CHUNK_LIMIT
+        store.PROSE_CHUNK_LIMIT = 1
+        self.addCleanup(setattr, store, "PROSE_CHUNK_LIMIT", saved)
+        result = self.review()
+        for chunk in result["chunks"]:
+            pins = [pin.strip() for pin in chunk["approveCommand"].split("--entry ")[1:]]
+            self.assertEqual("APPROVED", self.approve(pins)["outcome"])
 
     def test_facts_only_reapproval_is_classified_separately(self) -> None:
         drafted = self.draft()

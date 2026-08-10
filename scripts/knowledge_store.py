@@ -1654,6 +1654,40 @@ def command_entry_review(args: argparse.Namespace) -> dict[str, Any]:
     if not resolved:
         return {"outcome": "NOTHING_TO_REVIEW", "problems": problems}
 
+    # Auto-chunking (plan 2026-08-09 §2.2e): when the draft set exceeds the applicable cap,
+    # cut the already-sorted list (all_entry_paths() sorts, so family/type grouping is free)
+    # into ≤cap rounds and render every round's artifact + pinned approve command in one
+    # call. The human still reads full bodies and approves per round — only the manual
+    # selection of round boundaries is removed. CHUNK_TOO_LARGE is no longer an outcome
+    # here; the approve-side manifest caps (§6.4.4) are untouched.
+    whole = classify_chunk(resolved, latest)
+    size = PROSE_CHUNK_LIMIT if whole["proseChanges"] else MANIFEST_CHUNK_LIMIT
+    if len(resolved) > size:
+        chunks = [
+            _render_review_chunk(resolved[start : start + size], latest)
+            for start in range(0, len(resolved), size)
+        ]
+        return {
+            "outcome": "REVIEW_READY_CHUNKED",
+            "entries": len(resolved),
+            "chunkSize": size,
+            "chunks": chunks,
+            "problems": problems,
+            "note": (
+                f"{len(resolved)} drafts exceed the {size}-entry cap; the sorted list was "
+                f"cut into {len(chunks)} review rounds — read each round's artifact and "
+                "run its approve command separately"
+            ),
+        }
+    single = _render_review_chunk(resolved, latest)
+    single["problems"] = problems
+    return single
+
+
+def _render_review_chunk(
+    resolved: list[tuple[str, dict[str, Any], str, str]],
+    latest: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
     classification = classify_chunk(resolved, latest)
     chunk_id = canonical_digest(sorted((identity, digest) for identity, _f, _b, digest in resolved))[7:19]
     lines = [
@@ -1743,7 +1777,6 @@ def command_entry_review(args: argparse.Namespace) -> dict[str, Any]:
         "entries": len(resolved),
         "classification": classification,
         "capViolations": caps,
-        "problems": problems,
         "approveCommand": f"python scripts/knowledge_store.py entry-approve {pins}",
     }
 
