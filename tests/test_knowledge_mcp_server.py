@@ -170,9 +170,14 @@ class KnowledgeMcpServerTests(unittest.TestCase):
         self.assertEqual(len(envelope["selections"]), 1)
         self.assertEqual(envelope["selections"][0]["resolution"], "unmatched")
 
-    def test_entry_status_returns_status_envelope(self) -> None:
+    def test_entry_status_names_a_missing_entry_instead_of_empty_success(self) -> None:
+        # P3-3c.2: a typo'd/unknown identity used to return {"entries": [], "outcome":
+        # "STATUS"} — indistinguishable from success. The store now raises a named error
+        # and the server serializes it as an ERROR envelope.
         result = self.client.call("knowledge_entry_status", {"identity": PROBE_IDENTITY})
-        self.assertEqual(result["structuredContent"]["outcome"], "STATUS")
+        envelope = result["structuredContent"]
+        self.assertEqual(envelope["outcome"], "ERROR")
+        self.assertIn("no entry matches", envelope["reason"])
 
     def test_stale_index_is_rebuilt_transparently(self) -> None:
         # Owner decision D2: the INDEX STALE -> build -> retry dance must never reach the

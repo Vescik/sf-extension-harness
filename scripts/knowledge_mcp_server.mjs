@@ -98,7 +98,9 @@ const IDENTITY_HINT =
   "Exact identity `<MetadataType>:<ns|c>:<FullName>` — use knowledge_resolve first to turn " +
   "a bare name or file path into one.";
 
-const FEATURE_HINT = "Feature slug — lowercase alphanumeric with single hyphens.";
+const FEATURE_HINT =
+  "Feature slug (the tail of featureId from knowledge_feature_search) — lowercase " +
+  "alphanumeric with single hyphens.";
 
 // Mirrors knowledge_search.py ALL_LANES (argparse --state choices). Opted-in lanes are
 // served in the *NonCurrent sibling keys, never merged into the approved buckets — the
@@ -239,9 +241,11 @@ export const TOOL_DEFINITIONS = Object.freeze([
     name: "knowledge_entry_status",
     title: "Citable lane receipt for one Knowledge entry",
     description:
-      "The ONLY citable receipt for Knowledge: the computed lane for one identity. Call it " +
+      "The ONLY citable receipt for Knowledge: the computed lane for ONE identity. Call it " +
       "before citing any entry in an answer or record — search and context hits carry only " +
-      "a profileDigest and hand-built entryRefs are rejected by validation.",
+      "a profileDigest and hand-built entryRefs are rejected by validation. Per-entry by " +
+      "design: corpus questions (which entries are drifted) belong to search/context or " +
+      "the terminal entry-coverage report, not here.",
     inputSchema: {
       type: "object",
       additionalProperties: false,
@@ -288,7 +292,7 @@ export const TOOL_DEFINITIONS = Object.freeze([
         layer: { type: "string", maxLength: 40 },
         role: { type: "string", maxLength: 40 },
         claimType: { type: "string", maxLength: 40 },
-        top: { type: "integer", minimum: 1, maximum: 40 },
+        top: { type: "integer", minimum: 1, maximum: 50 },
       },
     },
     annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
@@ -317,16 +321,16 @@ export const TOOL_DEFINITIONS = Object.freeze([
       "Claim-level verification of one or more approved Feature claims/relations: " +
       "authority, transitive artifact-binding currency and document lane. Returns the " +
       "citable featureRef receipt when the verdict is current or degraded; ambiguous or " +
-      "missing ids fail explicitly.",
+      "missing ids fail explicitly. Omit claimIds for a whole-feature verdict " +
+      "(is this feature approved and its bindings current) without a receipt.",
     inputSchema: {
       type: "object",
       additionalProperties: false,
-      required: ["feature", "claimIds"],
+      required: ["feature"],
       properties: {
         feature: { type: "string", maxLength: MAX_STRING_INPUT, description: FEATURE_HINT },
         claimIds: {
           type: "array",
-          minItems: 1,
           maxItems: 40,
           items: { type: "string", maxLength: 12 },
           description: "Exact FC-/FR- ids to cite; a bare feature reference is not grounding.",
@@ -389,7 +393,13 @@ function validateToolInput(name, input) {
     if (!schema.properties[key]) return `unknown argument: ${key}`;
   }
   for (const required of schema.required ?? []) {
-    if (input[required] === undefined) return `missing required argument: ${required}`;
+    if (input[required] === undefined) {
+      const remedy =
+        required === "identity"
+          ? " — call knowledge_resolve with the bare name or file path to obtain one"
+          : "";
+      return `missing required argument: ${required}${remedy}`;
+    }
   }
   for (const [key, value] of Object.entries(input)) {
     const spec = schema.properties[key];
