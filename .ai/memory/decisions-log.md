@@ -1195,3 +1195,47 @@ plan 1/4 (knowledge entry creation/lifecycle/search, productivity first):
 
 Full gate green after every commit: 984 unit tests OK, 43 safety evals PASS,
 validate_harness coherent.
+
+## 2026-08-10 — Knowledge plans 2/4 and 3/4 executed: feature bindings, usability, false successes, ceremony
+
+Plan 2/4 (Feature Knowledge, 3 commits 7dcc79c..e376600): binding resolver accepts
+approved-drifted (same rule as retrieval §3.1; draft/revoked/not-effective still never
+bind; binding_state's digest comparison untouched — Feature keeps its higher rigor);
+narration guidance (paragraph-not-page, searchability signal); dedicated flow-style
+feature renderer (digests canonical over parsed data, so approved features unaffected).
+Deviation pinned in tests: for a source-drifted binding, binding_health reads "current"
+(citation still matches what was approved; was "unknown" via swallowed StoreError) —
+"drifted" appears on re-approval with changed content, not on source drift as the plan
+predicted.
+
+Plan 3/4 (external usability audit, 24 commits f51ba5e..765c46f), highlights:
+- knowledge_resolve surfaces the three-part identity (the audit's top trap: false
+  NO_ENTRY from the two-part componentId); seven prompts gain knowledge/*; phantom
+  tools cut from search-knowledge and the real Feature reads documented; --state
+  reachable through MCP; self-heal catches "rerun inventory" with its own 300 s build
+  budget; pasted-error text accepts 4000 chars.
+- False successes closed: error envelopes for every exception type (traceback to
+  stderr for unexpected ones), meta set rejects unknown keys, entry-status names a
+  missing identity (MCP wiring test re-pinned accordingly), schema problems carry
+  their JSON path and lists stop truncating at 5, sentence counter skips
+  abbreviations and echoes its split, feature-record --validate-only dry-runs the
+  real apply path.
+- Ceremony cut: grounding block deduplicated to search-knowledge (fossil "48 of 52"
+  counts removed), approve-knowledge-drafts stops re-teaching describe, config-records
+  citation ceremony cut + numbering fixed, curator sweep scales to the question,
+  entry-readiness prints the worklist, author-feature drops the pre-binding
+  entry_status call and links the ops-file schema, config-investigator says 1-8.
+- Ergonomics: entry-draft reuses a fresh inventory; entry-status resolves one
+  identity directly; entry-approve hoists the ledger sequence; claimIds optional on
+  knowledge_feature_status; top cap unified at 50; entry-describe --purpose inline.
+
+Open design decisions deliberately NOT taken (plan 3/4): check-feature-coverage
+unreachable PASS (fix condition vs drop PASS/WARN); explain's future (align with
+context/impact vs absorb into context — plan's direction: absorb). Deferred: keywords
+taxonomy (#7, owner decision pending); recordId/work-record audit executes as the
+broadened File-1 §2.3 step. Out of scope by name: tool-capabilities.md knowledge rows,
+corpus-wide entry_status, ROW_LIFECYCLE_DISCLOSURE token cost. One audit item returned
+for clarification: the corrupted "…-investigator → org-discovery" reference.
+
+Full gate after the series: 1065 unit tests OK, 43 safety evals PASS, validate_harness
+coherent.
