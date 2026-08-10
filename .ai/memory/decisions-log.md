@@ -1153,3 +1153,45 @@ immovable ~60 s timeout because each call booted an oclif child and re-proved id
 - NOT yet done, deliberately: live verification against the slow org (plan §7 tests 1, 2,
   9 — latency, process count, explain selectivity) runs only on explicit owner
   instruction against the configured non-production alias.
+
+## 2026-08-10 — Knowledge plan 1/4 executed: versioned schema resolution, lifecycle loosening, review auto-chunking
+
+Owner-approved session (8 commits, e82cdc2..cfa7450) implementing the immediate list of
+plan 1/4 (knowledge entry creation/lifecycle/search, productivity first):
+
+- **Schema resolution is versioned, keyed (profile id, MAJOR)** — `SCHEMA_REGISTRY`
+  resolves validation from the pair every entry already records; `PROFILES` keeps only
+  the what-does-a-new-draft-use-today job. Owner approved the deviation from the plan's
+  exact `(id, version)` key: profile identity was already pinned at the major
+  (reviewedContentDigest binds profileMajor; test r23), so the registry follows the
+  existing contract instead of silently breaking it. Consolidation later adds retired
+  rows to `RETIRED_SCHEMA_VERSIONS`; old schema files never leave disk.
+- **Retrieval rule loosened (README + org-discovery + check-against-principles +
+  investigate-object):** approved entries ground work regardless of drift or org-usage
+  age — both travel as visible caveats; only draft/revoked stay non-grounding. Re-read
+  gaps split three ways: index-stale file = rebuild+retry; missing/unparseable/
+  digest-mismatch = integrity finding, report and stop.
+- **entry-review auto-chunks** past the cap (REVIEW_READY_CHUNKED, N artifacts + N
+  pinned approve commands from the already-sorted list) instead of CHUNK_TOO_LARGE;
+  caps and approve-side manifest limits unchanged. Applies to explicit --identity
+  selections too (owner-approved uniform behavior).
+- **packageExtensionPoint** added to the envelope, digest-included like sensitivity but
+  only when present (pre-field digests byte-identical). Two follow-ups deliberately
+  deferred by the owner: a per-type schema pin (FieldSet/CompactLayout, orgUsage wave-1
+  pattern) at the next touch of this code, and the write path — owner's recommendation
+  is an optional flag on entry-describe (human-judgment field, same nature as Purpose),
+  as its own small task, not decided final yet.
+- **investigate-object rewritten context-first** (recordId/work-record plumbing and
+  contract application lines removed; absence-proof softened to "report what you
+  checked; the reviewer judges sufficiency"; org-attach reminder step added).
+  org-discovery now points the designer at `knowledge_impact --direction incoming`
+  before proposing changes to consumable artifacts (replaces the cancelled consumedBy
+  schema field).
+- **3.2.3 localized, not executed:** the retrieval-side org-expired gate lives in
+  `org_usage_bucket()` (knowledge_search.py) — one place, ready. The entry-review
+  render withholding expired values stays untouched on purpose: that is the approval
+  surface (§14.3/§5.7 "expired means absent"), a different axis the owner explicitly
+  chose not to change.
+
+Full gate green after every commit: 984 unit tests OK, 43 safety evals PASS,
+validate_harness coherent.
