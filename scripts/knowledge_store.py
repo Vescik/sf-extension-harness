@@ -1642,9 +1642,21 @@ def command_entry_describe(args: argparse.Namespace) -> dict[str, Any]:
     if not path.is_file():
         raise StoreError(f"no entry to describe: {args.identity}")
     frontmatter, previous_body = split_entry(path.read_text(encoding="utf-8"))
-    description = normalize_body(Path(args.purpose_file).read_text(encoding="utf-8"))
+    # --purpose carries the 1-8 sentences inline; --purpose-file stays for longer prep.
+    # Exactly one of the two (plan 2026-08-09 §3c.4: a curation wave of N entries paid N
+    # scratch-file writes for prose the command could take directly).
+    inline = getattr(args, "purpose", None)
+    if (inline is None) == (args.purpose_file is None):
+        raise StoreError("pass exactly one of --purpose or --purpose-file")
+    if inline is not None:
+        description = normalize_body(inline)
+    else:
+        purpose_path = Path(args.purpose_file)
+        if not purpose_path.is_file():
+            raise StoreError(f"purpose file does not exist: {args.purpose_file}")
+        description = normalize_body(purpose_path.read_text(encoding="utf-8"))
     if not description.strip():
-        raise StoreError("the description file is empty")
+        raise StoreError("the description is empty")
     sentences = split_sentences(description)
     if not 1 <= len(sentences) <= 8:
         # Echo the split (plan 2026-08-09 §3c.2): an author told "you wrote 9" with no way
@@ -2970,7 +2982,8 @@ def build_parser() -> argparse.ArgumentParser:
         "entry-describe", help="write the agent-authored description into an existing entry"
     )
     describe.add_argument("--identity", required=True)
-    describe.add_argument("--purpose-file", required=True)
+    describe.add_argument("--purpose-file", default=None)
+    describe.add_argument("--purpose", default=None)
     describe.add_argument("--limitation", action="append", default=None)
     describe.add_argument("--clear-limitations", action="store_true")
     describe.set_defaults(func=command_entry_describe)

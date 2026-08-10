@@ -121,7 +121,9 @@ KNOWLEDGE_STORE_COMMAND_FLAGS = {
     ),
     "entry-approve": frozenset({"--entry"}),
     "entry-review": frozenset({"--identity"}),
-    "entry-describe": frozenset({"--identity", "--purpose-file", "--limitation", "--clear-limitations"}),
+    "entry-describe": frozenset(
+        {"--identity", "--purpose-file", "--purpose", "--limitation", "--clear-limitations"}
+    ),
     "entry-context": frozenset({"--identity", "--max-source-chars"}),
     "entry-revoke": frozenset({"--identity", "--rationale"}),
     "entry-status": frozenset({"--identity"}),

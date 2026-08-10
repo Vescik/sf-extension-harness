@@ -1423,6 +1423,27 @@ class ErrorEnvelopeTests(KnowledgeStoreTests):
         self.assertNotEqual("StoreError", envelope["errorType"])
         self.assertIn("Traceback", err)
 
+    def test_inline_purpose_describes_without_a_scratch_file(self) -> None:
+        drafted = self.draft(purpose_file=None)
+        result = store.command_entry_describe(
+            argparse.Namespace(
+                identity=drafted["identity"],
+                purpose_file=None,
+                purpose="Routes alpha cases to the correct queue on create.",
+            )
+        )
+        self.assertEqual("DESCRIBED", result["outcome"])
+        with self.assertRaises(store.StoreError):
+            store.command_entry_describe(
+                argparse.Namespace(identity=drafted["identity"], purpose_file=None, purpose=None)
+            )
+        with self.assertRaises(store.StoreError):
+            store.command_entry_describe(
+                argparse.Namespace(
+                    identity=drafted["identity"], purpose_file="x.md", purpose="Both given."
+                )
+            )
+
     def test_sentence_counter_skips_abbreviations_and_echoes_the_split(self) -> None:
         text = (
             "Routes cases by type, e.g. billing disputes, to the right queue. "
