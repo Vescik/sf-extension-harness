@@ -40,7 +40,9 @@ ignored proposal file, applied by the executor.
    keywords/sensitivity, add-question, resolve-question). Keywords come from the approved
    taxonomy, exactly like artifact entries.
 3. **Existing Knowledge first** — for every name the user mentions: `knowledge_resolve` →
-   `knowledge_context` on exact candidates → `knowledge_entry_status` before any binding.
+   `knowledge_context` on exact candidates. No `knowledge_entry_status` before binding: the
+   executor reads the live entry and pins the digests itself, and a pre-fetched receipt is
+   never accepted — its refusal IS the check.
    `NO_ENTRY` is a gap to record, never absence. Order candidates source-exact containment
    first; heuristic candidates go in a separate optional queue; never auto-expand shared
    hubs (User, Account) without the user asking.
