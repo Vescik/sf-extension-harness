@@ -28,7 +28,7 @@ For BRD attachments:
    behavior from title alone.
 3. Build a two-way requirement↔Story matrix with `covered | partial | absent | ambiguous` and a
    rationale. Identify gaps and orphan Stories; an enabler is a review item, not an automatic error.
-4. Check Tier 1 constraints and Known Limitations for affected package surfaces. Query both
+4. Check every applicable scoped Principle and Known Limitation for affected package surfaces. Query both
    layers for each affected object rather than only reading the static view:
    - the `knowledge_context` tool — parts, dependents and
      permission grants for the entry-homed types, with their coverage denominator. Count

@@ -271,7 +271,7 @@
     {
       "agent": "reviewer",
       "argumentHint": "itemId=<ID> [scope=design|implementation]",
-      "description": "Ad-hoc read-only review of a persisted design or implementation against every applicable Principle tier and its evidence.",
+      "description": "Ad-hoc read-only review of a persisted design or implementation against every applicable scoped Principle and its evidence.",
       "name": "check-against-principles",
       "path": ".github/prompts/check-against-principles.prompt.md"
     },
@@ -399,7 +399,7 @@
       "path": ".github/skills/author-feature/SKILL.md"
     },
     {
-      "description": "Evaluate a scoped design or implementation using the governed Principle rules, approved Knowledge Entries, repository/org reconciliation, approval hashes, and complete evidence. Read-only; never implement fixes.",
+      "description": "Evaluate a scoped design or implementation using Principle rules, approved Knowledge Entries, repository/org reconciliation, and complete evidence. Read-only; never implement fixes.",
       "name": "check-against-principles",
       "path": ".github/skills/check-against-principles/SKILL.md"
     },
@@ -511,7 +511,7 @@
     ".github/prompts/adhoc-fix.prompt.md": "sha256:0264731e5255e92ad6e5f1b4b20ff48e0907ee8ed6278ad28db9fce325fc66f2",
     ".github/prompts/approve-drafts-knowledge.prompt.md": "sha256:61e3e753c146c68150a1e9fa50b2a3da59563a72c66f73009cb25ce0af5038cb",
     ".github/prompts/author-feature.prompt.md": "sha256:53131bf0cfa7ed19d149ab04c34ac3098628e8f480b5e055f74712bdd7bbc59f",
-    ".github/prompts/check-against-principles.prompt.md": "sha256:1270d798db301f9c0f87f1ba23a152803440f79a0722b693038b472560d4b0fe",
+    ".github/prompts/check-against-principles.prompt.md": "sha256:5876f6a3182a51e0e48260c1f7e11f5e9b3a6942dc13d76d034151d86f1ef7ee",
     ".github/prompts/curate-knowledge.prompt.md": "sha256:818076a6aefcff40a5620d74b946ebe72d3def5f0ae52302768346b870132fed",
     ".github/prompts/document-metadata-change.prompt.md": "sha256:3b1053dd1b43285a040fea875b88759cadc4c6c309180fbd5f64fec7054791a8",
     ".github/prompts/feature-health.prompt.md": "sha256:908ec77718be0e7b6fdc578cba0430c968e4e0d20b9a4c1218e54dae51144305",
@@ -529,8 +529,8 @@
     ".github/skills/adhoc-fix/SKILL.md": "sha256:f21277c4d274b06ca1cba5ce99eaf0ee58ae47413e8d798d517b2aa69ce578e2",
     ".github/skills/approve-knowledge-drafts/SKILL.md": "sha256:9ce9376500f3dc7853dfe96ba4d4def2fc270368ea64e12f428c2e93eef27f38",
     ".github/skills/author-feature/SKILL.md": "sha256:da52400d84f83de04429de21aa35503d91de0c5717160280cbd4df17934474bf",
-    ".github/skills/check-against-principles/SKILL.md": "sha256:bc430d7f97543602db035c3d61f4a747775235171202021b6a05f963037f3e02",
-    ".github/skills/check-feature-coverage/SKILL.md": "sha256:c9e310ec92ba1b030531f58d6363a24c445b4295e2125c65e16df5e8200a07b9",
+    ".github/skills/check-against-principles/SKILL.md": "sha256:f6b7640744396eb9a7bc28e14f75e11fbf37871ec98bbafdfeeb7c8bcdddbff9",
+    ".github/skills/check-feature-coverage/SKILL.md": "sha256:c67b3904bf0b89adf4f49ee9d21ff5a99e0345b13bbaf9233adc07ea5860efd3",
     ".github/skills/curate-knowledge/SKILL.md": "sha256:9b57fd832971946335cedd23a5c95b9924b6ee4270e37beefde165e7bb16b2ef",
     ".github/skills/development/SKILL.md": "sha256:40c2fb8d364e8983f8af535f05d3268c242c508aeca89a66303a454607b0ae99",
     ".github/skills/fetch-ado-item/SKILL.md": "sha256:02ad5d68ff86e39c27e6acd29058b617483c0b7d07cd69b007acbae2e88104c8",
@@ -543,7 +543,7 @@
     ".github/skills/investigate-object/SKILL.md": "sha256:d9651675d99901edd1af9ae7b6f266ef56c1972caafbd5b1409129bcb3e7abcb",
     ".github/skills/org-discovery/SKILL.md": "sha256:633a176c055bbdf5fe864ad5527cbea6411080b85e0771da4294ce7d094f2866",
     ".github/skills/search-ado/SKILL.md": "sha256:4c6a1e155d7cf3b2079953837681ebd89e6226b4ff98f8ae30f079640b788cc7",
-    ".github/skills/search-knowledge/SKILL.md": "sha256:f0a2fdd2cece9bfce1b2a4ecbb57ff0fdb6ea206df007ceab23b0d768ffe0d48",
+    ".github/skills/search-knowledge/SKILL.md": "sha256:fcea02c60705693c88d2e6aeca2f12f2a7c0b258ff92db75f3c8a7b8a6c9127e",
     ".github/skills/selected-files-knowledge/SKILL.md": "sha256:834f2c58bc8973b6b94d367b45e5983a6ab507ae34b9dc15aeb0ffcff73df741",
     ".github/skills/solution-design/SKILL.md": "sha256:70f458b98d736a2d8ee427081e6f4b76d4b123a7f04102fb58d1d91df3e0b491",
     ".github/skills/sync-test-cases/SKILL.md": "sha256:86b1af1a8415d07f548e7160a565933be7dfede396e55341345fe76ffccfe529",

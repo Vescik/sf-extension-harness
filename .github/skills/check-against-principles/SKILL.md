@@ -1,6 +1,6 @@
 ---
 name: check-against-principles
-description: Evaluate a scoped design or implementation using the governed Principle rules, approved Knowledge Entries, repository/org reconciliation, approval hashes, and complete evidence. Read-only; never implement fixes.
+description: Evaluate a scoped design or implementation using Principle rules, approved Knowledge Entries, repository/org reconciliation, and complete evidence. Read-only; never implement fixes.
 user-invocable: false
 ---
 
@@ -19,50 +19,36 @@ scope: chat summaries are not review input.
 
 ## Procedure
 
-1. Validate work state, handoff target/revision, approval binding, and affected-artifact list.
-2. Load the Principle instruction files and check Tier 1 package constraints, Tier 2 organization
-   policy, and Tier 3 Salesforce practice in order. Apply precedence only to competing prescriptions.
-3. Discover, then require. First establish the baseline of facts the design must address — do not
-   rely only on what the author happened to cite. Query both layers:
-   - the `knowledge_context` tool for each affected
-     artifact (source-declared facts, parts, dependents, permission grants, in one call;
-     `knowledge_resolve` maps bare names and paths to identities). Only
-     `parts`, `permissions` and `incoming` are approved-current; the `partsNonCurrent` /
-     `permissionsNonCurrent` / `incomingNonCurrent` siblings are opted-in lanes and can never
-     make a premise `verified`. `incoming` and `outgoing` are keyed by relation kind, so iterate
-     the keys rather than a flat list, and treat an absent kind as silence, not as absence. A row
-     carrying `hydrated: false` failed re-reading, so it can never make a premise `verified` —
-     record it as a gap;
-   - the `knowledge_search` tool with a `relationAnchor` and `direction: incoming`
-     for dependents beyond the context pack's depth-1 view. Only generic-bucket
-     types (Settings, Letterhead, Group and similar label-only extraction) have no entry and
-     no governed dependency lookup — name them explicitly when present, or the result looks
-     clean while a whole class went unchecked.
-   An empty result from either layer is a recorded gap, never proof that nothing depends on it. Then, for every material factual premise,
-   require an `approved`, scope-matched entry — `approved-drifted` counts, carried into the
-   review as an explicit caveat, and org-usage numbers count with their age stated
-   ("sampled N days ago"). Drafts, revoked entries and model inference are not trusted
-   facts. Knowledge freshness has three different fates, not one: drift and expired
-   org-usage travel as caveats exactly like `limitations`; a failed re-read caused by the
-   file changing since the index was built is a rebuild-and-retry
-   (`knowledge_search.py build`), not a finding; a failed re-read for any other reason
-   (file missing, entry does not parse, identity/digest mismatch) is a real gap — report
-   it, do not build on that entry. When a cited envelope
-   carries entry references, `python scripts/knowledge_store.py entry-verify-citations
-   --envelope <path>` reports any that no longer resolve to a current approved entry.
+1. Validate the persisted review subject, repository revision, affected-artifact list, and —
+   when approval is claimed — evidence of the current pull-request review. Never infer approval
+   from file presence or chat context.
+2. Load `.github/copilot-instructions.md` and every scoped Principle instruction whose `applyTo`
+   matches an affected path. Apply precedence only to competing prescriptions.
+3. Discover the baseline of facts the subject must address instead of relying only on citations
+   supplied by its author. Ground findings in Knowledge first, applying the
+   [search-knowledge](../search-knowledge/SKILL.md) retrieval rules verbatim — same tools, lane
+   handling, and citation mechanics; do not re-derive them here. Run `knowledge_context` for each
+   affected artifact. A row carrying `hydrated: false` is a gap and cannot be cited. Name every
+   generic-bucket type in scope as an unchecked class in the findings — silence about it reads as
+   a clean review it did not earn.
 4. Compare intended customer-owned repository state with the latest complete org-review evidence.
    Report drift instead of selecting one source.
 5. Distinguish an observed fact that violates a Principle from evidence that contests a factual
    entry. Principles do not rewrite facts; observations do not weaken rules.
 6. Require complete environment proof, package/component ownership, version, supported extension
    point, role compliance, verification, coverage, and manual steps where relevant.
-7. A drifted/revoked/partial entry, incomplete org review, ungrounded component, missing
-   source/version, stale approval, or unresolved blocking question makes `SAFE` impossible.
+7. Draft, revoked, not-effective, unhydrated, integrity-invalid, scope-mismatched, or materially
+   partial evidence cannot support `SAFE`. Approved-drifted remains effective and requires
+   disclosure only. An incomplete org review, an ungrounded component, a missing source/version,
+   an unverified review claim, or an unresolved blocking question disqualifies `SAFE` the same way.
+   Before issuing the verdict, verify every supplied envelope with `python
+   scripts/knowledge_store.py entry-verify-citations --envelope <path>`. Invalid citations block
+   `SAFE`; approved-drifted produces disclosure only.
 
 ## Output
 
-Return a table with: tier, rule ID, entry identities, affected artifact, scope/freshness,
-reconciliation, finding, and required action. End with exactly one verdict:
+Return a table with: rule source/applicability, rule ID, entry identities, affected artifact,
+scope/freshness, reconciliation, finding, and required action. End with exactly one verdict:
 
 - `SAFE`
 - `NEEDS FIXES`
@@ -70,20 +56,4 @@ reconciliation, finding, and required action. End with exactly one verdict:
 - `STOP — TOO RISKY`
 
 State the reviewed subject (work-item/design reference or diff), evidence completeness,
-repository/org drift, and that nothing was changed.
-
-## Knowledge grounding: two layers
-
-Query both layers through the knowledge tools and read their envelopes by the
-[search-knowledge](../search-knowledge/SKILL.md) rules — authorities, lane handling and
-citation mechanics live there, once; do not re-derive them here. In short: approved
-entries ground intended repository-source facts, cited as `entryRef` via the
-`knowledge_entry_status` tool (a search result, a `context` pack and a generated view are
-never themselves citable); org usage grounds usage numbers cited with orgKey, observedAt
-and their age; runtime behavior, business meaning and vendor guarantees have no governed
-Knowledge surface — mark them `UNVERIFIED` with their source. A missing hit is never
-proof of absence. An approved entry can still refuse to ground a fact: contract §8.1
-grounds only `source-exact`, fully covered sections — check the entry's
-`extractionCoverage` and `assurance` (heuristic-derived facts, common across the Apex
-layer, are refused). Take the refusal as the answer: report the fact as inferred and name
-what would make it groundable — never retry with a different ref shape.
+repository/org drift, any claimed review status and its evidence, and that nothing was changed.

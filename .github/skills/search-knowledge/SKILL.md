@@ -62,6 +62,13 @@ metadata type, namespace, lifecycle state.
        for the same reason `impact` does, and says so in `gaps` when it drops hops.
      - `chainsMeta.limitsHit` and `excludedCounts` say what was cut. A row with
        `hydrated: false` failed re-reading and must not be cited.
+     - **Generic-bucket types have no governed dependency lookup at all** — Settings,
+       Letterhead, Group, Network, Certificate, Document, Territory2 and similar label-only
+       types carry no entry profile, so no lookup can return their dependents. A clean result
+       over such a type means nothing was looked up, not that nothing depends on it. Whichever
+       artifact a caller is producing — review finding, fix note, coverage matrix, documentation
+       — every generic-bucket type in scope is named there as an unchecked class; the consuming
+       skill states the exact obligation for its own output.
    - exact artifact: `python scripts/knowledge_search.py search --identity <MetadataType>:<ns|c>:<FullName>`
      (a bare API name that exists in several namespaces returns `AMBIGUOUS` — pass `--namespace`,
      never pick the top score yourself)
