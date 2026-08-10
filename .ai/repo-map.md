@@ -39,7 +39,7 @@ the deep directory tree lives in `docs/workspace-topology.md`.
 - **git-agent** — Routine git operations by the …. Loads skills: git-workflow.
 - **knowledge-curator** — Maintains governed Knowledge from repository …. Loads instructions: managed-package; contracts: source-authority; skills: approve-knowledge-drafts, search-knowledge.
 - **reviewer** — Challenge a design or implementation …. Loads skills: check-against-principles.
-- **test-strategist** — Assess QA inventory freshness and …. Loads instructions: apex; contracts: execution-contract, tool-capabilities.
+- **test-strategist** — Assess QA inventory freshness and …. Loads instructions: apex; contracts: execution-contract, tool-capabilities; skills: search-knowledge.
 
 ## Skills (`.github/skills/`)
 

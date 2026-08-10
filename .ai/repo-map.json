@@ -105,7 +105,9 @@
         "instructions": [
           "apex"
         ],
-        "skills": []
+        "skills": [
+          "search-knowledge"
+        ]
       },
       "name": "test-strategist",
       "path": ".github/agents/test-strategist.agent.md"
@@ -496,7 +498,7 @@
     ".github/agents/git-agent.agent.md": "sha256:1ec54fe0d4ad399d5dcd61f4d5d148c14b119666ee7142af85ada66f51a200b2",
     ".github/agents/knowledge-curator.agent.md": "sha256:a1ca16fd2aa0ff87863a6c2a2e1db8d84366d8c37165d1a95bad268436992fc8",
     ".github/agents/reviewer.agent.md": "sha256:3a4af43c2617aa2bbd284e9c7c87d1af3bfa171e49a2a86ba445f6ef4c322bea",
-    ".github/agents/test-strategist.agent.md": "sha256:d473536b03f459bdef3044b8c3fc507bea8c63cbcf0720949972249dc59b414c",
+    ".github/agents/test-strategist.agent.md": "sha256:e38b984dce7321cff1b79d350ba2f8150c697f09beda764dca5a22993520507e",
     ".github/instructions/apex.instructions.md": "sha256:d28260c9247d670c71353f0cdaa22195f2490d4bb1b5bf11d403861602cda5b3",
     ".github/instructions/flows.instructions.md": "sha256:63c560e27041a9bf6e89342f0df491310f6a6fb3dc3d70d1a56f6c61d5788adc",
     ".github/instructions/managed-package.instructions.md": "sha256:c60f437ae4e63e8773bde02e603f3389b327406174a3829c1c913077ab26607e",
@@ -541,5 +543,5 @@
     ".github/skills/tune-test-case-keywords/SKILL.md": "sha256:bf9e6961b03bf3ff00903dcef31c9ccb4ac41cb974bc32e20f4d1e10ae1e3fce",
     "config/repo-map-seed.json": "sha256:f3af73b3080c66802abb0483b79851cfd0c1ed708989f2810bea9f4b2898d09c"
   },
-  "wordCount": 781
+  "wordCount": 783
 }
