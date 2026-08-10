@@ -19,21 +19,12 @@ only renders and executes; the human reads the rendered body and clicks the conf
 Optional `identity` values (`<MetadataType>:<ns|c>:<FullName>`). With none, every `draft` entry
 is offered. Nothing else is accepted — scope is entry identities, never free text.
 
-## Authoring the description first
+## Undescribed drafts
 
-An entry drafted without a description carries an `<AGENT_DESCRIPTION>` sentinel and can never
-be approved. The description is the one part of an entry a model writes rather than extracts,
-so it is written after the facts exist and from the artifact's actual source:
-
-1. `python scripts/knowledge_store.py entry-status` — find entries still holding the sentinel.
-2. Read that artifact's source. Do not describe it from its name, from its label, or from the
-   extracted facts alone.
-3. Write 1-8 sentences: what the component does, what triggers it, what it decides. State only
-   what the source supports; a gap is a gap, not a guess.
-4. `python scripts/knowledge_store.py entry-describe --identity <Identity> --purpose-file <file>`
-   — the executor validates and writes it; extracted facts are never touched, and rewriting a
-   description on an already-approved entry returns it to `draft` because the approval was
-   bound to the previous text.
+This skill approves; it does not describe. An entry still holding the `<AGENT_DESCRIPTION>`
+sentinel is filtered out by `entry-review` and can never be approved — route it back through
+the curation describe loop ([knowledge-curator](../../agents/knowledge-curator.agent.md))
+and come back with the described set.
 
 ## Procedure
 
@@ -42,8 +33,10 @@ so it is written after the facts exist and from the artifact's actual source:
    It writes `output/knowledge-approvals/<chunkId>-review.md` (full attested body per entry,
    change class, coverage, assurance, limitations, source-declared intentional errors) and
    returns the exact digest-pinned `entry-approve` command.
-2. Stop on `NOTHING_TO_REVIEW` (report the listed validation problems) or `CHUNK_TOO_LARGE`
-   (report the cap violation and split the chunk). Entries with unfilled `<AGENT_…>` sentinels,
+2. Stop on `NOTHING_TO_REVIEW` (report the listed validation problems). A draft set past the
+   cap returns `REVIEW_READY_CHUNKED` — N review artifacts and N pinned approve commands cut
+   from the sorted list; run the rounds one at a time, each with its own human read and
+   approval. Entries with unfilled `<AGENT_…>` sentinels,
    unapproved keywords, a missing `## Purpose`, or a failing path round-trip never reach review.
 3. Present to the human, in the chat: the chunk id, the review-artifact path, the per-entry
    change class (new approval / prose changed / facts-only re-approval), and the digest set.
