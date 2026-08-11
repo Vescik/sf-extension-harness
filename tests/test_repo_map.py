@@ -58,8 +58,8 @@ class RepoMapRenderTests(unittest.TestCase):
         committed = json.loads((ROOT / ".ai/repo-map.json").read_text(encoding="utf-8"))
         self.assertEqual(committed["wordCount"], word_count(md))
         # Coverage: every agent, skill, prompt, instruction, and contract is indexed.
-        self.assertEqual(7, len(first["agents"]))
-        self.assertEqual(20, len(first["skills"]))
+        self.assertEqual(8, len(first["agents"]))
+        self.assertEqual(21, len(first["skills"]))
         self.assertEqual(17, len(first["prompts"]))
         self.assertEqual(3, len(first["contracts"]))
 

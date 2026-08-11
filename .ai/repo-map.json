@@ -115,6 +115,19 @@
       },
       "name": "test-strategist",
       "path": ".github/agents/test-strategist.agent.md"
+    },
+    {
+      "description": "Maintain the workspace control plane — prompts, skills, instructions, scripts, schemas, tests, docs, and tracked config — with a human confirmation gate on every root-of-trust edit. Never Salesforce delivery work.",
+      "handoffs": [],
+      "loads": {
+        "contracts": [],
+        "instructions": [],
+        "skills": [
+          "maintain-workspace"
+        ]
+      },
+      "name": "workspace-maintainer",
+      "path": ".github/agents/workspace-maintainer.agent.md"
     }
   ],
   "contracts": [
@@ -446,6 +459,11 @@
       "path": ".github/skills/investigate-object/SKILL.md"
     },
     {
+      "description": "Bounded workspace control-plane maintenance — classify paths, inventory impact, state the change, edit proportionally behind the root-of-trust confirmation edge, validate with the harness gate, and hand off. Internal to the workspace-maintainer.",
+      "name": "maintain-workspace",
+      "path": ".github/skills/maintain-workspace/SKILL.md"
+    },
+    {
       "description": "The recipe for investigating the org through the read-only Salesforce MCP facade and knowledge search — what to call, in what order, and what to do when a tool fails.",
       "name": "org-discovery",
       "path": ".github/skills/org-discovery/SKILL.md"
@@ -487,6 +505,7 @@
     ".github/agents/knowledge-curator.agent.md": "sha256:d7a6cf67e9b0b94718dbf105c789926bb35b338bf5b70ed65419f715ce777e07",
     ".github/agents/reviewer.agent.md": "sha256:68a0f789f2fa2c74ca32ce237897a2fcf55ade342a937cfe6217e3fbd9647e5f",
     ".github/agents/test-strategist.agent.md": "sha256:6f7870326eb809c0cebd0a549bb345102cf222c449b4218807f273b549b47e7b",
+    ".github/agents/workspace-maintainer.agent.md": "sha256:10a721ecab0aeeed6101f6b7cd73279b1c4c155bc192e852383299e525988d19",
     ".github/instructions/apex.instructions.md": "sha256:d28260c9247d670c71353f0cdaa22195f2490d4bb1b5bf11d403861602cda5b3",
     ".github/instructions/flows.instructions.md": "sha256:63c560e27041a9bf6e89342f0df491310f6a6fb3dc3d70d1a56f6c61d5788adc",
     ".github/instructions/managed-package.instructions.md": "sha256:c60f437ae4e63e8773bde02e603f3389b327406174a3829c1c913077ab26607e",
@@ -521,6 +540,7 @@
     ".github/skills/inventory-force-app/SKILL.md": "sha256:07244b0172d27a4dedd417547c1cd8d7b64b6511f23cf4f9c9cd5dc4f92cf520",
     ".github/skills/investigate-config-records/SKILL.md": "sha256:d3d15608be120b75984e99bb2aafbbf896035d6bb0ff9cbae9da096a6c11c9e7",
     ".github/skills/investigate-object/SKILL.md": "sha256:6f840761c0dbbeb27b0964597bb761e3171fe61e62362c023f8a1df2f0d75ecf",
+    ".github/skills/maintain-workspace/SKILL.md": "sha256:fd57545f10116b1fdc1d6ab594f213368b0679fe73203f4ac207b01fbb113684",
     ".github/skills/org-discovery/SKILL.md": "sha256:633a176c055bbdf5fe864ad5527cbea6411080b85e0771da4294ce7d094f2866",
     ".github/skills/prepare-qa-test-plan/SKILL.md": "sha256:39dcdd8e053614b85bb1fe7c05b8b9632276edde8c3ed1f6412746a91fbcab49",
     ".github/skills/search-ado/SKILL.md": "sha256:4c6a1e155d7cf3b2079953837681ebd89e6226b4ff98f8ae30f079640b788cc7",
@@ -529,5 +549,5 @@
     ".github/skills/solution-design/SKILL.md": "sha256:1150735fa4540de7cbe6036523ed3bfad6d90d1257b6b00151c2507b74a150b7",
     "config/repo-map-seed.json": "sha256:13a7cd0d34ceb5183795165fa2bb0b260a5e5e0a6f6a2041bd7b099d5eb27d75"
   },
-  "wordCount": 778
+  "wordCount": 799
 }

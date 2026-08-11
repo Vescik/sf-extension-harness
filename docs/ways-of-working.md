@@ -103,6 +103,12 @@ From a written requirement:
    screenshots) stay in Azure Test Plans, never in the repository.
 7. The git-agent can prepare routine branch, commit, and PR work; push, merge, release, and
    deployment remain yours under the repository's current rules.
+8. Changes to the workspace itself — prompts, skills, instructions, scripts, schemas, tests,
+   docs, tracked configuration — go through the **workspace-maintainer** agent, not a
+   delivery agent. Files that define permissions or external capability (the safety
+   hook/role guard, agent definitions, MCP and VS Code configuration) additionally stop for
+   your explicit confirmation on the edit itself; you can also just make such changes
+   directly yourself.
 
 ### What you decide
 
