@@ -24,8 +24,8 @@ traceable to a work item or recorded decision.
 - Any new public slash command needs an owner, stable name, pinned agent, input contract, and
   deterministic failure behavior.
 - Any new custom agent needs a bounded role, current tool IDs, correction handoffs, and safety tests.
-- Any new external integration needs a capability entry, preflight gate, allowlist, sanitized cache
-  contract, and negative test.
+- Any new external integration needs point-of-use validation (fail-closed at its own startup or
+  per call), an allowlist, a sanitized cache contract, and a negative test.
 - Changes to stable `SAFE-*`, `MP-*`, `ORG-*`, or `SF-*` rules require an explicit reviewer and a
   decision-log entry.
 

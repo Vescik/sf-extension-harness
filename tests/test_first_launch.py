@@ -101,5 +101,40 @@ class ConfigWritingTests(unittest.TestCase):
         self.assertNotIn("allowAnyNonProduction", written["salesforce"]["review"])
 
 
+class LocalConfigFindingsTests(unittest.TestCase):
+    """Setup reports configuration shape only — never universal live readiness."""
+
+    SCHEMA = json.dumps({"type": "object", "required": ["ado"]})
+
+    def test_invalid_json_is_one_precise_finding(self) -> None:
+        findings = first_launch.local_config_findings("{not json", self.SCHEMA)
+        self.assertEqual(len(findings), 1)
+        self.assertIn("invalid JSON", findings[0])
+
+    def test_placeholders_are_reported_by_exact_path(self) -> None:
+        config = json.dumps(
+            {"ado": {"organization": "<ADO_ORG>", "project": "real"},
+             "salesforce": {"orgs": [{"alias": "<ALIAS>"}]}}
+        )
+        findings = first_launch.local_config_findings(config, self.SCHEMA)
+        self.assertIn("unresolved placeholder at ado.organization", findings)
+        self.assertIn("unresolved placeholder at salesforce.orgs[0].alias", findings)
+        self.assertEqual(len(findings), 2)
+
+    def test_schema_violation_is_reported_and_clean_config_passes(self) -> None:
+        self.assertEqual(first_launch.local_config_findings(json.dumps({"ado": {}}), self.SCHEMA), [])
+        findings = first_launch.local_config_findings(json.dumps({}), self.SCHEMA)
+        self.assertEqual(len(findings), 1)
+        self.assertIn("config schema validation failed", findings[0])
+
+    def test_findings_describe_config_shape_not_capability_readiness(self) -> None:
+        # The distinction §setup vs point-of-use: nothing in a finding may claim an
+        # external capability was proven or is unusable — only config shape.
+        config = json.dumps({"ado": {"organization": "<ADO_ORG>"}})
+        for finding in first_launch.local_config_findings(config, None):
+            for banned in ("ready", "preflight", "live", "proven"):
+                self.assertNotIn(banned, finding.lower())
+
+
 if __name__ == "__main__":
     unittest.main()

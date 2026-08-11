@@ -8,7 +8,6 @@ user-invocable: false
 
 Apply the [shared execution contract](../../../.ai/contracts/execution-contract.md) and the
 [Managed Package Boundaries](../../instructions/managed-package.instructions.md).
-Run `python scripts/preflight.py --capability salesforce-review`.
 
 This lane is the owner-approved exception (decision of 2026-07-23) to the developer
 accepted-design entry gate. It exists so a diagnosed defect — a broken Flow decision, a wrong

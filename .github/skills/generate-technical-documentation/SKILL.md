@@ -6,8 +6,7 @@ user-invocable: false
 
 # Generate technical documentation
 
-Apply the [shared execution contract](../../../.ai/contracts/execution-contract.md), then run
-`python scripts/preflight.py --capability metadata` and `--capability ado`.
+Apply the [shared execution contract](../../../.ai/contracts/execution-contract.md).
 
 ## Inputs and gate
 

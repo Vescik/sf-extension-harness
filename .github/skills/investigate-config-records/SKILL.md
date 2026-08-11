@@ -7,8 +7,7 @@ user-invocable: false
 # Investigate configuration records in a reference-data object
 
 Apply the [shared execution contract](../../../.ai/contracts/execution-contract.md) and the
-[source authority contract](../../../.ai/contracts/source-authority.md). Run
-`python scripts/preflight.py --capability salesforce-review`.
+[source authority contract](../../../.ai/contracts/source-authority.md).
 
 Authority basis: per the grounding architecture, a reference-data snapshot is eligible only
 through a bounded current org observation — these values live in records, not in source files, so

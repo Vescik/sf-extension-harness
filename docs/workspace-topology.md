@@ -31,7 +31,7 @@ skills, Knowledge, Memory, QA indexes, cache, and generated drafts. Skills must 
 `brain-core` as the one SFDX root and must reject a missing or ambiguous project rather than
 searching a subfolder, parent directory, sibling directory, or other checkout.
 
-Run `Harness: Preflight` after opening the workspace. Harness CI and metadata-dependent prompts
+Harness CI and metadata-dependent prompts
 operate against the same checkout, so Salesforce metadata and the work item's design, tasks and
 decisions remain reviewable in one pull request.
 

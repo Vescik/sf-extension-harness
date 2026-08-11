@@ -9,8 +9,10 @@ Every skill must apply this contract in addition to its task-specific procedure.
 
 1. Validate required inputs, allowed values, mutual exclusion, identifiers, URLs, and paths before
    invoking a tool.
-2. Run `python scripts/preflight.py --capability <name>` when the workflow depends on external tools
-   or the Salesforce metadata root. See "Running guarded commands" below for the exact form.
+2. Validate task inputs first, then call the scoped tool directly. External readiness is proven
+   at the point of use — the Salesforce review MCP proves the selected org's non-production
+   identity at startup, and ADO scope is checked on every tool call. Preserve a tool's
+   fail-closed unavailable/blocked/partial result instead of retrying around it.
 3. For work raised by a work item, read `work-items/<id>-<slug>/design.md` before relying on
    approval, scope, design, or repository state, plus `tasks.md` for execution state and
    `decisions.md` for recorded deviations. Chat is never a substitute for those durable
@@ -27,12 +29,12 @@ The role guard only permits the harness's own Python scripts, and only when invo
 
 - **Always prefix the interpreter**: `python scripts/<name>.py …`. A bare `scripts/<name>.py` (no
   interpreter) is denied.
-- **Use forward slashes on every OS**, including Windows: `python scripts/preflight.py …`, never
-  `scripts\preflight.py`. Backslash paths are rejected by the command parser.
+- **Use forward slashes on every OS**, including Windows: `python scripts/knowledge_store.py …`,
+  never `scripts\knowledge_store.py`. Backslash paths are rejected by the command parser.
 - **`python` must be the workspace `.venv` interpreter** so `jsonschema`/`PyYAML` are importable.
   Select it once via "Python: Select Interpreter" → `.venv`; the integrated terminal then activates
   it automatically. Running system Python fails with `ModuleNotFoundError`.
-- Run from the repository root. Only `preflight.py`,
+- Run from the repository root. Only
   `knowledge_store.py`, `knowledge_search.py`, `force_app_knowledge.py`,
   `validate_handover_output.py` (read-only handover render check), `validate_harness.py`,
   and `run_evals.py` are permitted, each with its allowlisted subcommands.

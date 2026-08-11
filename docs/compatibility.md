@@ -10,7 +10,7 @@ Last verified against vendor documentation: 2026-07-10
 |---|---|---|
 | VS Code | 1.112+; certify current stable before rollout | Windows is the primary platform. The configured MCP surface is read-only on every platform. |
 | GitHub Copilot | Consolidated `GitHub.copilot` extension bundled/supported by the chosen VS Code release | The old separate Copilot Chat prerequisite is not used. |
-| Python | 3.11+ | Runs preflight, validation, safety hooks, and tests using the standard library plus the dev requirement below. |
+| Python | 3.11+ | Runs validation, safety hooks, and tests using the standard library plus the dev requirement below. |
 | PyYAML | `>=6,<7`; CI uses the lock file | Frontmatter and evaluation validation. |
 | jsonschema | `>=4,<5`; CI uses the lock file | Draft 2020-12 configuration/cache/output validation. |
 | Node.js | 22+ (`.nvmrc` pins 24) | MCP launchers and the ADO server run on Node; CI installs the `.nvmrc` version. |

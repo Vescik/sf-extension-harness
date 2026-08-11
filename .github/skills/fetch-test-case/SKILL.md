@@ -6,8 +6,7 @@ user-invocable: false
 
 # Fetch Test Case
 
-Apply the [shared execution contract](../../../.ai/contracts/execution-contract.md) and run
-`python scripts/preflight.py --capability ado`.
+Apply the [shared execution contract](../../../.ai/contracts/execution-contract.md).
 
 ## Inputs
 
