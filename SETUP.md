@@ -149,9 +149,11 @@ python -m venv .venv
 #   MCP launchers resolve the .venv interpreter themselves without activation.
 python -m pip install --require-hashes -r requirements-dev.lock
 npm ci --ignore-scripts
-python scripts/validate_harness.py
-python -m unittest discover -s tests -v
-python scripts/run_evals.py
+python scripts/validate_harness.py           # static repository structure and safety wiring
+python scripts/knowledge_store.py entry-check    # Knowledge entry integrity (CI runs this too)
+python scripts/knowledge_store.py feature-check  # Knowledge feature integrity (CI runs this too)
+python -m unittest discover -s tests -v      # unit tests
+python scripts/run_evals.py                  # deterministic safety evals
 npm run prettier:verify
 npm run lint
 ```
