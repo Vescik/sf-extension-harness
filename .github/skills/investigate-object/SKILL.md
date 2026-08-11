@@ -6,8 +6,6 @@ user-invocable: false
 
 # Investigate a Salesforce component question
 
-Run `python scripts/preflight.py --capability salesforce-review` first.
-
 This is a read-only investigation lane: the outcome is a sanitized report, optionally
 persisted org-usage numbers via the governed `entry-org-attach` executor. Nothing here
 creates citable Knowledge by itself — durable repository facts live in one-file Knowledge
@@ -59,8 +57,8 @@ distributions) to the governed record reads instead of rejecting them (owner dec
 
 ## Entry-lane org sampling (governed persistence)
 
-When a non-production org alias is configured and
-`python scripts/preflight.py --capability salesforce-review` passes, org sampling is the
+When the selected Salesforce review MCP session has started and proven its non-production
+identity (successful review tool evidence from this session), org sampling is the
 default persistence path for object/field usage numbers. For each target entry whose org lane
 is not already `org-fresh` (recompute it with
 the `knowledge_entry_status` tool — never from chat history):

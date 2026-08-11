@@ -19,8 +19,7 @@ a whole metadata type per run, or the human re-pins a selection of at most 25.
 
 ## 1 — Gate
 
-1. Run `python scripts/preflight.py --capability metadata` and
-   `python scripts/force_app_knowledge.py inventory`.
+1. Run `python scripts/force_app_knowledge.py inventory`.
 2. Stop on a partial inventory or a dirty tree. When a **selected** file is untracked or
    modified, name the exact paths and say plainly: *commit these files first — Knowledge
    evidence binds to a commit, so the file you just wrote cannot be documented until it is
@@ -81,8 +80,9 @@ Per component:
 For CustomObject and CustomField entries, consider the entry-lane org-sampling step of
 [investigate-object](../investigate-object/SKILL.md) — the same rule as after describe
 there: attach when fill rate or real data shape matters for what the entry is for;
-skipping is fine, forgetting should not be. Mechanics unchanged: when
-`python scripts/preflight.py --capability salesforce-review` passes and the entry's org lane
+skipping is fine, forgetting should not be. Mechanics unchanged: when the selected
+Salesforce review MCP session has proven its non-production identity (successful review
+tool evidence from this session) and the entry's org lane
 is not `org-fresh`, compose the probes-file and run
 `python scripts/knowledge_store.py entry-org-attach --identity <id> --org <alias>
 --probes-file <path>`; when no org is configured or containment refuses, skip silently and
