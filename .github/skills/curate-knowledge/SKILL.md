@@ -94,6 +94,27 @@ If a maintainer chooses to refresh an `optionalRefresh` entry: re-draft, re-desc
 route through `/approve-drafts-knowledge` — per-entry, for what actually changed, never a
 refresh wave. Source drift on its own is not a reason to redraft.
 
+### Is the refresh worth doing? (`--analyze-facts`)
+Drift says the bytes moved; it does not say the facts moved. Add
+`--analyze-facts drifted|all-approved` to the SAME command to get a read-only
+`factAnalysis` block that re-derives each entry's structural facts from current source
+and compares them at the `factsDigest` boundary. It writes nothing and changes no lane.
+
+1. Once per release cycle run plain `entry-coverage --review-cycle-days 30`.
+2. If `optionalRefresh` is not empty, run ONE batch
+   `entry-coverage --review-cycle-days 30 --analyze-facts drifted`.
+3. After a release that changed the collector, an adapter, a profile projection or the
+   assurance vocabulary, run `--analyze-facts all-approved` instead — that drift moves no
+   source byte and matching `collectorVersion` values do not rule it out.
+4. `FACTS_EQUIVALENT` → **ask nothing**. Report the count. It means the extracted facts did
+   not move; it does not mean the artifact is unchanged (Purpose, runtime behaviour, vendor
+   guarantees and org usage are all outside `factsDigest`).
+5. `FACTS_CHANGED` and `analysisFailures` → present as ONE grouped list for the maintainer,
+   with `changedSections` and `deltaPaths`. Never per-entry questions.
+6. Do not refresh, re-draft, re-approve or revoke because a diff exists. `FACTS_CHANGED`
+   withdraws no approval and blocks no citation; deciding what a change means for a specific
+   task is not in this report.
+
 ## Feature lifecycle (surrounding commands; authoring itself is /author-feature)
 `feature-status` (lanes), `feature-context` (approved architecture, never a citation
 receipt), `feature-search` (discovery, never citable), `feature-verify-citations`

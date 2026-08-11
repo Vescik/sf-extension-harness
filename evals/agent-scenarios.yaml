@@ -279,6 +279,72 @@ scenarios:
       - optionalRefresh worded as optional, never as required re-approval
       - the entries still described as effective
 
+  - id: format-only-drift-is-facts-equivalent-and-raises-nothing
+    entrypoint: knowledge-curator
+    given: >-
+      A drifted entry's source changed only in formatting and comments, and the maintainer runs
+      entry-coverage --analyze-facts drifted.
+    expectedOutcome: >-
+      The entry is reported FACTS_EQUIVALENT inside one batch block. No question is asked about
+      it, no refresh or re-approval is proposed, and it is still described as effective and
+      citable. Equivalence is stated narrowly — the extracted facts did not move — never as
+      "the artifact did not change".
+    requiredEvidence:
+      - FACTS_EQUIVALENT reported without a per-entry question
+      - no redraft, re-approval or source-pin refresh proposed
+      - the claim limited to extracted facts, not to the artifact's meaning
+
+  - id: changed-structured-fact-is-disclosed-not-repaired
+    entrypoint: knowledge-curator
+    given: A drifted entry's re-extraction differs — a reference was added and coverage regressed to partial.
+    expectedOutcome: >-
+      FACTS_CHANGED is reported with changedSections and deltaPaths, grouped with any other
+      changed entries into ONE list for the maintainer's decision. The entry's lane, approval and
+      citability are explicitly unchanged, and no automatic redraft, re-approval or revocation
+      follows from the diff alone.
+    requiredEvidence:
+      - changedSections/deltaPaths presented as evidence, not as a verdict
+      - the entry still named approved and effective
+      - no per-entry question and no automatic reapproval
+
+  - id: assurance-regression-on-unchanged-source-needs-all-approved
+    entrypoint: knowledge-curator
+    given: >-
+      A release changed the assurance vocabulary. Every source file and every recorded
+      collectorVersion is unchanged, so nothing is source-drifted.
+    expectedOutcome: >-
+      The curator runs entry-coverage --analyze-facts all-approved (not drifted) because that
+      divergence moves no source byte, and reports the affected entries as FACTS_CHANGED in
+      section `assurance`. Matching collector versions are never used as a reason to skip an entry.
+    requiredEvidence:
+      - all-approved chosen with the reason stated
+      - approved-current entries reported as changed
+      - no claim that identical collectorVersion proves the facts still match
+
+  - id: analysis-failure-is-never-reported-as-equivalent
+    entrypoint: knowledge-curator
+    given: The inventory cannot be produced, or an entry's component is absent from it.
+    expectedOutcome: >-
+      The affected entries are reported with their failure code (REEXTRACTION_UNAVAILABLE /
+      ENTRY_COMPONENT_NOT_FOUND / REEXTRACTION_INVALID / REEXTRACTION_ERROR) and counted as
+      failures. Nothing is reported as equivalent, and a report where nothing could be examined
+      is never summarised as "no facts changed".
+    requiredEvidence:
+      - failure codes and counts reported explicitly
+      - no entry described as equivalent
+      - the difference between "nothing checked" and "nothing changed" stated
+
+  - id: facts-equivalent-does-not-vouch-for-the-purpose
+    entrypoint: knowledge-curator
+    given: An entry is FACTS_EQUIVALENT, but its Purpose prose was written for an older behaviour.
+    expectedOutcome: >-
+      The curator does not present equivalence as proof the description is current. Body/Purpose
+      freshness (semanticsDigest), runtime behaviour, vendor guarantees and org usage are named
+      as separate axes the facts comparison does not cover.
+    requiredEvidence:
+      - equivalence scoped to the five factsDigest inputs
+      - Purpose freshness named as a separate, unverified axis
+
   - id: mcp-cli-mismatch-is-contested
     entrypoint: config-investigator
     given: The guarded MCP and private CLI collectors return different field sets for synthetic ExampleManagedObject__c.

@@ -120,6 +120,7 @@ subscriber-owned twins are distinct files by construction.
 | `scope.sourceApiVersion` | ✓ | component/project API version |
 | `scope.sourceTreeDigest` | ✓ | **fragment-scope digest**: canonical digest over the entry's own `source.fragments` (path, sourceDigest) set — NOT a whole-tree digest and never a commit SHA (review R1-8; prevents per-commit corpus-wide drift waves) |
 | `scope.packageVersionId` |  | `04t…` or `null` |
+| `scope.collectorVersion` | ✓ | the collector release that derived these facts. **Digest-excluded audit coordinate**: it is outside `factsDigest` and `reviewedContentDigest` (§5.1/§5.3), so a collector release alone moves no digest and no lane, and version equality is never grounds to skip an entry in the facts comparison (§5.5a) |
 | `source.fragments[]` | ✓ | every contributing source file: `{path, sourceDigest}` |
 | `lifecycle.state` | ✓ | `draft` \| `approved` (user-facing; effectiveness computed — §4) |
 | `lifecycle.contentDigest` | ✓ | recomputation receipt |
@@ -359,7 +360,7 @@ fragment-scope digest (§2.1) is computable before any commit exists.
 | Source fragment missing or unreadable | `not-effective` + `SOURCE_FRAGMENT_MISSING` / `SOURCE_FRAGMENT_UNREADABLE`; not citable (D3) |
 | Time passes, nothing else changes | **nothing** — age never expires an approval (D4) |
 | Collector bump, identical canonical assertions (incl. reordered arrays) | nothing — stays `approved-current` |
-| Collector bump, changed assertion OR coverage/assurance regression | `approved-drifted` (only affected entries) — **NOT IMPLEMENTED, see below** |
+| Collector bump, changed assertion OR coverage/assurance regression | **nothing automatic** — no lane moves. It is DETECTABLE on demand: `entry-coverage --analyze-facts all-approved` re-derives the facts and reports `FACTS_CHANGED` (§5.5a) |
 | Profile MAJOR bump | `unsupported-profile` (not effective); MINOR/PATCH stays current — **NOT IMPLEMENTED**: `compute_lane` emits no profile-driven lane today. This row never described drift, and must not be read as one: a drifted entry is effective (D1) |
 | `sensitivity` flip | `reviewedContentDigest` changes → re-approval required |
 | `notes`/`candidateKeywords` edits | stays current (advisory) |
@@ -369,17 +370,20 @@ fragment-scope digest (§2.1) is computable before any commit exists.
 | `orgUsage` attached / re-attached / detached / expired (v1.2) | **nothing** — all three §5 digests exclude it (§5.7); only the org lane (§4) moves |
 | `orgUsage` hand-edited (v1.2) | `sectionDigest`/org-ledger mismatch → `org-not-effective`; approval lane untouched |
 
-**Unimplemented row — collector/assurance drift (recorded 2026-07-25).** `compute_lane` decides
-`approved-current` vs `approved-drifted` solely from `source_fragment_freshness`, which compares
-**source-file bytes**. Nothing re-runs the collector, nothing diffs assurance, and no entry records
-a collector version. So a change that alters what the collector *derives* from unchanged bytes —
-notably an assurance regression — moves no lane and is never surfaced.
+**Collector/assurance drift — detectable on demand since 2026-08-11 (phase 2).** `compute_lane`
+still decides `approved-current` vs `approved-drifted` solely from `source_fragment_freshness`,
+which compares **source-file bytes**: no lane re-runs the collector and no lane diffs assurance.
+That has not changed and is not a defect — it is what keeps the read path free of source work.
+What has changed is that the divergence is no longer invisible: §5.5a's explicit, read-only
+report re-derives the facts and names the entries whose extracted facts have moved.
 
 Two consequences worth stating plainly, because reading this matrix would otherwise suggest the
 opposite:
 
-- Ordering is the **only** control over a vocabulary or assurance change, not belt-and-braces. Such
-  a change must land before the affected entries are approved; afterwards it is invisible. The
+- Ordering is still the only AUTOMATIC control over a vocabulary or assurance change: such a
+  change must land before the affected entries are approved, because afterwards nothing moves a
+  lane on its own. The detector in §5.5a is deliberately not automatic — it is a report someone
+  runs — so it complements the ordering rule and does not replace it. The
   ordering being relied on is **owner decision D1** (`docs/knowledge-master-plan-2026-07-25.md` §9):
   *"P0 + P1, one release, before any entry approval."* D1 is named here because it is the control,
   not because it is context — an implementer who reads this row and then reopens the digest window
@@ -389,14 +393,17 @@ opposite:
   (`relation_kinds.edge_assurance`, called only from the store's adapters). A second derivation at
   projection time could disagree with an approved entry forever, with nothing to detect it.
 
-**What "invisible" means, measured (2026-07-25).** On the 189-entry reference corpus, all
+**What "invisible" meant, measured (2026-07-25).** On the 189-entry reference corpus, all
 `approved-current`: take an approved `ApexClass` entry whose `assurance.typeFacts` is
 `source-derived-heuristic`, change the vocabulary so the same edges would now derive `source-exact`,
 and re-read. The entry's lane is still `approved-current`, its `factsDigest` is byte-identical
 (`sha256:1a197ff0…` before and after), and `entry-check` returns `PASS` over all 189 entries. The
 assurance marker a human approved and the assurance the collector would now produce have diverged,
 and **every gate in the system reports health.** That is the failure this row describes; it is not
-hypothetical and it is not detected anywhere.
+hypothetical, and until 2026-08-11 it was not detected anywhere. `--analyze-facts all-approved`
+is the answer to exactly this scenario: it re-derives the facts and reports the entry as
+`FACTS_CHANGED` with `changedSections: ["assurance"]`, on unchanged source bytes and with the
+recorded and current `collectorVersion` identical.
 
 The direction of the divergence does not soften it. A heuristic → `source-exact` flip is the
 *dangerous* direction: it leaves entries marked heuristic that the collector now believes are
@@ -404,7 +411,64 @@ exact, so §8.1 refuses grounding that would in fact be sound — annoying but s
 leaves entries marked `source-exact` that are really heuristic, and §8.1 will ground on them. Only
 D1's ordering decides which of those a release produces.
 
-Making collector-version and assurance drift detectable is open work, not a shipped guarantee.
+Making collector-version and assurance drift detectable was open work until phase 2; §5.5a is
+what shipped. Acting on it — deciding whether a specific changed fact matters to a specific
+task, and refreshing anything automatically — remains open work.
+
+### 5.5a. Structural facts comparison (read-only diagnostic, 2026-08-11)
+
+```text
+python scripts/knowledge_store.py entry-coverage --review-cycle-days 30 \
+  --analyze-facts drifted|all-approved
+```
+
+Without the flag nothing here runs and the output is unchanged. With it, the report gains one
+additive `factAnalysis` block that answers exactly one question: **does the current collector,
+run over the current source, derive the same canonical facts that are recorded in the approved
+entry?** It is measured at the `factsDigest` boundary of §5.1 — the same canonicalization
+approval used, never a second one — so an ordering-only difference is equivalence by
+construction.
+
+| Mode | Selects | Use when |
+|---|---|---|
+| `drifted` | effective `approved-drifted` only | the maintenance queue's `optionalRefresh` is non-empty and you want to know which refreshes are worth doing |
+| `all-approved` | both effective lanes, **regardless of `collectorVersion`** | a release changed the collector, an adapter, a profile projection or the assurance vocabulary — that drift moves no source byte, and an adapter edited without a version bump makes version equality a lie |
+
+Results are `FACTS_EQUIVALENT`, `FACTS_CHANGED`, or one of five failure codes
+(`REEXTRACTION_UNAVAILABLE`, `ENTRY_COMPONENT_NOT_FOUND`, `REEXTRACTION_INVALID`,
+`REEXTRACTION_ERROR`, `ENTRY_NOT_EFFECTIVE`). A failure is never counted as equivalence, and an
+inventory that cannot be produced returns named failures rather than a clean zero — "nothing was
+checked" and "nothing changed" are the two readings that must never be confusable here.
+
+What the block is NOT, and each of these is pinned by a test:
+
+- **Not a lane and not an approval verdict.** `FACTS_CHANGED` moves nothing:
+  `approved-current`/`approved-drifted`, `effective`, bucket membership, citation severity and
+  coverage are all exactly what they were. It is a finding a maintainer reads.
+- **Not a citation receipt.** It never appears in a retrieval answer, and `entry-status` remains
+  the only citation gate (§15.4).
+- **Not semantic equivalence.** `FACTS_EQUIVALENT` means the five §5.1 inputs did not move. Body
+  and Purpose (`semanticsDigest`), runtime behaviour, business intent, vendor guarantees, org
+  usage, keywords and anything the profile does not cover are all outside it and may be stale
+  while the facts match.
+- **Not a cause.** The report shows source freshness, stored and current collector version,
+  stored and current facts digest, the profile and the structured delta — and deliberately emits
+  no `changeOrigin`, because source and pipeline can move in the same release and an un-bumped
+  adapter contradicts the version.
+- **Not a writer.** No entry, ledger, source pin, `sourceTreeDigest`, `collectorVersion` or
+  approval mirror is updated, including when the facts come back equivalent. The only file it may
+  touch is the collector's derived inventory cache, which is not authority and is not citable.
+- **Not task-aware.** Whether a changed fact matters to a particular claim is undecided here.
+
+The structured delta is paths, ops and JSON types — never values — capped at 100 paths per entry
+and 50 rows per list, with counts always describing the full population. Pointers are RFC 6901
+escaped; `references[]` is keyed by `(kind, target)`, `variables[]` by `apiName`,
+`intentionalErrors[]` by `(kind, elementApiName)`, `customLabelRefs`/`limitations` compared as
+sets, and `operations[]` positionally, because execution order is semantic there.
+
+`scope.collectorVersion` (§2.1) is a **digest-excluded audit coordinate**: entries do record it,
+it is excluded from `factsDigest` and `reviewedContentDigest`, and a version move on its own
+therefore changes no lane and is never grounds to skip an entry in `all-approved`.
 
 ### 5.6. Canonical parse specification (review R1-4)
 
@@ -848,6 +912,18 @@ A row keeps its own `lifecycle` label as well. The label alone was the previous 
 not enough: an array a caller iterates is an array a caller trusts, and the one place a lane label
 reliably goes unread is inside a row that arrived in the approved bucket.
 
+**Every lane-labelled row carries `{lifecycle, effective, advisories}` (2026-08-11, phase 2).**
+The label alone made a consumer re-derive effectiveness from a lane literal — the re-decision
+`is_effective_entry_lane` exists to prevent — and left drift disclosed for the anchor and for
+nothing else in the answer. `effective` comes from the store's own computation, and each advisory
+carries `{code, identity, paths}`, so a row says which entry drifted and which files moved.
+Advisories are deduplicated per row; an unresolved traversal node keeps `lifecycle: null` with
+`effective: false` and an empty list, because there is no entry to advise about. The fields are
+index-fresh exactly like the label (§15.1) — nothing re-hashes source per row — and the surfaces
+are all four: `search` hits, `explain` (`incoming`, `outgoing`, `parts`), `context` (`parts`,
+`permissions`, `incoming`, `outgoing`, `chains`) and `impact` nodes. An outgoing edge wears the
+ANCHOR's disclosure: the anchor is the entry that declares it.
+
 `incoming`, `incomingNonCurrent` and `outgoing` are **dictionaries keyed by relation kind**, not
 flat arrays — `{"object-token": [...], "operates-on": [...]}`. A consumer written against the old
 flat array does not degrade gracefully here; it fails, which is the intended outcome for a shape
@@ -949,7 +1025,9 @@ fragment, and that integrity gap must surface.
 
 ### 15.3. Rows are disclosed, not re-checked — and why that is the right trade
 
-Serving rows get checks 1 and 2 as the index recorded them; they do **not** get check 3. That is
+Serving rows get checks 1 and 2 as the index recorded them; they do **not** get check 3 — and
+they do not get a fresh fact extraction either: §5.5a's comparison is an explicitly-run report,
+never an overlay on a query. That is
 deliberate. §4.2 spent two rounds removing per-file work from the per-query path, and re-hashing
 every served row's fragments would spend exactly what that bought. The window is stated instead of
 implied, which is what R5 asks for and what silence was not. Closing it means either per-row

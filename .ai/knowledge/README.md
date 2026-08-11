@@ -35,5 +35,17 @@ file, an unparseable entry, or an identity/digest mismatch is an integrity findi
 staleness signal — report it as an open gap, do not wave it through and do not silently
 retry. Existing Knowledge and generated views never corroborate themselves.
 
+## Maintenance rule
+
+`entry-coverage --review-cycle-days <n>` is the read-only release-cycle summary; adding
+`--analyze-facts drifted|all-approved` also re-derives each approved entry's structural facts
+from current source and compares them at the `factsDigest` boundary (contract §5.5a). Both are
+diagnostics: they write nothing, and neither a `FACTS_CHANGED` result nor an old `reviewedAt`
+withdraws an approval, moves a lane or blocks a citation. Read `FACTS_EQUIVALENT` narrowly — it
+says the extracted facts did not move, not that the artifact, its Purpose or its org usage are
+unchanged. Run `all-approved` after a release that touched the collector, an adapter or the
+assurance vocabulary: that divergence moves no source byte and matching collector versions do
+not rule it out.
+
 This repository intentionally contains no organization or package facts until real, sanitized
 evidence is reviewed. Never seed examples into the live store.

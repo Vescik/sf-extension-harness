@@ -1356,3 +1356,77 @@ Gate: 690 unit tests OK in ~87 s, 43 safety evals PASS, validate_harness coheren
 - Approved by: owner (D1-D7, 2026-08-11)
 - Related: docs/plan-2026-08-11-approved-drifted-phase-1.md,
   docs/knowledge-one-file-contract.md §4/§5.5/§14.2/§15
+
+## 2026-08-11 — Structural facts comparison: an explicit, read-only answer to "did the facts move?" (Knowledge phase 2)
+
+- Context: phase 1 made `approved-drifted` effective and disclosed, which was right but
+  incomplete. Drift is a statement about BYTES: a reformatted XML, a deleted comment and a
+  rewritten Flow all read the same, so a maintainer looking at `optionalRefresh` could not tell
+  which refresh was worth doing. The opposite gap was worse and older (contract §5.5, recorded
+  2026-07-25): a collector, adapter or assurance-vocabulary change alters what is DERIVED from
+  unchanged bytes, moves no lane, and was measured to leave every gate in the system reporting
+  health while the approved marker and the current one had diverged.
+- Finding / decision: phase 2 answers exactly one question — does the current collector, run
+  over current source, derive the facts recorded in the approved entry? — as a diagnostic that
+  changes nothing. Frozen as D1-D12 in MASTER-PLAN-PHASE-2-SEMANTIC-DRIFT.md:
+  - **D1** read-only. No entry, ledger, source pin or approval artifact is written; only the
+    collector's derived inventory cache may change, and it is not authority.
+  - **D2** no lane, `effective`, bucket, citation severity or coverage moves. `FACTS_CHANGED` is
+    a finding a maintainer reads, never a blocker and never a hidden re-approval trigger.
+  - **D3** zero cost on the ordinary read path: nothing runs without the flag, and
+    search/context/explain/impact/entry-status/citation-verify/index-build are pinned as never
+    re-extracting facts.
+  - **D4** one existing command, one parameter: `entry-coverage --analyze-facts
+    drifted|all-approved`. No new command, no new MCP tool, no global config.
+  - **D5** ONE facts projection (`derive_structured_facts`) shared by `entry-draft` and the
+    analyzer — a second copy would report its own divergence as artifact drift forever.
+  - **D6** comparison at the existing `factsDigest` boundary via `_canonical_facts`; no second
+    canonicalization, so an ordering-only difference is equivalence by construction.
+  - **D7** no guessed `changeOrigin`: source and pipeline can move in one release and an
+    un-bumped adapter contradicts the version, so the report shows coordinates, not a cause.
+  - **D8** one batch report with full counts and capped lists — never per-entry questions.
+  - **D9** delta is paths, ops and JSON types only; no values, no source text.
+  - **D10** no schema, lifecycle enum or output-envelope change.
+  - **D11** `search-knowledge/SKILL.md` stays the canonical lane/citation procedure; phase 2 adds
+    only an interpretation boundary for `factAnalysis` there.
+  - **D12** no automatic source-pin refresh, not even on `FACTS_EQUIVALENT`.
+- Also closed, as commit 0: phase 1's per-row disclosure gap. `compute_lane` and the citation
+  receipts had `effective` + advisories; retrieval rows had only a `lifecycle` string, so a
+  consumer re-derived effectiveness from a lane literal and could not tell which served row was
+  the drifted one. Every lane-labelled row on all four surfaces now carries
+  `{lifecycle, effective, advisories}` with the advisory naming its identity and paths,
+  deduplicated, index-fresh, with no per-row source hashing added.
+- Deliberate limits, stated so they are not mistaken for guarantees: `FACTS_EQUIVALENT` covers
+  the five `factsDigest` inputs and nothing else — Purpose/body, runtime behaviour, business
+  intent, vendor guarantees, org usage and anything outside the profile may be stale while the
+  facts match. Task-aware materiality (does THIS change matter to THIS claim?) is phase 3;
+  controlled refresh is phase 4.
+- Contract corrections: `scope.collectorVersion` was required by the schema and written by
+  `entry-draft` while the contract still said no entry records a collector version. It is now in
+  the §2.1 field table, named as a digest-excluded audit coordinate, and §5.5's "not detected
+  anywhere" row now points at §5.5a. Version equality is explicitly NOT a skip condition in
+  `all-approved` — that is the one mode that can see an un-bumped adapter.
+- Impact: five commits on knowledge/semantic-drift-phase-2 — row disclosure, shared projection,
+  the analyzer, guard reachability, and this documentation pass. No schema file, lifecycle enum
+  or output-envelope changed; no entry, Feature or ledger was written; no new MCP tool; no
+  Salesforce or ADO call.
+- Gate: 773 unit tests OK (1 skipped, up from 719), validate_harness PASS (2627 checks), 43
+  safety evals PASS, prettier/eslint/npm audit clean, repo map re-rendered. Draft parity was
+  MEASURED against the pre-refactor commit: Flow (with a Custom Error), CustomField, ApexClass
+  and ValidationRule produced byte-identical entries and digests before and after the shared
+  projection.
+- Performance, measured (macOS 27.0, Python 3.9.6, fresh process, 5 repeats each) on a fixture
+  built from the standalone org seed: 537 components, 527 approved entries, 117 source-drifted.
+  Plain `entry-coverage` p50 3.24 s / p95 3.26 s against an origin/main baseline of p50 3.26 s /
+  p95 3.47 s — no regression, well inside the 10 %/100 ms budget. `--analyze-facts drifted`
+  (117 entries) p50 3.87 s, `all-approved` (527 entries) p50 6.14 s: ~5.5 ms of extra work per
+  analyzed entry in BOTH modes, which is the linearity the single-inventory design predicts —
+  a second source-tree scan would have made the 527-entry mode super-linear. Peak RSS 34.9 MB
+  vs 33.5 MB without the flag (+1.4 MB against a 128 MB budget). Same fixture, same run: the 114
+  comment-only drifted entries all came back FACTS_EQUIVALENT and three fields edited materially
+  came back FACTS_CHANGED with `deltaPaths: [/typeFacts/label]`, and a byte hash over `.ai/`,
+  `force-app/` and `config/` was identical before and after both modes.
+- **NOT MEASURED**: Windows and a 15k-entry corpus. No claim of Windows readiness is made.
+- Approved by: owner (D1-D12, 2026-08-11, MASTER-PLAN-PHASE-2-SEMANTIC-DRIFT.md)
+- Related: docs/knowledge-one-file-contract.md §2.1/§5.5/§5.5a/§14.1/§15.3,
+  .github/skills/curate-knowledge/SKILL.md, .github/skills/search-knowledge/SKILL.md
