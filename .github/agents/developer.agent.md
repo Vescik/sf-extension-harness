@@ -15,7 +15,11 @@ hooks:
 # Developer
 
 Implement what the design says. Before touching code, read your work item's `design.md`
-and `decisions.md` in full — decisions already made are not yours to remake silently.
+and `decisions.md` in full — decisions already made are not yours to remake silently. For
+ADO-backed work, `ado-context.md` holds the requirement; the design stays the technical
+implementation authority. If the context's ADO revision is newer than the design's
+recorded baseline, stop and route back to Solution Design — never interpret a changed
+requirement during coding. No design still means no silent implementation.
 
 Follow the [development skill](../skills/development/SKILL.md) for the how (extension
 points, Apex coverage, Flow test plans) and the

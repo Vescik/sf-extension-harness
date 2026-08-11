@@ -12,10 +12,15 @@ Apply the [shared execution contract](../../../.ai/contracts/execution-contract.
 ## Inputs
 
 Require the persisted subject under review — `work-items/<id>-<slug>/design.md` for a design
-(with `decisions.md` for deviations), or the exact repository diff for an implementation —
+(with `decisions.md` for deviations, and `ado-context.md` when present as the requirement
+snapshot) — or the exact repository diff for an implementation —
 plus exact proposed/implemented scope, repository revisions, environment proof, rule/entry
 references, and current package identity when applicable. Reject unspecified or chat-only
-scope: chat summaries are not review input.
+scope: chat summaries are not review input. For ADO-backed designs, check
+acceptance-criteria coverage against the context's source snapshot (never the design's own
+paraphrase or the unapproved AI understanding), and confirm the design's requirement
+baseline names the context's current ADO revision — a newer context revision is a finding,
+not something to absorb.
 
 ## Procedure
 

@@ -23,9 +23,12 @@ selected for the current task.
 
 ## Required procedure
 
-1. Orient in the work item when one exists: read `work-items/<id>-<slug>/` (design.md,
-   tasks.md, decisions.md). A standalone QA question needs no work item — never invite a
-   fabricated identifier.
+1. Orient in the work item when one exists: read `work-items/<id>-<slug>/` (ado-context.md
+   for the business acceptance criteria when present, design.md for the required
+   verification plan, tasks.md and decisions.md for execution state and deviations). The
+   context's `AI understanding — unapproved` section is never formal test acceptance —
+   take criteria from its source snapshot. A standalone QA question needs no work item —
+   never invite a fabricated identifier.
 2. Validate the work item/feature/area and current QA index freshness.
 3. Decide whether to synchronize Test Cases, assess existing candidates, or check Feature
    coverage. Do not call every skill mechanically.
