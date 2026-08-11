@@ -48,6 +48,10 @@ ALLOWED_PREFIXES = {
     ),
     "reviewer": (),
     "git-agent": (),
+    # Workspace control plane (plan 2026-08-11): the maintainer's edit authority is the
+    # three-way taxonomy below (allow/ask/deny), not a prefix tuple — the empty tuple keeps
+    # the role enumerable (CLI --role choices, contract tests) without granting a prefix.
+    "workspace-maintainer": (),
 }
 
 HARNESS_ROOT = Path(__file__).resolve().parents[1]
@@ -231,6 +235,148 @@ def knowledge_store_command_allowed(parts: list[str], role: str) -> bool:
         if flag not in allowed_flags:
             return False
     return True
+
+# Workspace control plane (plan 2026-08-11). The maintainer role owns bounded workspace
+# maintenance with a three-way edit decision: standard control-plane paths allow, the
+# root-of-trust set (files that define permissions or external capability) returns `ask` so a
+# human confirms every such edit, and everything else — delivery source, work items, governed
+# Knowledge, local config, caches — stays deny. All matching is casefolded so an NTFS/macOS
+# case variant cannot turn an `ask` surface into a silent allow; the deny and ask sets are
+# checked before the allow sets, so the strictest classification always wins.
+MAINTAINER_ROLE = "workspace-maintainer"
+ROOT_OF_TRUST_EXACT = frozenset(
+    path.casefold()
+    for path in (
+        "scripts/copilot_role_guard.py",
+        "scripts/copilot_safety_hook.py",
+        ".github/hooks/safety.json",
+        ".github/mcp.json",
+        ".vscode/mcp.json",
+        ".vscode/settings.json",
+        "config/harness.example.json",
+        "config/harness.json",
+        "sf-harness.code-workspace",
+    )
+)
+ROOT_OF_TRUST_PREFIXES = (".github/agents/",)
+# Always denied to the maintainer, even where an allow prefix would otherwise match.
+# config/harness.local.json is gitignored and human-owned: hard deny, not ask.
+MAINTAINER_DENIED_EXACT = frozenset({"config/harness.local.json"})
+MAINTAINER_DENIED_PREFIXES = (
+    "force-app/",
+    "manifest/",
+    "tests/e2e/",
+    "work-items/",
+    ".ai/knowledge/",
+    ".ai/memory/",
+    ".cache/",
+    "output/",
+    ".sf/",
+    ".sfdx/",
+)
+MAINTAINER_ALLOWED_PREFIXES = (
+    ".github/prompts/",
+    ".github/skills/",
+    ".github/instructions/",
+    "docs/",
+    "evals/",
+    "tests/",
+    "schemas/",
+    "scripts/",
+    "config/",
+    ".ai/contracts/",
+)
+MAINTAINER_ALLOWED_EXACT = frozenset(
+    path.casefold()
+    for path in (
+        ".github/pull_request_template.md",
+        ".github/CODEOWNERS",
+        ".ai/repo-map.json",
+        ".ai/repo-map.md",
+        "README.md",
+        "SETUP.md",
+        "CONTRIBUTING.md",
+        "package.json",
+        "package-lock.json",
+        "requirements-dev.txt",
+        "requirements-dev.lock",
+        "eslint.config.js",
+        ".prettierignore",
+        ".prettierrc",
+        ".nvmrc",
+        ".forceignore",
+        ".gitattributes",
+        ".gitignore",
+    )
+)
+
+
+def maintainer_edit_decision(relative_path: str) -> str:
+    """Three-way decision for one normalized repo-relative path: allow | ask | deny."""
+    if relative_path.startswith("OUTSIDE::"):
+        return "deny"
+    if is_governed_record_path(relative_path):
+        return "deny"
+    lowered = relative_path.casefold()
+    if lowered in MAINTAINER_DENIED_EXACT:
+        return "deny"
+    if any(lowered.startswith(prefix) for prefix in MAINTAINER_DENIED_PREFIXES):
+        return "deny"
+    if lowered in ROOT_OF_TRUST_EXACT or any(
+        lowered.startswith(prefix) for prefix in ROOT_OF_TRUST_PREFIXES
+    ):
+        return "ask"
+    if lowered in MAINTAINER_ALLOWED_EXACT or any(
+        lowered.startswith(prefix) for prefix in MAINTAINER_ALLOWED_PREFIXES
+    ):
+        return "allow"
+    return "deny"
+
+
+# Validation-only terminal grant for the maintainer (plan §9.2): exact command shapes with
+# repository-contained file arguments; everything else falls through to the shared rules
+# (read-only orientation + guarded harness scripts) or is denied.
+MAINTAINER_PY_COMPILE_EXTENSIONS = frozenset({".py"})
+MAINTAINER_NODE_CHECK_EXTENSIONS = frozenset({".js", ".mjs"})
+
+
+def repository_file_argument(raw: str, root: Path, extensions: frozenset[str]) -> bool:
+    candidate = Path(raw.replace("\\", "/"))
+    if not candidate.is_absolute():
+        candidate = root / candidate
+    resolved = candidate.resolve(strict=False)
+    try:
+        resolved.relative_to(root.resolve())
+    except ValueError:
+        return False
+    return resolved.suffix.lower() in extensions
+
+
+def maintainer_terminal_command_allowed(parts: list[str], root: Path) -> bool:
+    executable = Path(parts[0]).name.lower().removesuffix(".exe").removesuffix(".cmd")
+    if executable == "npm":
+        return parts[1:] in (["run", "prettier:verify"], ["run", "lint"])
+    if executable == "node":
+        return (
+            len(parts) == 3
+            and parts[1] == "--check"
+            and repository_file_argument(parts[2], root, MAINTAINER_NODE_CHECK_EXTENSIONS)
+        )
+    if executable in {"python", "python3", "py"}:
+        index = 1
+        if executable == "py" and index < len(parts) and parts[index] == "-3":
+            index += 1
+        rest = parts[index:]
+        if rest in (["-m", "unittest", "discover", "-s", "tests"],
+                    ["-m", "unittest", "discover", "-s", "tests", "-v"]):
+            return True
+        if len(rest) >= 2 and rest[:2] == ["-m", "py_compile"] and len(rest) > 2:
+            return all(
+                repository_file_argument(arg, root, MAINTAINER_PY_COMPILE_EXTENSIONS)
+                for arg in rest[2:]
+            )
+    return False
+
 
 # Interactive QA test-plan handoff (owner plan 2026-08-11, D18): the Test Strategist's only
 # tracked work-item write is the exact per-item QA plan file. A `work-items/` prefix grant
@@ -498,6 +644,8 @@ def allowed_role_command(command: str, root: Path, role: str) -> bool:
         return False
     if read_only_orientation_command(parts):
         return True
+    if role == MAINTAINER_ROLE and maintainer_terminal_command_allowed(parts, root):
+        return True
     executable = Path(parts[0]).name.lower()
     if (
         role == "developer"
@@ -738,6 +886,37 @@ def main() -> int:
                 )
             )
         )
+        return 0
+
+    if args.role == MAINTAINER_ROLE:
+        decisions = {path: maintainer_edit_decision(path) for path in found}
+        denied = sorted(path for path, decision in decisions.items() if decision == "deny")
+        if denied:
+            # Any denied path fails the whole multi-file operation — no partial edits.
+            print(
+                json.dumps(
+                    response(
+                        "deny",
+                        "workspace-maintainer may edit only the workspace control plane "
+                        f"(root-of-trust files need confirmation); denied: {', '.join(denied)}",
+                    )
+                )
+            )
+            return 0
+        asked = sorted(path for path, decision in decisions.items() if decision == "ask")
+        if asked:
+            print(
+                json.dumps(
+                    response(
+                        "ask",
+                        "Root-of-trust change — these files define permissions or external "
+                        f"capability: {', '.join(asked)}. Confirm only if the agent has stated "
+                        "the exact capability/safety impact and affected files.",
+                    )
+                )
+            )
+            return 0
+        print(json.dumps(response()))
         return 0
 
     denied = sorted(path for path in found if not role_path_allowed(path, args.role))

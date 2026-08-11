@@ -1559,5 +1559,204 @@ class TerminalGateCoverageTests(unittest.TestCase):
                 self.assertFalse(safety.is_terminal_tool(tool_name))
 
 
+class WorkspaceMaintainerTests(unittest.TestCase):
+    """Protected control plane + workspace-maintainer (plan 2026-08-11).
+
+    The taxonomy is three-way: standard control plane allows, root of trust asks, and
+    everything else — delivery source, work items, governed Knowledge, local config,
+    caches — denies. These tests also pin non-escalation: no other role gains a path, and
+    the maintainer cannot silently edit the files that define permissions.
+    """
+
+    ROOT_OF_TRUST = (
+        "scripts/copilot_role_guard.py",
+        "scripts/copilot_safety_hook.py",
+        ".github/hooks/safety.json",
+        ".github/agents/developer.agent.md",
+        ".github/agents/new-role.agent.md",  # creating an agent is as sensitive as editing one
+        ".github/mcp.json",
+        ".vscode/mcp.json",
+        ".vscode/settings.json",
+        "config/harness.example.json",
+        "config/harness.json",
+        "sf-harness.code-workspace",
+    )
+
+    def decide(self, role: str, tool_input: dict[str, Any]) -> str:
+        output = run_hook(
+            "copilot_role_guard.py",
+            {"cwd": str(ROOT), "tool_name": "edit/editFiles", "tool_input": tool_input},
+            "--role",
+            role,
+        )
+        return hook_decision(output)
+
+    def test_maintainer_edits_standard_control_plane(self) -> None:
+        for path in (
+            ".github/prompts/adhoc-fix.prompt.md",
+            ".github/skills/maintain-workspace/SKILL.md",
+            ".github/instructions/apex.instructions.md",
+            ".github/pull_request_template.md",
+            "docs/ways-of-working.md",
+            "evals/agent-scenarios.yaml",
+            "tests/test_safety_hooks.py",
+            "schemas/output-envelope.schema.json",
+            "scripts/render_repo_map.py",
+            "config/repo-map-seed.json",
+            ".ai/contracts/tool-capabilities.md",
+            ".ai/repo-map.md",
+            "README.md",
+            "package.json",
+        ):
+            with self.subTest(path=path):
+                self.assertEqual("continue", self.decide("workspace-maintainer", {"path": path}))
+
+    def test_maintainer_asks_for_every_root_of_trust_representative(self) -> None:
+        for path in self.ROOT_OF_TRUST:
+            with self.subTest(path=path):
+                self.assertEqual("ask", self.decide("workspace-maintainer", {"path": path}))
+
+    def test_maintainer_denied_out_of_scope_paths(self) -> None:
+        for path in (
+            "force-app/main/default/classes/X.cls",
+            "manifest/package.xml",
+            "tests/e2e/example.spec.ts",
+            "work-items/242850-approval-notifications/design.md",
+            "work-items/242850-approval-notifications/qa-test-plan.md",
+            ".ai/knowledge/artifacts/code/ApexClass/c/X.md",
+            ".ai/knowledge/artifacts-ledger.jsonl",
+            ".ai/knowledge/features/some-slug/feature.md",
+            ".ai/knowledge/features-ledger.jsonl",
+            ".ai/memory/decisions-log.md",
+            ".cache/ado-items/1201.json",
+            "output/feature-health/report.md",
+            "config/harness.local.json",
+            ".sf/config.json",
+            ".sfdx/sfdx-config.json",
+        ):
+            with self.subTest(path=path):
+                self.assertEqual("deny", self.decide("workspace-maintainer", {"path": path}))
+
+    def test_mixed_standard_and_root_of_trust_returns_one_ask(self) -> None:
+        decision = self.decide(
+            "workspace-maintainer",
+            {"paths": [".github/prompts/adhoc-fix.prompt.md", ".vscode/mcp.json"]},
+        )
+        self.assertEqual("ask", decision)
+
+    def test_mixed_permitted_and_denied_returns_deny(self) -> None:
+        # A denied path fails the whole multi-file operation — no partial allowance, and
+        # deny wins even when another path in the same call would merely ask.
+        decision = self.decide(
+            "workspace-maintainer",
+            {
+                "paths": [
+                    ".github/prompts/adhoc-fix.prompt.md",
+                    ".vscode/mcp.json",
+                    "force-app/main/default/classes/X.cls",
+                ]
+            },
+        )
+        self.assertEqual("deny", decision)
+
+    def test_absolute_and_case_variant_paths_cannot_bypass(self) -> None:
+        self.assertEqual(
+            "ask",
+            self.decide(
+                "workspace-maintainer", {"path": str(ROOT / "scripts/copilot_role_guard.py")}
+            ),
+        )
+        self.assertEqual(
+            "ask", self.decide("workspace-maintainer", {"path": "SCRIPTS/COPILOT_ROLE_GUARD.PY"})
+        )
+        self.assertEqual(
+            "deny", self.decide("workspace-maintainer", {"path": "Force-App/Main/X.cls"})
+        )
+        self.assertEqual(
+            "deny",
+            self.decide(
+                "workspace-maintainer",
+                {"path": ".github/prompts/../../scripts/../force-app/x.cls"},
+            ),
+        )
+
+    def test_second_root_of_trust_edit_still_asks(self) -> None:
+        # The guard is stateless by design: a confirmed root-of-trust edit never unlocks the
+        # next one. Simulate the first edit having happened; the guard must ask again.
+        first = self.decide("workspace-maintainer", {"path": ".vscode/mcp.json"})
+        second = self.decide("workspace-maintainer", {"path": "scripts/copilot_safety_hook.py"})
+        self.assertEqual(("ask", "ask"), (first, second))
+
+    def test_no_existing_role_gains_control_plane_write(self) -> None:
+        for role in (
+            "designer",
+            "developer",
+            "test-strategist",
+            "reviewer",
+            "config-investigator",
+            "knowledge-curator",
+            "git-agent",
+        ):
+            for path in ("scripts/render_repo_map.py", "scripts/copilot_role_guard.py",
+                         ".github/agents/developer.agent.md", ".vscode/mcp.json",
+                         ".github/skills/maintain-workspace/SKILL.md"):
+                with self.subTest(role=role, path=path):
+                    self.assertEqual("deny", self.decide(role, {"path": path}))
+
+    def test_maintainer_terminal_allowlist_is_exact(self) -> None:
+        from scripts import copilot_role_guard as role_guard
+
+        allowed = (
+            "python scripts/validate_harness.py",
+            "python scripts/run_evals.py",
+            "python scripts/knowledge_store.py entry-check",
+            "python scripts/knowledge_store.py feature-check",
+            "python -m unittest discover -s tests",
+            "python -m unittest discover -s tests -v",
+            "python -m py_compile scripts/copilot_role_guard.py",
+            "python -m py_compile scripts/validate_harness.py scripts/run_evals.py",
+            "node --check scripts/knowledge_mcp_server.mjs",
+            "npm run prettier:verify",
+            "npm run lint",
+            "git status",
+            "ls scripts",
+        )
+        for command in allowed:
+            with self.subTest(command=command):
+                self.assertTrue(
+                    role_guard.allowed_role_command(command, ROOT, "workspace-maintainer")
+                )
+        denied = (
+            "python -m unittest discover -s tests -v --failfast",
+            "python -m py_compile /etc/hosts.py",
+            "python -m py_compile ../outside.py",
+            "python -m py_compile scripts/copilot_role_guard.py; rm -rf /",
+            "python -m py_compile",
+            "python arbitrary_script.py",
+            "python -c 'print(1)'",
+            "node --check ../outside.mjs",
+            "node --check scripts/validate_harness.py",
+            "node scripts/knowledge_mcp_server.mjs",
+            "npm run build",
+            "npm install leftpad",
+            "pip install anything",
+            "git push origin main",
+            "git commit -m x",
+            "sf project deploy start",
+            "curl https://example.com",
+        )
+        for command in denied:
+            with self.subTest(command=command):
+                self.assertFalse(
+                    role_guard.allowed_role_command(command, ROOT, "workspace-maintainer")
+                )
+        # The maintainer's extra command shapes stay maintainer-only.
+        for command in ("npm run lint", "python -m unittest discover -s tests",
+                        "python -m py_compile scripts/run_evals.py"):
+            for role in ("developer", "designer", "test-strategist", "reviewer"):
+                with self.subTest(role=role, command=command):
+                    self.assertFalse(role_guard.allowed_role_command(command, ROOT, role))
+
+
 if __name__ == "__main__":
     unittest.main()

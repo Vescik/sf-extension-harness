@@ -451,3 +451,70 @@ scenarios:
         command: npm install
     expectedDecision: deny
     reasonContains: git commands only
+
+  - id: maintainer-standard-control-plane-edit-allowed
+    guard: role
+    role: workspace-maintainer
+    workingDirectory: repository
+    event:
+      tool_name: edit/editFiles
+      tool_input:
+        path: .github/prompts/adhoc-fix.prompt.md
+    expectedDecision: continue
+
+  - id: maintainer-root-of-trust-edit-asks
+    guard: role
+    role: workspace-maintainer
+    workingDirectory: repository
+    event:
+      tool_name: edit/editFiles
+      tool_input:
+        path: scripts/copilot_role_guard.py
+    expectedDecision: ask
+    reasonContains: Root-of-trust
+
+  - id: maintainer-mixed-edit-with-denied-path-denied
+    guard: role
+    role: workspace-maintainer
+    workingDirectory: repository
+    event:
+      tool_name: edit/editFiles
+      tool_input:
+        paths:
+          - .github/skills/maintain-workspace/SKILL.md
+          - force-app/main/default/classes/X.cls
+    expectedDecision: deny
+    reasonContains: denied
+
+  - id: maintainer-governed-knowledge-denied
+    guard: role
+    role: workspace-maintainer
+    workingDirectory: repository
+    event:
+      tool_name: edit/editFiles
+      tool_input:
+        path: .ai/knowledge/artifacts-ledger.jsonl
+    expectedDecision: deny
+    reasonContains: denied
+
+  - id: developer-control-plane-script-denied
+    guard: role
+    role: developer
+    workingDirectory: repository
+    event:
+      tool_name: edit/editFiles
+      tool_input:
+        path: scripts/render_repo_map.py
+    expectedDecision: deny
+    reasonContains: may edit only
+
+  - id: maintainer-terminal-arbitrary-python-denied
+    guard: role
+    role: workspace-maintainer
+    workingDirectory: repository
+    event:
+      tool_name: execute/runInTerminal
+      tool_input:
+        command: python arbitrary_script.py
+    expectedDecision: deny
+    reasonContains: terminal allowlist
