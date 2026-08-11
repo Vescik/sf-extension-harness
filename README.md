@@ -57,6 +57,9 @@ Follow [SETUP.md](SETUP.md) — or, if you are setting up a machine from scratch
 zero-assumptions walkthrough in
 [docs/setup-zero-to-first-prompt.md](docs/setup-zero-to-first-prompt.md). Clone this repository
 once, then open `sf-harness.code-workspace`.
+Once the workspace is installed, use the [Ways of Working guide](docs/ways-of-working.md) to
+choose the right path for a feature, defect, managed-package dependency, or configuration-only
+change.
 The repository root is both the harness root and the only Salesforce DX project root. The
 workspace exposes it once as `brain-core`; `sfdx-project.json`, `force-app/`, `manifest/`, and
 `tests/e2e/` share the same branch, pull request, and commit history as the governance artifacts.
