@@ -231,6 +231,46 @@ class GuardParserContractTests(unittest.TestCase):
             with self.subTest(value=bad), self.assertRaises(SystemExit):
                 parser.parse_args(["entry-coverage", "--review-cycle-days", bad])
 
+    def test_analyze_facts_is_reachable_read_only_and_value_bound(self) -> None:
+        """The facts analysis stays inside the read-only grant, on both hosts.
+
+        It re-derives facts in memory and compares digests — no entry, ledger, source pin or
+        approval artifact is written (phase 2 D1) — so widening the guard to a mutation role
+        would grant write capability for a read. The flag takes a value, so the guard must
+        consume that value: a value-taking flag the guard treats as boolean lets the next token
+        through unvalidated, which is the fail-open shape that shipped once already.
+        """
+
+        for role in sorted(guard.ALLOWED_PREFIXES):
+            with self.subTest(role=role):
+                for mode in ("drifted", "all-approved"):
+                    self.assertTrue(
+                        guard.knowledge_store_command_allowed(
+                            ["entry-coverage", "--review-cycle-days", "30", "--analyze-facts", mode],
+                            role,
+                        )
+                    )
+                # `--flag=value` is how the same command is written on Windows shells often
+                # enough that the guard has a branch for it; both forms must agree.
+                self.assertTrue(
+                    guard.knowledge_store_command_allowed(
+                        ["entry-coverage", "--analyze-facts=drifted"], role
+                    )
+                )
+        self.assertNotIn("--analyze-facts", set(guard.KNOWLEDGE_STORE_VALUELESS_FLAGS))
+        self.assertNotIn("entry-coverage", guard.KNOWLEDGE_STORE_MUTATION_COMMANDS)
+        # The parser is the value gate: the guard allows the flag, argparse decides the mode.
+        parser = knowledge_store.build_parser()
+        self.assertIsNone(parser.parse_args(["entry-coverage"]).analyze_facts)
+        self.assertEqual(
+            "all-approved",
+            parser.parse_args(["entry-coverage", "--analyze-facts", "all-approved"]).analyze_facts,
+        )
+        self.assertEqual(("drifted", "all-approved"), knowledge_store.FACT_ANALYSIS_MODES)
+        for bad in ("current", "ALL-APPROVED", "", "true"):
+            with self.subTest(value=bad), self.assertRaises(SystemExit):
+                parser.parse_args(["entry-coverage", "--analyze-facts", bad])
+
     def test_the_store_guard_has_the_branch_its_first_boolean_will_need(self) -> None:
         # knowledge_store declares no boolean yet, so this exercises the loop against a
         # simulated one. Without the branch the guard consumes `--rm` as `--flag`'s value and
