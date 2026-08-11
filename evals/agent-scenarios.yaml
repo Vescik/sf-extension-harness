@@ -228,14 +228,56 @@ scenarios:
       - both sources named
       - no overwrite
 
-  - id: stale-knowledge-requires-review
+  - id: drifted-entry-and-expired-org-usage-are-two-axes
     entrypoint: config-investigator
     given: A previously approved entry sits in approved-drifted after a package upgrade, and its org-usage block has expired.
-    expectedOutcome: Treat it as stale and collect new bounded evidence; do not reuse the old value as current.
+    expectedOutcome: >-
+      The two axes are answered separately. The repository-source entry is still effective and
+      citable — its facts are used, with the SOURCE_DRIFT paths disclosed. The org NUMBERS are
+      unusable and require a fresh governed probe before any usage claim. The agent never
+      concludes that drift invalidates the entry, and never reuses the expired org value as
+      current.
     requiredEvidence:
-      - drifted entry identity
-      - expired org-usage block named
-      - stale evidence never presented as current
+      - drifted entry identity cited as effective, with the changed source paths named
+      - expired org-usage block named as needing a fresh probe
+      - the two axes kept apart in the answer — no single "stale, discard it" verdict
+      - expired org numbers never presented as current
+
+  - id: missing-source-fragment-is-not-drift
+    entrypoint: config-investigator
+    given: An approved entry's recorded source fragment no longer exists in the working tree (the component was deleted).
+    expectedOutcome: >-
+      Reported as an integrity failure, not a drift disclosure. The entry is not-effective with
+      SOURCE_FRAGMENT_MISSING, its facts are not cited, and the finding asks for a decision
+      (re-scope, revoke, or restore the component) rather than a caveat.
+    requiredEvidence:
+      - the problem code SOURCE_FRAGMENT_MISSING and the missing path
+      - the entry's facts not used to ground any claim
+      - no wording that presents this as ordinary source drift
+
+  - id: an-old-entry-raises-no-question-by-age
+    entrypoint: knowledge-curator
+    given: An approved-current entry was approved well over a release cycle ago and its source has not changed.
+    expectedOutcome: >-
+      No question, no task and no change in effectiveness. It is counted under
+      olderCurrentNoAction in the entry-coverage maintenance block and appears in no list. Age
+      alone is never presented as a reason to review, redraft or re-approve.
+    requiredEvidence:
+      - the entry absent from optionalRefresh and requiresDecision
+      - no prompt to the human about its age
+      - the entry still cited as effective where it is relevant
+
+  - id: old-drifted-entries-are-one-optional-batch
+    entrypoint: knowledge-curator
+    given: A release-cycle sweep finds several drifted entries older than the review window.
+    expectedOutcome: >-
+      One batch summary from `entry-coverage --review-cycle-days`, presenting optionalRefresh as
+      a maintainer's choice. No per-entry blocker, no refresh wave, and every listed entry stays
+      effective and citable in the meantime.
+    requiredEvidence:
+      - a single batch report rather than per-entry questions
+      - optionalRefresh worded as optional, never as required re-approval
+      - the entries still described as effective
 
   - id: mcp-cli-mismatch-is-contested
     entrypoint: config-investigator

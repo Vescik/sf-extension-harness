@@ -125,6 +125,33 @@ class KnowledgeSchemaTests(unittest.TestCase):
                 "verify_entry_citations (severity 'ok', effective)",
             )
 
+    def test_the_written_contract_states_both_phase_1_rules(self) -> None:
+        """The prose is what agents are steered by; the code is what runs. Both, or neither.
+
+        The failure this pins against is real and recent: the contract went on describing
+        drifted entries as "not approved-current knowledge and must not be cited" while the
+        executor bound them happily, and a skill inheriting the contract by pointer learned the
+        opposite of what the runtime does.
+        """
+
+        contract = (ROOT / "docs/knowledge-one-file-contract.md").read_text(encoding="utf-8")
+        self.assertIn("Both approved lanes are EFFECTIVE", contract)
+        self.assertIn("There is no expiry by age", contract)
+        self.assertIn("A missing source fragment is not drift", contract)
+        # The never-implemented expiry lane must not come back into the enum.
+        lane_block = contract.split("## 4.", 1)[1].split("```", 2)[1]
+        self.assertNotIn("approved-expired", lane_block)
+        self.assertIn("approved-drifted", lane_block)
+        # And no active surface may tell an agent that a drifted entry cannot be cited.
+        for surface in (
+            ROOT / "docs/knowledge-one-file-contract.md",
+            ROOT / ".ai/knowledge/README.md",
+            ROOT / ".github/skills/search-knowledge/SKILL.md",
+        ):
+            text = surface.read_text(encoding="utf-8")
+            for banned in ("re-approve before citing", "not approved-current knowledge"):
+                self.assertNotIn(banned, text, f"{surface.name} contradicts D1/D2")
+
     def test_entry_age_never_changes_a_lane_or_its_effectiveness(self) -> None:
         """No-expiry-by-age (owner decision D4, 2026-08-11).
 
