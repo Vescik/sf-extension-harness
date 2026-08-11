@@ -1409,6 +1409,58 @@ ADAPTERS = {
 }
 
 
+def derive_structured_facts(
+    metadata_type: str,
+    component: dict[str, Any],
+    *,
+    limitations: list[str] | None = None,
+) -> dict[str, Any]:
+    """The five `factsDigest` inputs derived from one collector component — and nothing else.
+
+    ONE projection, shared by `entry-draft` (which writes it into a new entry) and by the
+    read-only facts analyzer (which recomputes it to compare against an approved entry). A second
+    copy of these ~15 lines is the failure mode phase 2 exists to detect, reproduced inside the
+    detector: the analyzer would compare an entry against a projection nothing else produces, and
+    every disagreement between the two copies would be reported as artifact drift forever.
+
+    Pure by construction — no filesystem, no ledger, no cache, no clock, no Purpose — so the only
+    thing that moves its output is the collector, the adapter, or the assurance vocabulary, which
+    is exactly the surface the analyzer is trying to measure. The result is deep-copied so a
+    caller that edits the facts it was handed cannot reach back into the component it was
+    derived from.
+
+    `limitations` are human-governed: the collector cannot derive them, but they ARE inside
+    `factsDigest`, so the analyzer must pass the approved entry's own list through rather than
+    let an empty default read as "the human removed every limitation" (contract §5.1).
+    """
+
+    adapter = ADAPTERS.get(metadata_type)
+    if adapter is None:
+        raise StoreError(
+            f"unsupported metadata type {metadata_type!r}; profiled types: " + ", ".join(sorted(PROFILES))
+        )
+    type_facts, intentional, assurance = adapter(component)
+    coverage = {
+        # Either truncation aggregate marks the section partial: referencesTruncated for
+        # capped edges, factsTruncated for capped fact arrays (contract §5, 2026-08-04).
+        "typeFacts": "partial"
+        if type_facts.get("referencesTruncated") or type_facts.get("factsTruncated")
+        else "full"
+    }
+    if intentional:
+        coverage["intentionalErrors"] = "full"
+        assurance = {**assurance, "intentionalErrors": "source-exact"}
+    return copy.deepcopy(
+        {
+            "typeFacts": type_facts,
+            "intentionalErrors": intentional,
+            "limitations": list(limitations or []),
+            "extractionCoverage": coverage,
+            "assurance": assurance,
+        }
+    )
+
+
 # --- write path -------------------------------------------------------------------------
 
 
@@ -1465,7 +1517,9 @@ def command_entry_draft(args: argparse.Namespace) -> dict[str, Any]:
             + ", ".join(sorted(PROFILES))
         )
     component = collector_component(metadata_type, args.full_name)
-    type_facts, intentional, assurance = adapter(component)
+    # The same projection the read-only facts analyzer runs, so a drafted entry and a
+    # re-extraction of the same component are comparable by construction (phase 2, D5).
+    facts = derive_structured_facts(metadata_type, component, limitations=[])
     # Without an authored description the entry carries a sentinel: the facts are extracted,
     # but the artifact cannot be approved until an agent has read the source and written what
     # the component does. An empty body would look finished; a sentinel cannot be approved.
@@ -1479,16 +1533,6 @@ def command_entry_draft(args: argparse.Namespace) -> dict[str, Any]:
 
     fragment_path = ROOT / component["path"]
     fragments = [{"path": component["path"], "sourceDigest": f"sha256:{file_digest(fragment_path)}"}]
-    coverage = {
-        # Either truncation aggregate marks the section partial: referencesTruncated for
-        # capped edges, factsTruncated for capped fact arrays (contract §5, 2026-08-04).
-        "typeFacts": "partial"
-        if type_facts.get("referencesTruncated") or type_facts.get("factsTruncated")
-        else "full"
-    }
-    if intentional:
-        coverage["intentionalErrors"] = "full"
-        assurance = {**assurance, "intentionalErrors": "source-exact"}
     frontmatter: dict[str, Any] = {
         "schemaVersion": 1,
         "subject": {"metadataType": metadata_type, "fullName": args.full_name, "namespace": args.namespace},
@@ -1507,17 +1551,17 @@ def command_entry_draft(args: argparse.Namespace) -> dict[str, Any]:
         },
         "source": {"fragments": fragments},
         "lifecycle": {"state": "draft", "contentDigest": "sha256:" + "0" * 64},
-        "typeFacts": type_facts,
-        "extractionCoverage": coverage,
-        "assurance": assurance,
-        "limitations": [],
+        "typeFacts": facts["typeFacts"],
+        "extractionCoverage": facts["extractionCoverage"],
+        "assurance": facts["assurance"],
+        "limitations": facts["limitations"],
         "keywords": [],
         "candidateKeywords": list(args.candidate_keyword or [])[:5],
         "sensitivity": "internal-sanitized",
         "approval": {"reviewedContentDigest": None, "reviewedBy": None, "reviewedAt": None, "mechanism": None},
     }
-    if intentional:
-        frontmatter["intentionalErrors"] = intentional
+    if facts["intentionalErrors"]:
+        frontmatter["intentionalErrors"] = facts["intentionalErrors"]
     # M-R4 carry-forward (contract §2.3): a redraft rebuilds this frontmatter wholesale and must
     # not silently drop the digest-excluded org observation an earlier attach persisted.
     carry_forward_org_usage(frontmatter, entry_path(metadata_type, args.namespace, args.full_name))

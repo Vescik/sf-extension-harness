@@ -837,6 +837,133 @@ class EntryCitationVerificationTests(KnowledgeStoreFixture):
         self.assertNotIn("CustomObject", report["missingEntryCounts"])
 
 
+class SharedFactsProjectionTests(KnowledgeStoreFixture):
+    """`entry-draft` and the read-only facts analyzer derive facts through ONE function.
+
+    Phase 2 compares an approved entry's `factsDigest` against a fresh extraction of the same
+    component. If the analyzer re-implemented the ~15 lines that turn a collector component into
+    `{typeFacts, intentionalErrors, limitations, extractionCoverage, assurance}`, every
+    disagreement between the two copies would be reported forever as artifact drift — the exact
+    silent divergence phase 2 exists to detect, reproduced inside the detector. So there is one
+    projection, and these tests pin both halves of it: draft output IS the helper's output, and
+    the helper's output for the fixture corpus is byte-stable.
+
+    GOLDEN_FACTS_DIGESTS were measured on the commit BEFORE the shared helper existed, by
+    drafting the same four fixtures against the pre-refactor code and diffing the rendered
+    entries: the refactor changed no byte of any draft. They are pinned here so a later edit to
+    the projection cannot silently move what an approved corpus would be compared against.
+    """
+
+    GOLDEN_FACTS_DIGESTS = {
+        "Flow:c:HarnessAlphaRouter":
+            "sha256:acb434aaed85590cf9c2f37e14fd9c8c92fd1f3917ea9e4c29fd15af8392bdcd",
+        "CustomField:c:HarnessAlphaCase__c.Status__c":
+            "sha256:e41ff746ae5967e5e7a8ad609031796628d9262ed4202fffe31ff38e0a7116da",
+        "ApexClass:c:HarnessAlphaService":
+            "sha256:290eb2ee0a3ad29322e13917aaf691d37f17f7611659c0b53085193b48951e16",
+        "ValidationRule:c:HarnessAlphaCase__c.Status_Required":
+            "sha256:9f8038ba9e52d242862dba9d2b8aeb61dcdb3ce913139d9b43eaff5a38f8b869",
+    }
+    CASES = (
+        ("Flow", "HarnessAlphaRouter"),
+        ("CustomField", "HarnessAlphaCase__c.Status__c"),
+        ("ApexClass", "HarnessAlphaService"),
+        ("ValidationRule", "HarnessAlphaCase__c.Status_Required"),
+    )
+
+    def drafted_facts(self, metadata_type: str, full_name: str):
+        result = self.draft(metadata_type=metadata_type, full_name=full_name)
+        front, body = store.split_entry((store.ROOT / result["path"]).read_text(encoding="utf-8"))
+        return result, front, body
+
+    def test_draft_facts_are_exactly_the_shared_projection(self) -> None:
+        for metadata_type, full_name in self.CASES:
+            with self.subTest(metadataType=metadata_type):
+                _result, front, _body = self.drafted_facts(metadata_type, full_name)
+                component = store.collector_component(metadata_type, full_name)
+                derived = store.derive_structured_facts(metadata_type, component, limitations=[])
+                self.assertEqual(derived["typeFacts"], front["typeFacts"])
+                self.assertEqual(derived["extractionCoverage"], front["extractionCoverage"])
+                self.assertEqual(derived["assurance"], front["assurance"])
+                self.assertEqual(derived["limitations"], front["limitations"])
+                self.assertEqual(
+                    derived["intentionalErrors"], front.get("intentionalErrors", []),
+                    "the Flow adapter's intentional errors must survive the shared projection",
+                )
+                # The digest boundary itself, not only the fields it is built from.
+                self.assertEqual(store.facts_digest(front), store.facts_digest(derived))
+
+    def test_the_projection_digests_are_the_pre_refactor_digests(self) -> None:
+        for metadata_type, full_name in self.CASES:
+            with self.subTest(metadataType=metadata_type):
+                result, front, body = self.drafted_facts(metadata_type, full_name)
+                self.assertEqual(
+                    self.GOLDEN_FACTS_DIGESTS[result["identity"]], store.facts_digest(front)
+                )
+                # The reviewed digest closes over factsDigest, so an unchanged facts digest with
+                # a moved reviewed digest would mean the refactor leaked into semantics.
+                self.assertEqual(
+                    result["reviewedContentDigest"], store.reviewed_content_digest(front, body)
+                )
+
+    def test_a_flow_keeps_its_intentional_errors_and_their_assurance(self) -> None:
+        component = store.collector_component("Flow", "HarnessAlphaRouter")
+        derived = store.derive_structured_facts("Flow", component, limitations=[])
+        [error] = derived["intentionalErrors"]
+        self.assertEqual("flow-custom-error", error["kind"])
+        self.assertEqual("customErrors", error["originTag"])
+        self.assertEqual("Block_Discount", error["elementApiName"])
+        # Presence of intentional errors is what adds the second coverage and assurance key;
+        # dropping that step would weaken a digest-bound marker without moving any fact.
+        self.assertEqual("full", derived["extractionCoverage"]["intentionalErrors"])
+        self.assertEqual("source-exact", derived["assurance"]["intentionalErrors"])
+
+    def test_truncated_extraction_still_marks_the_section_partial(self) -> None:
+        # Coverage is digest-bound (contract §5.1): a full->partial regression is a material
+        # weakening, so the truncation aggregates must keep deciding it inside the shared helper.
+        for flag in ("referencesTruncated", "factsTruncated"):
+            with self.subTest(flag=flag):
+                component = {"metadataType": "CustomField", "facts": {"label": "L", flag: True}}
+                derived = store.derive_structured_facts("CustomField", component)
+                self.assertEqual("partial", derived["extractionCoverage"]["typeFacts"])
+        clean = store.derive_structured_facts(
+            "CustomField", {"metadataType": "CustomField", "facts": {"label": "L"}}
+        )
+        self.assertEqual("full", clean["extractionCoverage"]["typeFacts"])
+
+    def test_limitations_are_carried_through_not_invented(self) -> None:
+        """Limitations are human-governed and inside `factsDigest` — the collector cannot
+        derive them. An analyzer that defaulted them to `[]` would report every entry whose
+        reviewer wrote one as facts-changed, which is a false positive with a human cause."""
+
+        component = store.collector_component("CustomField", "HarnessAlphaCase__c.Status__c")
+        kept = store.derive_structured_facts(
+            component=component, metadata_type="CustomField", limitations=["Picklist values not read."]
+        )
+        self.assertEqual(["Picklist values not read."], kept["limitations"])
+        self.assertEqual([], store.derive_structured_facts("CustomField", component)["limitations"])
+
+    def test_the_projection_is_pure(self) -> None:
+        """No filesystem, no mutation of the caller's component. Both were real risks: the
+        draft path this was lifted from reads source and writes an entry around these lines,
+        and an adapter that returned an alias of the component's own lists would let a caller's
+        later edit reach back into the inventory the analyzer is iterating."""
+
+        component = store.collector_component("Flow", "HarnessAlphaRouter")
+        before = copy.deepcopy(component)
+        with unittest.mock.patch("builtins.open", side_effect=AssertionError("read the filesystem")):
+            derived = store.derive_structured_facts("Flow", component, limitations=["keep me"])
+        self.assertEqual(before, component, "the projection mutated the component it was given")
+        derived["typeFacts"]["references"] = []
+        derived["limitations"].append("mutated")
+        self.assertEqual(before, component, "the result aliases the component's own containers")
+
+    def test_an_unprofiled_type_is_refused_rather_than_projected_empty(self) -> None:
+        with self.assertRaises(store.StoreError) as raised:
+            store.derive_structured_facts("NotAType", {"facts": {}})
+        self.assertIn("unsupported metadata type", str(raised.exception))
+
+
 class AdapterFaithfulnessTests(unittest.TestCase):
     """An entry must carry what the collector extracted.
 
