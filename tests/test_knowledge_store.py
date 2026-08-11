@@ -2060,8 +2060,8 @@ class WorkflowReachabilityTests(unittest.TestCase):
 
     # Commands that belong to CI rather than to a person, with the reason.
     NOT_ON_PUBLIC_SURFACE = {
-        "entry-check": "CI integrity gate, run by validate_harness",
-        "feature-check": "CI integrity gate over features and their ledger, run by validate_harness",
+        "entry-check": "CI integrity gate, run as an explicit harness-ci.yml step",
+        "feature-check": "CI integrity gate over features and their ledger, run as an explicit harness-ci.yml step",
     }
 
     def test_every_entry_command_is_named_on_the_public_surface(self) -> None:
@@ -2089,38 +2089,36 @@ class WorkflowReachabilityTests(unittest.TestCase):
                     f"{command} is declared CI-only but no CI step runs it",
                 )
 
-    def test_every_grounding_subprocess_is_covered_by_the_timeout_handler(self) -> None:
-        # §0.3 item 1: an uncaught TimeoutExpired surfaces as a bare traceback in two gates at
-        # once, attributable to nothing. The handler exists — this asserts that the loop the
-        # grounding commands are actually run in is the one wrapped by it, so adding a second
-        # subprocess outside it cannot pass review by looking adjacent to the first.
+    def test_the_validator_does_not_run_grounding_subprocesses(self) -> None:
+        # Lightweight-validation plan D9 (owner, 2026-08-11): entry-check/feature-check are
+        # CI-owned domain gates with attributable step names. The static validator may pin
+        # that CI keeps them, but must not re-run them as subprocesses — a duplicated run
+        # hid whose gate actually failed, and the old TimeoutExpired handling existed only
+        # to babysit that duplication.
         import ast
 
         source = (self.HARNESS / "scripts/validate_harness.py").read_text(encoding="utf-8")
-        loops = [
-            node
+        offenders = [
+            node.lineno
             for node in ast.walk(ast.parse(source))
-            if isinstance(node, ast.For)
-            and "feature-check" in {
-                literal.value
-                for literal in ast.walk(node.iter)
-                if isinstance(literal, ast.Constant) and isinstance(literal.value, str)
-            }
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "run"
+            and isinstance(node.func.value, ast.Name)
+            and node.func.value.id == "subprocess"
+            and any(
+                isinstance(literal, ast.Constant)
+                and isinstance(literal.value, str)
+                and "knowledge_store" in literal.value
+                for arg in node.args[:1]
+                for literal in ast.walk(arg)
+            )
         ]
-        self.assertEqual(1, len(loops), "the grounding command loop was not found")
-        handlers = [
-            handler
-            for statement in ast.walk(loops[0])
-            if isinstance(statement, ast.Try)
-            for handler in statement.handlers
-        ]
-        self.assertTrue(
-            any(
-                isinstance(handler.type, ast.Attribute)
-                and handler.type.attr == "TimeoutExpired"
-                for handler in handlers
-            ),
-            "grounding commands run outside the subprocess.TimeoutExpired handler",
+        self.assertEqual(
+            offenders,
+            [],
+            "the static validator must not execute knowledge_store.py (naming it as a "
+            "required file or CI pin is fine); CI owns the domain gates",
         )
 
     def test_the_curator_agent_loads_the_skills_its_prompts_use(self) -> None:
