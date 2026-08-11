@@ -848,13 +848,22 @@ def check_ci(audit: Audit) -> None:
         "force-app/main/default/lwc/jsconfig.json",
         "deploy-options.json",
     ):
-        completed = subprocess.run(
-            ["git", "check-ignore", "--quiet", canary],
-            cwd=ROOT,
-            check=False,
-            timeout=5,
-        )
-        audit.require(completed.returncode == 0, f"local/generated path is not ignored: {canary}")
+        audit.require(git_check_ignore(canary) == 0, f"local/generated path is not ignored: {canary}")
+    # The inverse contract: normal Salesforce source must stay trackable. Exit code 1 is the only
+    # "not ignored" answer; >1 is a git failure and must not be mistaken for trackability.
+    for canary in ("force-app/main/default/classes/TrackedCanary.cls",):
+        audit.require(git_check_ignore(canary) == 1, f"Salesforce source path is unexpectedly ignored: {canary}")
+
+
+def git_check_ignore(path: str) -> int:
+    """Return git check-ignore's exit code for path: 0 ignored, 1 not ignored, >1 error."""
+    completed = subprocess.run(
+        ["git", "check-ignore", "--quiet", path],
+        cwd=ROOT,
+        check=False,
+        timeout=5,
+    )
+    return completed.returncode
 
 
 def check_secret_signatures(audit: Audit) -> None:
