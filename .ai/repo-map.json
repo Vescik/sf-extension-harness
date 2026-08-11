@@ -224,7 +224,7 @@
     },
     {
       "path": "work-items",
-      "purpose": "Current work: one folder per work item — ado-context.md (ADO requirement snapshot, ADO-backed work), design.md (intent), tasks.md (progress), decisions.md (append-only deviations)"
+      "purpose": "Current work: one folder per work item — ado-context.md (ADO requirement snapshot, ADO-backed work), design.md (intent), tasks.md (progress), decisions.md (append-only deviations), qa-test-plan.md (optional QA handoff)"
     }
   ],
   "instructions": [
@@ -371,7 +371,7 @@
     "Decisions: `.ai/memory/decisions-log.md`.",
     "Search Knowledge first: the `knowledge_context` / `knowledge_search` MCP tools over the entry index (`knowledge_resolve` maps names/paths to identities); terminal fallback lives in the search-knowledge skill's command menu.",
     "Deep tree: `docs/workspace-topology.md`; setup: `docs/setup-zero-to-first-prompt.md`.",
-    "Resume work from work-items/<id>-<slug>/: ado-context.md is the ADO requirement (when ADO-backed), design.md the intent, tasks.md the state, decisions.md the deviations — chat is never workflow truth"
+    "Resume work from work-items/<id>-<slug>/: ado-context.md is the ADO requirement (when ADO-backed), design.md the intent, tasks.md the state, decisions.md the deviations, qa-test-plan.md the QA handoff when one exists — chat is never workflow truth"
   ],
   "schemaVersion": 1,
   "skills": [
@@ -527,7 +527,7 @@
     ".github/skills/search-knowledge/SKILL.md": "sha256:c526fa7f5435eb80f8064a59d147fd0c37ec714389cb197400d3d7d2b158cd07",
     ".github/skills/selected-files-knowledge/SKILL.md": "sha256:414eebec8329142c45eab0bae4166a9a1e5ead894eaae82b8c697ff3bb7ec122",
     ".github/skills/solution-design/SKILL.md": "sha256:1150735fa4540de7cbe6036523ed3bfad6d90d1257b6b00151c2507b74a150b7",
-    "config/repo-map-seed.json": "sha256:d97733c1a178a96fc459fb1f5437cb99c8c4955adfd9b61cf39a9e1f5c16f28b"
+    "config/repo-map-seed.json": "sha256:13a7cd0d34ceb5183795165fa2bb0b260a5e5e0a6f6a2041bd7b099d5eb27d75"
   },
-  "wordCount": 767
+  "wordCount": 778
 }
