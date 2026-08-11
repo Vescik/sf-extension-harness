@@ -382,6 +382,10 @@ def classify(record: dict, resolution: dict, target_index: dict[str, dict],
     if existing is not None:
         if existing.get("contentDigest") == record.get("legacyContentDigest"):
             return "ALREADY_PRESENT", ["TARGET_ENTRY_SAME_DIGEST"]
+        if existing.get("state") == "draft":
+            # A previous wave already staged this identity: continue its review/approval
+            # rather than re-staging (per-plan resume semantics — never duplicate).
+            return "CONFLICT", ["TARGET_ENTRY_DIFFERENT_DIGEST", "TARGET_DRAFT_PENDING_REVIEW"]
         return "CONFLICT", ["TARGET_ENTRY_DIFFERENT_DIGEST"]
     if resolution["ambiguous"]:
         return "CONFLICT", ["AMBIGUOUS_IDENTITY"]

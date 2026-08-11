@@ -54,8 +54,13 @@ python migrate_legacy_knowledge.py stage --manifest output/knowledge-migration/<
 
 Stage refuses a dirty worktree, a changed HEAD/`force-app`/collector, a changed legacy corpus,
 an edited manifest, or a missing typed confirmation. It never branches, commits, or pushes —
-you own git. On a per-entry failure it stops the wave and leaves created drafts intact; the
-next run detects them and skips (no duplicates, no deletions).
+you own git. On a per-entry failure it stops the wave and leaves created drafts intact.
+
+**Between waves (and after a partial wave): commit the created drafts yourself, then re-run
+`plan` for a fresh manifest.** Staged drafts make the worktree dirty, so the next stage run
+refuses until they are committed; the fresh plan reports already-staged identities as
+`CONFLICT` with reason `TARGET_DRAFT_PENDING_REVIEW` — continue their review/approval instead
+of re-staging. Nothing is ever duplicated or deleted.
 
 ## 4. Review and approve (human lane, unchanged)
 
