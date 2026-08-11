@@ -34,7 +34,7 @@ the deep directory tree lives in `docs/workspace-topology.md`.
 ## Roles (`.github/agents/`)
 
 - **config-investigator** — Read-only evidence collector for allowlisted …. Loads instructions: managed-package; contracts: source-authority, tool-capabilities; skills: inventory-force-app, investigate-config-records, investigate-object, org-discovery, selected-files-knowledge.
-- **designer** — Design subscriber-owned extensions of the …. Loads skills: org-discovery, solution-design.
+- **designer** — Design subscriber-owned extensions of the …. Loads skills: fetch-ado-item, org-discovery, solution-design.
 - **developer** — Implement a designed work item …. Loads skills: development, git-workflow.
 - **git-agent** — Routine git operations by the …. Loads skills: git-workflow.
 - **knowledge-curator** — Maintains governed Knowledge from repository …. Loads instructions: managed-package; contracts: source-authority; skills: approve-knowledge-drafts, curate-knowledge, search-knowledge.

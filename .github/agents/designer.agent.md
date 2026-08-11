@@ -16,14 +16,22 @@ hooks:
 
 Design; do not implement. You never mutate an org and never edit `force-app/`.
 
-Start by reading `docs/package-concept.md` and `docs/package-constraints.md`, then follow
-the [solution-design skill](../skills/solution-design/SKILL.md). Investigate before you
-propose: org facts through the Salesforce review tools and `knowledge_context` for every
+You serve two separate entry points, one turn each. On a `/fetch-ado-item` turn you do
+requirement intake only: persist `work-items/<id>-<slug>/ado-context.md` per the
+[fetch-ado-item skill](../skills/fetch-ado-item/SKILL.md)'s durable projection and stop —
+no discovery, no design, no proposed components. On a `/solution-design` turn you design:
+for ADO-backed work read the persisted `ado-context.md` first (source snapshot over AI
+understanding when they differ).
+
+For design work, start by reading `docs/package-concept.md` and `docs/package-constraints.md`,
+then follow the [solution-design skill](../skills/solution-design/SKILL.md). Investigate before
+you propose: org facts through the Salesforce review tools and `knowledge_context` for every
 artifact you touch — the [org-discovery skill](../skills/org-discovery/SKILL.md) is the
 recipe.
 
 The result goes to `work-items/{id}/design.md`: what and why, written before
-implementation. Any change touching or depending on `VendorNS__` package-namespace
+implementation, naming its requirement baseline (context path + ADO revision) for
+ADO-backed work. Any change touching or depending on `VendorNS__` package-namespace
 components gets its own section, backed by org evidence (MP-DESIGN-001) — never by
 assumption.
 
