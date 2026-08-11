@@ -887,9 +887,9 @@ def check_secret_signatures(audit: Audit) -> None:
 
 # §7 Set A: the surfaces whose step-1 SOURCE lookup must run through the entry index.
 # The membership is declared HERE, explicitly — this list is the single source of truth
-# (decoupled from the historical master plan on the owner's 2026-08-10 decision: parsing
-# docs/knowledge-master-plan-2026-07-25.md coupled runtime validation to a frozen
-# document; moving a surface now means editing this tuple in the same commit that edits
+# (decoupled from the retired knowledge master plan on the owner's 2026-08-10 decision:
+# parsing a frozen planning document coupled runtime validation to it;
+# moving a surface now means editing this tuple in the same commit that edits
 # the surface, and the git diff is the review trail).
 # 2026-08-04 (owner decision, MCP-only definitions): the step-1 surface is the MCP tool,
 # not the CLI literal. The CLI menu survives only in search-knowledge as the operator
@@ -981,8 +981,7 @@ def check_release_handover_contract(audit: Audit) -> None:
     at every run, keyed on the repeat-per-item marker, so template edits are enforced without
     any code change. The skill must load the template by path and instruct the render
     self-check, and must not embed any of the template's fixed fallback texts: a quoted
-    literal desynchronizes the moment a human edits the template (T11 follow-up,
-    docs/evidence-analysis-2026-07-24.md).
+    literal desynchronizes the moment a human edits the template (T11 follow-up).
     """
 
     template = required_text(ROOT / ".ai/templates/release-handover.md", audit)

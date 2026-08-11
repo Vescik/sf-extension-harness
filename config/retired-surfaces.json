@@ -14,10 +14,6 @@
    ],
    "historicalAllowlist": [
     ".ai/memory/decisions-log.md",
-    "docs/evidence-analysis-2026-07-24.md",
-    "docs/evidence-to-analyse.md",
-    "docs/knowledge-master-plan-2026-07-25.md",
-    "docs/knowledge-one-file-impact-map.md",
     "tests/test_repo_map.py"
    ]
   },
@@ -36,20 +32,8 @@
    "historicalAllowlist": [
     "config/retired-surfaces.json",
     ".ai/memory/decisions-log.md",
-    "docs/discovery-2026-08-07-phase0-baseline.md",
-    "docs/plan-2026-08-07-context-first-architecture.md",
-    "docs/plan-2026-08-07-lightweight-additions.md",
-    "docs/evidence-analysis-2026-07-24.md",
-    "docs/evidence-to-analyse.md",
-    "docs/handoff-plan-2026-07-29.md",
-    "docs/knowledge-completion-audit-2026-07-25.md",
-    "docs/knowledge-master-plan-2026-07-25.md",
     "docs/knowledge-one-file-contract.md",
-    "docs/knowledge-one-file-impact-map.md",
-    "docs/knowledge-thread-2026-07-27.md",
-    "docs/solution-design-runtime-v2-design.md",
     "docs/solution-design-product-goal.md",
-    "docs/spec-p5-attested-claim-lane-2026-07-27.md",
     "tests/test_safety_hooks.py",
     "schemas/output-envelope.schema.json",
     "docs/grounding-architecture.md",
@@ -67,12 +51,7 @@
    ],
    "historicalAllowlist": [
     ".ai/memory/decisions-log.md",
-    "docs/plan-2026-08-09-salesforce-mcp-rest-rewrite.md",
-    "docs/grounding-architecture.md",
-    "docs/discovery-2026-08-07-phase0-baseline.md",
-    "docs/handoff-plan-2026-07-29.md",
-    "docs/knowledge-thread-2026-07-27.md",
-    "docs/knowledge-completion-audit-2026-07-25.md"
+    "docs/grounding-architecture.md"
    ]
   },
   {
@@ -118,17 +97,7 @@
    ],
    "historicalAllowlist": [
     ".ai/memory/decisions-log.md",
-    "docs/discovery-2026-07-27-authored-feature-entry.md",
-    "docs/evidence-analysis-2026-07-24.md",
-    "docs/evidence-to-analyse.md",
-    "docs/knowledge-facts-overlay-architecture.md",
-    "docs/knowledge-master-plan-2026-07-25.md",
-    "docs/knowledge-one-file-contract.md",
-    "docs/knowledge-one-file-impact-map.md",
-    "docs/knowledge-p1-completion-note.md",
-    "docs/knowledge-thread-2026-07-27.md",
-    "docs/knowledge-usefulness-plan-2026-07-24.md",
-    "docs/spec-p5-attested-claim-lane-2026-07-27.md"
+    "docs/knowledge-one-file-contract.md"
    ]
   }
  ]

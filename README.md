@@ -22,6 +22,8 @@ The original design history (`HARNESS_BLUEPRINT.md`, `BUILD_REPORT.md`, `HARNESS
 and both `HANDOFF_FOR_FABLE*.md` reviews) was removed from the working tree on 2026-07-16; it
 remains in git history under the tag `design-history` (`git show design-history:docs/archive/README.md`
 for the index). It was historical input only, never the normative runtime specification.
+The 2026-07/08 planning, discovery, audit, and completion documents were likewise removed from
+the working tree on 2026-08-11; they remain in git history under the tag `docs-history-2026-08-11`.
 
 ## Architecture
 
