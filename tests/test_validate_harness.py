@@ -332,5 +332,32 @@ class TestForceAppGitPolicy(unittest.TestCase):
         )
 
 
+class TestFetchPromptIntakeBoundary(unittest.TestCase):
+    """The public fetch prompt is intake-only (owner decision 2026-08-11).
+
+    Pins the key boundary of the ado-context split without pinning generated
+    Markdown wording: the prompt routes to the fetch skill, persists
+    ado-context.md, names /solution-design as the next action, and no longer
+    instructs an automatic continuation into Solution Design."""
+
+    def setUp(self) -> None:
+        self.text = (ROOT / ".github/prompts/fetch-ado-item.prompt.md").read_text(
+            encoding="utf-8"
+        )
+
+    def test_prompt_routes_to_fetch_skill_and_persists_context(self) -> None:
+        self.assertIn("skills/fetch-ado-item/SKILL.md", self.text)
+        self.assertIn("ado-context.md", self.text)
+
+    def test_prompt_stops_with_design_command_as_next_action(self) -> None:
+        self.assertIn("/solution-design itemId=<ID>", self.text)
+
+    def test_prompt_no_longer_continues_into_designing(self) -> None:
+        # The pre-split prompt linked the design skill and said to continue with
+        # it; intake must not silently become designing again.
+        self.assertNotIn("skills/solution-design/SKILL.md", self.text)
+        self.assertNotIn("design.md first", self.text)
+
+
 if __name__ == "__main__":
     unittest.main()
