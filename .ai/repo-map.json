@@ -517,7 +517,7 @@
     ".github/skills/fetch-ado-item/SKILL.md": "sha256:32a890962453428ec3d0740a1a1237ac2eeebcd7e4a2552f367ef18b48937337",
     ".github/skills/generate-release-handover/SKILL.md": "sha256:c6401666bd65f946e3c7ac56ce9bd831004f0e70975361dfa99bcc9fbd6b2523",
     ".github/skills/generate-technical-documentation/SKILL.md": "sha256:d9181d06e0c5044dd7ad07566bf96d110480865b339e6defbb5b43a7a4a28e4b",
-    ".github/skills/git-workflow/SKILL.md": "sha256:8f32f7e2658d4aa90763e09995c4a311416ad51efadf907238145f0655ebe4f6",
+    ".github/skills/git-workflow/SKILL.md": "sha256:ef700ba146d5ab8c8d52310a3e1808d525ed2cfe08f2fb92de80d24619e1fd74",
     ".github/skills/inventory-force-app/SKILL.md": "sha256:07244b0172d27a4dedd417547c1cd8d7b64b6511f23cf4f9c9cd5dc4f92cf520",
     ".github/skills/investigate-config-records/SKILL.md": "sha256:d3d15608be120b75984e99bb2aafbbf896035d6bb0ff9cbae9da096a6c11c9e7",
     ".github/skills/investigate-object/SKILL.md": "sha256:6f840761c0dbbeb27b0964597bb761e3171fe61e62362c023f8a1df2f0d75ecf",
