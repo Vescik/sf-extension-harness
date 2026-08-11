@@ -295,6 +295,17 @@ scenarios:
     requiredEvidence:
       - the bracketed work-item prefix in the message
 
+  - id: git-agent-prepares-native-ado-pr-reference
+    entrypoint: git-agent
+    given: Asked to prepare a PR for branch feature/242850-approval-notifications.
+    expectedOutcome: The PR description contains the raw matching reference AB#242850 (plain text, not in backticks), the local work-item path, and a diff-grounded Summary, Changes, Validation, and Review focus; only applicable conditional sections are retained; no transition keyword is used and no ADO mutation is performed.
+    requiredEvidence:
+      - raw AB#242850 in the PR description
+      - work-item ID agrees with the branch
+      - summary and validation grounded in the described diff
+      - only applicable conditional sections retained
+      - no ADO MCP mutation
+
   # ---- knowledge lane (kept as-is with the store's contract) ----
 
   - id: knowledge-conflict-not-overwritten
