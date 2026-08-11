@@ -495,9 +495,9 @@
     }
   ],
   "sourceDigests": {
-    ".ai/contracts/execution-contract.md": "sha256:5789c0b99b934943c1b9a1142ee274a6e3991a27dcaddc0719c90047bb245ce7",
+    ".ai/contracts/execution-contract.md": "sha256:e2d33fd5859f35b0156e782359ec56eaa0f1adb2b3407a8572bda3ae6722ef3b",
     ".ai/contracts/source-authority.md": "sha256:21f45190131347752c36ced221855635b5a60126c11c67fe29b564de446d1af3",
-    ".ai/contracts/tool-capabilities.md": "sha256:45f774b5a107b80ff20b1cf6da65fec54a40c7051dab2dbc531365f65ffbf97c",
+    ".ai/contracts/tool-capabilities.md": "sha256:470364de6f44c6555002b75409bd8d1480136a17e31fa22e2d4e8ef0ef47da3a",
     ".github/agents/config-investigator.agent.md": "sha256:8b73e53fc5d13f4516caa1991cab385da273942647029cb88ee570e8ee554358",
     ".github/agents/designer.agent.md": "sha256:2a277c6fbfed24cec8320a03bb3d0c2fde837b24347c79e6504c569ea41ce203",
     ".github/agents/developer.agent.md": "sha256:4b6ccbd760b39e79adb668cf166397af70a6a3c9f174bdf03fb480a97123df6f",

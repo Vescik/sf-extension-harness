@@ -50,9 +50,10 @@ and vendor payloads are not exposed to an agent.
 
 MCP and CLI agreement is transport corroboration from the same org, not independent truth.
 
-Design work has no MCP runtime and no machine state: it is the `solution-design` prompt and
-skill writing prose into `work-items/<id>-<slug>/design.md`, reviewed by a human on the pull
-request.
+Design work has no MCP runtime and no machine state: it is the `fetch-ado-item` prompt and skill
+persisting `work-items/<id>-<slug>/ado-context.md` (requirement intake), then the
+`solution-design` prompt and skill writing prose into `work-items/<id>-<slug>/design.md`,
+each reviewed by a human on the pull request.
 
 Policy (owner decision 2026-07-30, widened 2026-08-04): composed read-only SOQL is permitted —
 and recommended whenever a task depends on record data structure — through the governed facade's
