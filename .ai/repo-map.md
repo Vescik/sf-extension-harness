@@ -29,7 +29,7 @@ the deep directory tree lives in `docs/workspace-topology.md`.
 | `schemas` | JSON Schemas for every governed artifact |
 | `scripts` | Guarded scripts: safety hook, role guard, registries, wrappers |
 | `tests` | Harness unit tests + promoted tests/e2e |
-| `work-items` | Current work: one folder per work item — design.md (intent), tasks.md (progress), decisions.md (append-only deviations) |
+| `work-items` | Current work: one folder per work item — ado-context.md (ADO requirement snapshot, ADO-backed work), design.md (intent), tasks.md (progress), decisions.md (append-only deviations) |
 
 ## Roles (`.github/agents/`)
 
@@ -105,4 +105,4 @@ the deep directory tree lives in `docs/workspace-topology.md`.
 - Decisions: `.ai/memory/decisions-log.md`; QA test-case index: `.ai/qa/test-cases/`.
 - Search Knowledge first: the `knowledge_context` / `knowledge_search` MCP tools over the entry index (`knowledge_resolve` maps names/paths to identities); terminal fallback lives in the search-knowledge skill's command menu.
 - Deep tree: `docs/workspace-topology.md`; setup: `docs/setup-zero-to-first-prompt.md`.
-- Resume work from work-items/<id>-<slug>/: design.md is the intent, tasks.md the state, decisions.md the deviations — chat is never workflow truth
+- Resume work from work-items/<id>-<slug>/: ado-context.md is the ADO requirement (when ADO-backed), design.md the intent, tasks.md the state, decisions.md the deviations — chat is never workflow truth

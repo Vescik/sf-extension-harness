@@ -34,7 +34,7 @@ the working tree on 2026-08-11; they remain in git history under the tag `docs-h
 | Public commands | `.github/prompts/` | Deterministic slash-command entry points (count pinned by `validate_harness.py`) |
 | Internal capabilities | `.github/skills/` | Progressively loaded procedures hidden from the slash menu |
 | Knowledge and contracts | `.ai/knowledge/`, `.ai/contracts/` | Schema-governed one-file Knowledge entries, human approvals, source authority |
-| Work state and QA | `work-items/`, `.ai/memory/`, `.ai/qa/` | Per-item design/tasks/decisions, durable decisions, and test inventory |
+| Work state and QA | `work-items/`, `.ai/memory/`, `.ai/qa/` | Per-item ADO context/design/tasks/decisions, durable decisions, and test inventory |
 | Salesforce project | `sfdx-project.json`, `force-app/`, `manifest/`, `tests/e2e/` | Root SFDX project, source, manifests, and Salesforce tests |
 | Runtime | `.vscode/mcp.json`, `.github/hooks/`, `scripts/` | Reconciled MCP/hidden-CLI review, guarded non-production tools, deterministic checks |
 | Local/generated data | `.cache/`, `output/` | Ignored raw cache and human-review drafts |

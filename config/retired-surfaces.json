@@ -21,7 +21,7 @@
    "name": "solution-design-runtime-and-work-record-lane",
    "retiredIn": "context-first phase 5",
    "retiredOn": "2026-08-08",
-   "replacement": "content-first design in work-items/ (design.md, tasks.md, decisions.md) with human review on the pull request; safety stays in the hooks",
+   "replacement": "content-first delivery in work-items/ (ado-context.md for ADO-backed intake, design.md, tasks.md, decisions.md) with human review on the pull request; safety stays in the hooks",
    "tokens": [
     "work_record",
     "solution_design",

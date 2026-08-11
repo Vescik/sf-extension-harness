@@ -226,7 +226,7 @@
     },
     {
       "path": "work-items",
-      "purpose": "Current work: one folder per work item — design.md (intent), tasks.md (progress), decisions.md (append-only deviations)"
+      "purpose": "Current work: one folder per work item — ado-context.md (ADO requirement snapshot, ADO-backed work), design.md (intent), tasks.md (progress), decisions.md (append-only deviations)"
     }
   ],
   "instructions": [
@@ -380,7 +380,7 @@
     "Decisions: `.ai/memory/decisions-log.md`; QA test-case index: `.ai/qa/test-cases/`.",
     "Search Knowledge first: the `knowledge_context` / `knowledge_search` MCP tools over the entry index (`knowledge_resolve` maps names/paths to identities); terminal fallback lives in the search-knowledge skill's command menu.",
     "Deep tree: `docs/workspace-topology.md`; setup: `docs/setup-zero-to-first-prompt.md`.",
-    "Resume work from work-items/<id>-<slug>/: design.md is the intent, tasks.md the state, decisions.md the deviations — chat is never workflow truth"
+    "Resume work from work-items/<id>-<slug>/: ado-context.md is the ADO requirement (when ADO-backed), design.md the intent, tasks.md the state, decisions.md the deviations — chat is never workflow truth"
   ],
   "schemaVersion": 1,
   "skills": [
@@ -549,7 +549,7 @@
     ".github/skills/solution-design/SKILL.md": "sha256:884fa1101e847d6bb6b2e327516c26eca5b6af236a7e525e12e4533612693096",
     ".github/skills/sync-test-cases/SKILL.md": "sha256:847791d596f911d2ecefe2024d941260e3c40f7541740c73fea01f7438cbe425",
     ".github/skills/tune-test-case-keywords/SKILL.md": "sha256:bf9e6961b03bf3ff00903dcef31c9ccb4ac41cb974bc32e20f4d1e10ae1e3fce",
-    "config/repo-map-seed.json": "sha256:0c7a75c779f76e15890c300ee50b395be888ba788f2fffe94769577703424b9b"
+    "config/repo-map-seed.json": "sha256:4018f5d0443c2b4624301314d11d5abab951d688f3134e0b062470c7d899a7ba"
   },
-  "wordCount": 792
+  "wordCount": 804
 }
