@@ -349,7 +349,8 @@ def resolve_against_target(record: dict, target_root: Path) -> dict:
         component
         for component in payload.get("components", [])
         if component.get("metadataType") == subject["metadataType"]
-        and component.get("fullName") == subject["fullName"]
+        # the live collector names the field `name`; older fixtures used `fullName`
+        and (component.get("fullName") or component.get("name")) == subject["fullName"]
     ]
     if len(matches) > 1:
         return {"resolves": False, "ambiguous": True, "reason": "AMBIGUOUS_IDENTITY"}
