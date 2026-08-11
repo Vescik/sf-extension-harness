@@ -1287,6 +1287,26 @@ class SafetyClassificationTests(unittest.TestCase):
                 runtime_org="other-org",
             )
         )
+        self.assertIsNotNone(
+            safety.ado_scope_error(
+                config,
+                {
+                    "project": "Example Project",
+                    "url": "https://dev.azure.com/other-org/Other%20Project/_apis/wit/workitems/1",
+                },
+                runtime_org="example-org",
+            )
+        )
+        self.assertIsNone(
+            safety.ado_scope_error(
+                config,
+                {
+                    "project": "Example Project",
+                    "url": "https://dev.azure.com/example-org/Example%20Project/_apis/wit/workitems/1",
+                },
+                runtime_org="example-org",
+            )
+        )
     def test_sandbox_origin_recognition_is_strict(self) -> None:
         self.assertTrue(
             safety.is_salesforce_sandbox_origin(

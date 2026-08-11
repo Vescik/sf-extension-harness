@@ -184,7 +184,13 @@ def load_runtime(alias: str) -> dict:
     salesforce = config.get("salesforce") or {}
     review = salesforce.get("review") or {}
     orgs = salesforce.get("orgs") or []
-    configured = next((o for o in orgs if isinstance(o, dict) and o.get("alias") == alias), None)
+    matching = [o for o in orgs if isinstance(o, dict) and o.get("alias") == alias]
+    if len(matching) > 1:
+        # Ambiguous config: two entries claim the selected alias, and silently taking
+        # the first could bind pins from the wrong entry. Only the selected alias is
+        # checked - an unrelated stale entry must not block a valid session.
+        raise ReviewError("CONFIG_INVALID")
+    configured = matching[0] if matching else None
     if configured and configured.get("environment") == "production":
         raise ReviewError("ALIAS_MARKED_PRODUCTION")
     # Owner decision 2026-08-04: any alias is admitted on live identity proof alone;

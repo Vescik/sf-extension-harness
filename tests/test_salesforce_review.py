@@ -197,7 +197,7 @@ class FacadeHarness(unittest.TestCase):
             encoding="utf-8",
         )
 
-    def write_config(self, allowed_objects=None, denied=None, allow_enumeration: bool = False) -> None:
+    def write_config(self, allowed_objects=None, denied=None, allow_enumeration: bool = False, extra_orgs=None) -> None:
         review = {
             "enabled": True,
             "apiVersion": "64.0",
@@ -221,7 +221,8 @@ class FacadeHarness(unittest.TestCase):
                                 "environment": "development",
                                 "expectedInstanceHost": SANDBOX_HOST,
                                 "expectedOrganizationId": ORG_ID_18,
-                            }
+                            },
+                            *(extra_orgs or []),
                         ],
                     },
                 }
@@ -534,6 +535,55 @@ class RefreshAndWalls(FacadeHarness):
             "",
             "the refusal must happen before any sf CLI invocation",
         )
+
+    def test_is_sandbox_mismatch_refuses_to_start(self) -> None:
+        # A sandbox-shaped host must prove IsSandbox=true live; a false answer means
+        # the alias is not the org the host shape claims, and the session never opens.
+        MockSalesforce.state["is_sandbox"] = False
+        process = self.spawn()
+        _, stderr = process.communicate(b"", timeout=60)
+        self.assertEqual(process.returncode, 2)
+        self.assertIn(b"NOT_SANDBOX", stderr)
+
+    def test_duplicate_selected_alias_is_rejected_as_invalid_config(self) -> None:
+        # Two config entries claiming the selected alias are ambiguous: pins could be
+        # taken from the wrong entry. Fail closed instead of picking the first.
+        self.write_config(
+            extra_orgs=[
+                {
+                    "alias": ALIAS,
+                    "environment": "qa",
+                    "expectedInstanceHost": SANDBOX_HOST,
+                    "expectedOrganizationId": ORG_ID_18,
+                }
+            ]
+        )
+        process = self.spawn()
+        _, stderr = process.communicate(b"", timeout=60)
+        self.assertEqual(process.returncode, 2)
+        self.assertIn(b"CONFIG_INVALID", stderr)
+        self.assertEqual(
+            (self.tmp_path / "cli-calls.log").read_text(encoding="utf-8"),
+            "",
+            "ambiguous config must be refused before any sf CLI invocation",
+        )
+
+    def test_unrelated_stale_alias_does_not_block_the_selected_alias(self) -> None:
+        # Only the selected alias is proven. A stale, unauthorized, or half-filled
+        # entry for a different alias must not block this session.
+        self.write_config(
+            extra_orgs=[
+                {
+                    "alias": "stale-qa",
+                    "environment": "qa",
+                    "expectedInstanceHost": "gone--old.sandbox.my.salesforce.com",
+                    "expectedOrganizationId": "00DZZ0000008888ZZZ",
+                }
+            ]
+        )
+        responses, _ = self.roundtrip([self.initialize_message(), {"jsonrpc": "2.0", "id": 2, "method": "tools/list"}])
+        init = next(r for r in responses if r["id"] == 1)
+        self.assertIn("result", init)
 
     def test_too_old_cli_refuses_to_start(self) -> None:
         # show-access-token only exists from 2.136.8; older CLIs must fail loudly.
