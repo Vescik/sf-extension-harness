@@ -106,6 +106,12 @@ const FEATURE_HINT =
 // served in the *NonCurrent sibling keys, never merged into the approved buckets — the
 // engine's own remediation hints ("add --state draft") were unfollowable through MCP
 // until this parameter existed (plan 2026-08-09 §3c.1 #4).
+//
+// `approved-current` and `approved-drifted` are BOTH served by default and both belong in the
+// approved buckets: drift discloses that the source moved since approval, it does not withdraw
+// the approval (owner decision D1, 2026-08-11). Passing --state REPLACES that default rather
+// than adding to it, which is why the description below says "replaces" — an agent told it
+// "adds" would ask for ["draft"] and silently lose every approved row.
 const STATE_PROP = Object.freeze({
   type: "array",
   maxItems: 7,
@@ -118,8 +124,10 @@ const STATE_PROP = Object.freeze({
     ],
   },
   description:
-    "Opt into extra lifecycle lanes (e.g. [\"draft\"]). Opted-in rows arrive in the " +
-    "*NonCurrent sibling keys and are never merged into the approved buckets.",
+    "REPLACES the default lane filter, which is [\"approved-current\", \"approved-drifted\"] " +
+    "— both are effective approved knowledge. Pass this only to inspect non-effective lanes " +
+    "(e.g. [\"draft\"]); those rows arrive in the *NonCurrent sibling keys and are never " +
+    "merged into the approved buckets. To keep the approved rows as well, list them too.",
 });
 
 export const TOOL_DEFINITIONS = Object.freeze([

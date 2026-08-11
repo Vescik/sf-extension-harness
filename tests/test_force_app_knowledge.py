@@ -3570,7 +3570,19 @@ class EntryEdgeHealthTests(unittest.TestCase):
         self.builder.inventory()
         report = self.builder.entry_edge_report()
         reasons = {finding["reason"] for finding in report["findings"]}
-        self.assertIn("component removed", reasons)
+        # The store now catches this one layer earlier and more precisely. A deleted source
+        # fragment makes the entry `not-effective` (owner decision D3, 2026-08-11), so the
+        # finding names the exact file that vanished instead of the generic "component
+        # removed" — same event, better report. The edge-level diff is skipped because an
+        # entry whose evidence is gone is not trusted enough to diff its edges.
+        self.assertTrue(
+            any("source fragment is missing" in reason for reason in reasons),
+            f"the removal was not reported at all: {reasons}",
+        )
+        self.assertTrue(
+            any(".field-meta.xml" in reason for reason in reasons),
+            f"the finding does not name the file that vanished: {reasons}",
+        )
         # An entry whose own subject is gone is one finding, not one per stale edge.
         self.assertNotIn("edge no longer present in source", reasons)
 

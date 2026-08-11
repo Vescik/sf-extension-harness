@@ -102,7 +102,11 @@ BM25_B = 0.75
 DF_SATURATION = 0.5
 DF_SATURATION_MIN_CORPUS = 4
 
-ESTABLISHED_STATES = ("approved-current",)
+# Both effective lanes are served by default (owner decision D1, 2026-08-11). The order comes
+# from `knowledge_store`, which owns the definition — retrieval must not re-decide what
+# "effective" means, or the default result set and the citation boundary can disagree, which is
+# precisely the contradiction phase 1 exists to remove.
+ESTABLISHED_STATES = tuple(sorted(store.EFFECTIVE_ENTRY_LANES))
 ALL_LANES = (
     "approved-current",
     "approved-drifted",
@@ -2185,7 +2189,7 @@ def run_search(args: argparse.Namespace) -> dict[str, Any]:
             gaps.append(
                 f"{args.identity} exists in this index in lane '{known['lane']}', which is outside "
                 f"the requested {', '.join(states)}. It was not served. Pass --state {known['lane']} "
-                "to see it, in its own bucket — it is not approved-current knowledge."
+                "to see it, in its own bucket — it is not effective knowledge."
             )
         else:
             gaps.append(
@@ -2209,13 +2213,12 @@ def run_search(args: argparse.Namespace) -> dict[str, Any]:
             "(regex-derived), not declared. Add --include-heuristic to see them, in their own "
             "assurance lane."
         )
-    current = [hit for hit in served if hit["lifecycle"] == "approved-current"]
-    non_current = [hit for hit in served if hit["lifecycle"] != "approved-current"]
+    current, non_current = effectiveness_split(served)
     if non_current:
         lanes = sorted({hit["lifecycle"] for hit in non_current})
         gaps.append(
             f"{len(non_current)} result(s) served from opted-in lane(s) {', '.join(lanes)}; "
-            "they are not approved-current knowledge and must not be cited as effective."
+            "they are not effective knowledge and must not be cited as effective."
         )
     gaps.append(ROW_LIFECYCLE_DISCLOSURE)
     return {
@@ -2330,47 +2333,64 @@ def truncation_gaps(documents: "DocumentStore", kinds: Iterable[str]) -> list[st
 # what that bought. So the window is stated instead of implied — which is what R5 asks for and
 # what silence was not.
 LIFECYCLE_BASIS = "index-fresh"
+# One short line, once per result. The predecessor spent five sentences explaining the index
+# window and closed on "re-run build", which read as a precondition for citing anything and
+# buried the one instruction that matters: the store-fresh receipt, not the index, is the gate.
 ROW_LIFECYCLE_DISCLOSURE = (
-    "Row `lifecycle` labels are index-fresh, not store-fresh: each was computed when this "
-    "generation was built, and an edit under force-app/ moves an entry to `approved-drifted` in "
-    "the store without touching the entry file or the ledger, so nothing invalidates this index. "
-    "Only the anchor is re-checked against the working tree on every call. Re-run "
-    "`python scripts/knowledge_search.py build` for row-level currency."
+    "Row lifecycle labels are index-fresh; obtain a store-fresh entry-status receipt before "
+    "citation. Approved-drifted remains effective with SOURCE_DRIFT disclosure."
 )
 
 
 def source_drift_gaps(document: dict[str, Any]) -> list[str]:
-    """Recorded source fragments whose bytes no longer match the working tree.
+    """Recorded source fragments that changed, went missing, or could not be read.
 
-    This is the store's `approved-drifted` test (`regenerate_fragment_digest`), applied to one
-    document so the cost is bounded and predictable: one hash per recorded fragment, and an entry
-    records one to three. The anchor gets it because the anchor is the row a caller is most
-    likely to act on; the plan's own safety argument puts the check here rather than in the
-    fingerprint — "correctness rests on hydration, not on the fingerprint".
+    This is the store's `source_fragment_freshness` test applied to one document so the cost is
+    bounded and predictable: one hash per recorded fragment, and an entry records one to three.
+    The anchor gets it because the anchor is the row a caller is most likely to act on; the
+    plan's own safety argument puts the check here rather than in the fingerprint —
+    "correctness rests on hydration, not on the fingerprint".
+
+    Two findings, not one, because they ask for opposite things (owner decisions D2/D3):
+
+    - CHANGED bytes are a disclosure. The entry stays effective and citable; the caller
+      discloses which file moved. Demanding a rebuild or a re-approval here was the single
+      loudest false blocker in the old wording — an index rebuild cannot un-edit a Flow, and
+      the entry was never un-approved to begin with.
+    - MISSING or UNREADABLE bytes are an integrity gap. The evidence the approval was read
+      from cannot be produced at all, so the caller must get a store-fresh
+      `entry-status`/`knowledge_entry_status` receipt before citing.
 
     Named fragments, not a bare boolean: "your entry is stale" that cannot say which file moved
     sends the reader to re-read the whole component.
     """
 
-    drifted: list[str] = []
+    changed: list[str] = []
+    unavailable: list[str] = []
     for fragment in document.get("sources") or []:
         path = store.ROOT / fragment["path"]
         try:
             actual = "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
         except OSError:
-            drifted.append(f"{fragment['path']} (gone)")
+            unavailable.append(fragment["path"])
             continue
         if actual != fragment["digest"]:
-            drifted.append(fragment["path"])
-    if not drifted:
-        return []
-    return [
-        f"{document['identity']} is served from this index as lane '{document['lane']}', but "
-        f"{len(drifted)} of the source fragment(s) it was approved against changed in the "
-        f"working tree ({', '.join(drifted)}). The store computes 'approved-drifted' for it "
-        "right now — the index is a disposable cache and is wrong about this entry. Re-run "
-        "`python scripts/knowledge_search.py build` before citing it."
-    ]
+            changed.append(fragment["path"])
+    gaps: list[str] = []
+    if changed:
+        gaps.append(
+            f"ADVISORY SOURCE_DRIFT: {document['identity']} — {len(changed)} source fragment(s) "
+            f"changed since approval ({', '.join(changed)}). The entry remains approved and "
+            "effective; cite it and disclose the drift."
+        )
+    if unavailable:
+        gaps.append(
+            f"INTEGRITY: {document['identity']} — {len(unavailable)} approved source fragment(s) "
+            f"are missing or unreadable ({', '.join(unavailable)}). This is not drift: the "
+            "evidence behind the approval cannot be produced, so the entry is not effective. "
+            "Get a store-fresh `entry-status` receipt before citing it."
+        )
+    return gaps
 
 
 def verify_anchor(document: dict[str, Any], states: list[str]) -> list[str]:
@@ -2391,7 +2411,7 @@ def verify_anchor(document: dict[str, Any], states: list[str]) -> list[str]:
         gaps.append(
             f"ANCHOR: {document['identity']} is in lane '{document['lane']}', outside the "
             f"requested {', '.join(states)}. Its facts are shown for inspection and are NOT "
-            "approved-current knowledge — do not cite them as effective."
+            "effective knowledge — do not cite them as effective."
         )
     served, hydration_gaps = hydrate(
         [{"artifactId": document["identity"], "citation": document["citation"]}]
@@ -2400,28 +2420,37 @@ def verify_anchor(document: dict[str, Any], states: list[str]) -> list[str]:
     # Two preconditions, both load-bearing. Hydration first: until the entry file is proved
     # unchanged the projection's record of its own fragments is itself in question, and "rebuild
     # the index" already is the answer — a second, weaker finding about a file we just refused is
-    # noise. And `approved-current` only: that is the one lane where the index and the store can
+    # noise. And effective lanes only: those are the lanes where the index and the store can
     # disagree, because `compute_lane` moves nothing else on a source edit. Running it on a draft
     # would report drift the store does not recognise, against an entry nobody has approved yet.
-    if served and document["lane"] == "approved-current":
+    # Both effective lanes qualify now: an already-drifted anchor can lose a fragment entirely,
+    # and that integrity gap must still surface.
+    if served and store.is_effective_entry_lane(document["lane"]):
         gaps.extend(f"ANCHOR: {gap}" for gap in source_drift_gaps(document))
     return gaps
 
 
-def lane_split(rows: list[dict[str, Any]], key: str = "lifecycle") -> tuple[list, list]:
-    """approved-current rows and opted-in-lane rows, never merged into one array."""
-    current = [row for row in rows if row.get(key) == "approved-current"]
-    other = [row for row in rows if row.get(key) != "approved-current"]
-    return current, other
+def effectiveness_split(rows: list[dict[str, Any]], key: str = "lifecycle") -> tuple[list, list]:
+    """Effective rows and non-effective/unresolved rows, never merged into one array.
+
+    Renamed from `lane_split` because the behaviour changed underneath the name: the split is
+    on EFFECTIVENESS, not on a single lane literal. `approved-drifted` is effective (D1), so it
+    belongs in the first list — a caller reading `approvedResults` is entitled to treat every
+    row there as citable approved knowledge, and drifted rows are exactly that, with a
+    disclosure attached."""
+
+    effective = [row for row in rows if store.is_effective_entry_lane(row.get(key))]
+    other = [row for row in rows if not store.is_effective_entry_lane(row.get(key))]
+    return effective, other
 
 
 def lane_gaps(rows: list[dict[str, Any]], noun: str) -> list[str]:
-    """Two different findings that `lane_split` puts in the same bucket, worded apart.
+    """Two different findings that `effectiveness_split` puts in the same bucket, worded apart.
 
     A traversal row with `lifecycle: None` is a node with NO entry at all — a bare field token,
-    an EventBus name, a UnitOfWork class nobody has drafted — and `lane_split` files it with the
-    revoked and drifted rows, so the gap called it "served from opted-in lane(s); not
-    approved-current knowledge". That reads as "an entry exists and you opted into its lane",
+    an EventBus name, a UnitOfWork class nobody has drafted — and `effectiveness_split` files it
+    with the revoked rows, so the gap called it "served from opted-in lane(s); not effective
+    knowledge". That reads as "an entry exists and you opted into its lane",
     which is the opposite of the truth. `search` already tells the two apart (commit f35b959);
     this is the same distinction on the traversal surfaces."""
 
@@ -2430,7 +2459,7 @@ def lane_gaps(rows: list[dict[str, Any]], noun: str) -> list[str]:
     gaps: list[str] = []
     if opted_in:
         gaps.append(
-            f"{len(opted_in)} {noun} served from opted-in lane(s); they are not approved-current "
+            f"{len(opted_in)} {noun} served from opted-in lane(s); they are not effective "
             "knowledge and must not be cited as effective."
         )
     if unresolved:
@@ -2485,7 +2514,7 @@ def run_explain(args: argparse.Namespace) -> dict[str, Any]:
             source = documents.get(edge["source"])
             rows.append({**edge, "lifecycle": source["lane"] if source else None})
     rows.sort(key=lambda item: (item["source"], item["kind"], item["assurance"]))
-    current, non_current = lane_split(rows)
+    current, non_current = effectiveness_split(rows)
     # Each lane is capped on its own: sharing one budget lets a burst of revoked rows push the
     # approved ones out of the answer, which is the opposite of what the lane split is for.
     dropped = max(0, len(current) - top) + max(0, len(non_current) - top)
@@ -2503,7 +2532,7 @@ def run_explain(args: argparse.Namespace) -> dict[str, Any]:
     if non_current:
         gaps.append(
             f"{len(non_current)} incoming edge(s) are declared by entries in opted-in lane(s); "
-            "they are not approved-current knowledge and must not be cited as effective."
+            "they are not effective knowledge and must not be cited as effective."
         )
     if dropped:
         # R5: explain was the one traversal surface that neither capped nor disclosed, so a hub
@@ -2792,7 +2821,7 @@ def run_impact(args: argparse.Namespace) -> dict[str, Any]:
     verified = {hit["artifactId"] for hit in hydrated}
     for row in served:
         row["hydrated"] = row["node"] in verified
-    current, non_current = lane_split(served)
+    current, non_current = effectiveness_split(served)
 
     gaps: list[str] = list(hydration_gaps)
     if requested > limit:
@@ -2983,7 +3012,7 @@ def run_context(args: argparse.Namespace) -> dict[str, Any]:
             if kinds is None or ((row["kind"] in kinds) is not invert)
         ]
         chosen.sort(key=lambda row: (row["kind"], row["source"]))
-        current, non_current = lane_split(chosen)
+        current, non_current = effectiveness_split(chosen)
         excluded["cap"] += max(0, len(current) - top) + max(0, len(non_current) - top)
         return current[:top], non_current[:top]
 
@@ -3022,7 +3051,7 @@ def run_context(args: argparse.Namespace) -> dict[str, Any]:
     if len(chain_rows) > top:
         chain_limits.add("top")
         chain_rows = chain_rows[:top]
-    chains, chains_non_current = lane_split(chain_rows)
+    chains, chains_non_current = effectiveness_split(chain_rows)
 
     # Hydration runs over what SURVIVED the cap, so a served row is a verified row. Chain nodes
     # join the same pass: they are rows the caller is invited to act on exactly like the edge
@@ -3082,7 +3111,7 @@ def run_context(args: argparse.Namespace) -> dict[str, Any]:
         gaps.append(
             f"{len(non_current)} row(s) come from entries in opted-in lane(s) and are served in "
             "the separate *NonCurrent buckets; each row also carries its own `lifecycle` — they "
-            "are not approved-current knowledge and must not be cited as effective."
+            "are not effective knowledge and must not be cited as effective."
         )
     gaps.extend(verify_anchor(document, states))
     gaps.append(ROW_LIFECYCLE_DISCLOSURE)

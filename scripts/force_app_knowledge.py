@@ -5168,11 +5168,13 @@ class ForceAppKnowledge:
 
         try:
             from scripts.knowledge_store import (  # local import: keeps the CLI standalone
-                all_entry_paths, compute_lane, ledger_latest, read_ledger, rooted, split_entry,
+                all_entry_paths, compute_lane, is_effective_entry_lane, ledger_latest,
+                read_ledger, rooted, split_entry,
             )
         except ModuleNotFoundError:
             from knowledge_store import (  # type: ignore
-                all_entry_paths, compute_lane, ledger_latest, read_ledger, rooted, split_entry,
+                all_entry_paths, compute_lane, is_effective_entry_lane, ledger_latest,
+                read_ledger, rooted, split_entry,
             )
 
         live_names = {
@@ -5203,7 +5205,7 @@ class ForceAppKnowledge:
                 }
                 for problem in lane["problems"]:
                     findings.append({**row, "reason": problem})
-                if lane["lane"] not in {"approved-current", "approved-drifted"}:
+                if not is_effective_entry_lane(lane["lane"]):
                     # An entry the ledger does not stand behind is already reported above; its
                     # edges are not worth diffing, because the entry itself is not trusted.
                     continue
