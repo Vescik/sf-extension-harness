@@ -73,7 +73,7 @@ review status as unverified unless current pull-request evidence establishes rev
 This is the canonical verification plan: every in-scope acceptance criterion appears here with an
 assertion, method, pass criteria, expected evidence and executor/stage. It is not a relevance
 ranking and it is never model-ranked. When the work item has no design, state that explicitly
-and list only the formally linked Test Cases from the synced inventory. When a design exists but
+and list only the formally linked Test Cases from the item's ADO relations. When a design exists but
 has no complete verification plan, write `MISSING — design verification plan unavailable`, list
 only formally linked Test Cases, and do not infer the missing plan fields.
 -->
@@ -84,6 +84,6 @@ only formally linked Test Cases, and do not infer the missing plan fields.
 ### Formally linked Test Cases
 
 <!--
-Confirmed relations only, from the synced inventory (`/sync-test-cases`). An empty list is stated
+Confirmed `Tested By` relations only, read live from the ADO work item. An empty list is stated
 explicitly, never inferred as absence of coverage.
 -->

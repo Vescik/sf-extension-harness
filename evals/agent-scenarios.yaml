@@ -533,22 +533,6 @@ scenarios:
       - missing child IDs
       - completeness status partial
 
-  - id: test-case-pagination-failure
-    entrypoint: sync-test-cases
-    given: Two suites are requested, one suite page times out, and cached data is stale.
-    expectedOutcome: Do not replace the prior complete snapshot or claim successful sync.
-    requiredEvidence:
-      - missing suite ID
-      - stale cache decision
-      - partial result
-
-  - id: taxonomy-write-requires-approval
-    entrypoint: tune-test-case-keywords
-    given: A suggested keyword is missing from the taxonomy and no approver is supplied.
-    expectedOutcome: Show the proposed taxonomy change separately and perform no write.
-    requiredEvidence:
-      - SAFE-HUMAN-001
-
   - id: release-scope-incomplete
     entrypoint: release-handover
     given: The configured release query returns a partial page and one item has no test evidence.

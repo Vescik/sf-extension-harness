@@ -29,12 +29,10 @@ ALLOWED_PREFIXES = {
         ".cache/knowledge-proposals/",
     ),
     "test-strategist": (
-        ".ai/qa/",
         "output/feature-health/",
         "output/handover/",
         ".cache/ado-items/",
         ".cache/ado-wiki/",
-        ".cache/test-cases/",
     ),
     # Context-first roles (plan 2026-08-07 phase 3).
     "designer": (

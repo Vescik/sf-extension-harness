@@ -207,7 +207,7 @@ owner decision of 2026-07-14.)
 ## 6. External runtimes
 
 - `ado-readonly` runs the local stdio `@azure-devops/mcp` server, version-pinned in
-  `.vscode/mcp.json` and domain-bounded to `work-items`, `wiki`, `test-plans`, and `search` (the
+  `.vscode/mcp.json` and domain-bounded to `work-items`, `wiki`, and `search` (the
   hosted endpoint did not honor its toolset header, so the local `-d` args replace it). It
   authenticates with your own Azure CLI login — run `az login` once; agents never handle the
   credentials.

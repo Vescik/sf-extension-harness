@@ -11,8 +11,8 @@ reference only already-approved terms, and evidence must establish the underlyin
 independently.
 
 **Growth rule — the defining property of this file**: the taxonomy grows **only through
-explicit human confirmation**. Skills (`tune-test-case-keywords`, `investigate-object`) may *suggest* a new term, but may
-never add one silently. Uncontrolled
+explicit human confirmation**. Skills (e.g. `investigate-object`, Knowledge curation) may
+*suggest* a new term, but may never add one silently. Uncontrolled
 vocabulary growth would recreate exactly the chaos this file exists to prevent.
 
 **Machine-checked contract**: `knowledge_store.py` parses the list items under `## Terms`
@@ -28,5 +28,5 @@ taxonomy terms where the business uses them — do not translate them into Engli
 
 <!-- No terms yet. Machine-parsed format per term (one list item):
 - <term> — <one line on what it covers, plus known synonyms it absorbs>
-First terms are added via /tune-test-case-keywords or a curation session
+First terms are added in a human curation session
 (model suggests, human confirms) — never fabricated at build time. -->

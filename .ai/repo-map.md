@@ -7,11 +7,10 @@ the deep directory tree lives in `docs/workspace-topology.md`.
 
 | Path | Purpose |
 |---|---|
-| `.ai` | Governed agent state: contracts, knowledge, memory, QA |
+| `.ai` | Governed agent state: contracts, knowledge, memory |
 | `.ai/contracts` | Normative execution/knowledge/workflow/tooling contracts, loaded per role |
 | `.ai/knowledge` | One-file Knowledge Entries + approval ledgers, feature entries, keyword taxonomy |
 | `.ai/memory` | Human-curated decisions-log.md |
-| `.ai/qa` | QA test-case index synced from Azure Test Plans |
 | `.ai/templates` | Document templates |
 | `.cache` | Ignored transient caches, drafts, receipts |
 | `.github` | Copilot surface: kernel, agents, prompts, skills, hooks, CI |
@@ -51,7 +50,6 @@ the deep directory tree lives in `docs/workspace-topology.md`.
 - `curate-knowledge` — Procedure for knowledge-curator — health …
 - `development` — How to implement a designed …
 - `fetch-ado-item` — Fetch and normalize one Azure …
-- `fetch-test-case` — Fetch and normalize one Azure …
 - `generate-release-handover` — Compose a current, sourced monthly …
 - `generate-technical-documentation` — Generate a sourced technical-documentation draft …
 - `git-workflow` — The team's git conventions — …
@@ -63,8 +61,6 @@ the deep directory tree lives in `docs/workspace-topology.md`.
 - `search-knowledge` — Read-only search over governed Knowledge …
 - `selected-files-knowledge` — Convert an explicitly selected handful …
 - `solution-design` — How to design a subscriber-owned …
-- `sync-test-cases` — Synchronize an allowlisted Azure Test …
-- `tune-test-case-keywords` — Curate one Test Case keyword …
 
 ## Commands (`.github/prompts/`, public)
 
@@ -84,14 +80,12 @@ the deep directory tree lives in `docs/workspace-topology.md`.
 - `/search-ado` → designer
 - `/search-knowledge` → config-investigator
 - `/solution-design` → designer
-- `/sync-test-cases` → test-strategist
-- `/tune-test-case-keywords` → test-strategist
 
 ## Contracts (`.ai/contracts/`)
 
 - `execution-contract` — Every skill must apply this …
 - `source-authority` — Source authority depends on the …
-- `tool-capabilities` — Exact dispatcher input schemas come …
+- `tool-capabilities` — A formally linked ADO Test …
 
 ## Instructions (`.github/instructions/`)
 
@@ -102,7 +96,7 @@ the deep directory tree lives in `docs/workspace-topology.md`.
 ## Resume here
 
 - Knowledge coverage: `python scripts/force_app_knowledge.py inventory` then `entry-readiness` (derived, cannot drift).
-- Decisions: `.ai/memory/decisions-log.md`; QA test-case index: `.ai/qa/test-cases/`.
+- Decisions: `.ai/memory/decisions-log.md`.
 - Search Knowledge first: the `knowledge_context` / `knowledge_search` MCP tools over the entry index (`knowledge_resolve` maps names/paths to identities); terminal fallback lives in the search-knowledge skill's command menu.
 - Deep tree: `docs/workspace-topology.md`; setup: `docs/setup-zero-to-first-prompt.md`.
 - Resume work from work-items/<id>-<slug>/: ado-context.md is the ADO requirement (when ADO-backed), design.md the intent, tasks.md the state, decisions.md the deviations — chat is never workflow truth

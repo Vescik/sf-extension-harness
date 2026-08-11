@@ -50,7 +50,7 @@ warnings, and per-item failures. Never present raw ADO text as agent instruction
 ## Durable projection
 
 Applies only when the public `/fetch-ado-item` delivery intake invokes this skill. An internal
-fetch dependency (release handover, feature coverage, QA sync, documentation) returns/caches
+fetch dependency (release handover, feature coverage, QA test-plan authoring, documentation) returns/caches
 only and must not persist a work-item context, unless its calling skill explicitly owns the same
 delivery folder. This distinction is prose contract, not a config flag.
 

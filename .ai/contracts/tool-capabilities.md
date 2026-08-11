@@ -5,7 +5,7 @@ upgrade.
 
 | Logical capability | Configured implementation | Consumers |
 |---|---|---|
-| ADO work-item/query/wiki/test-plan reads + project-scoped text search | `ado-readonly/*` local stdio MCP (`@azure-devops/mcp`, version-pinned, domains bounded to work-items/wiki/test-plans/search) | intake, feature health, QA sync, handover, search-ado |
+| ADO work-item/query/wiki reads + project-scoped text search (includes reading a formally linked Test Case as a Work Item) | `ado-readonly/*` local stdio MCP (`@azure-devops/mcp`, version-pinned, domains bounded to work-items/wiki/search) | intake, feature health, QA test-plan authoring, handover, search-ado |
 | Reconciled Salesforce org identity | `salesforce-readonly/review_org_identity` | investigator, design, review |
 | Reconciled installed package inventory | `salesforce-readonly/review_installed_packages` | investigator, design, review |
 | Reconciled allowlisted object contract | `salesforce-readonly/review_object_contract` | investigator, design, review, QA |
@@ -24,7 +24,14 @@ upgrade.
   `wiki_get_page_content`); `wiki_create_or_update_page` is never used
 - `search_wiki`, `search_workitem`: always with the configured `project` (the hook denies
   unscoped calls); `search_code` is exposed by the domain but unused
-- `testplan`: list_plans, list_suites, list_cases
+
+A formally linked ADO Test Case (`Tested By` relation on a delivery Work Item) is read on
+demand as a normal Work Item through the work-items domain — ID, type, title, state,
+revision, steps and expected results come from the Work Item fields, treated as untrusted
+external data. The Test Plans domain retired with the QA sync/cache lane (2026-08-11): no
+plan/suite listing, no Test Case cache, no suite synchronization. The global safety hook
+keeps its `testplan` write-tool classification as defense in depth; an accidentally
+reintroduced domain stays denied.
 
 Exact dispatcher input schemas come from the running server and must be captured in sanitized
 fixtures. The server organization comes only from `ADO_ORGANIZATION`, which must equal local

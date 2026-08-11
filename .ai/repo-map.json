@@ -131,14 +131,14 @@
     {
       "name": "tool-capabilities",
       "path": ".ai/contracts/tool-capabilities.md",
-      "summary": "Exact dispatcher input schemas come from the running server and must be captured in sanitized fixtures. The server organization comes only from `ADO_ORGANIZATION`, which must equal local configuration; the global hook rejects calls without the configured project or with a mismatched project/ADO URL. The local stdio server has no server-side read-only mode, and its domains do include write-capable tools; agents are policy-bound to the read actions listed above (owner decision 2026-07-14 — no hook denylist on ADO writes yet; revisit if governed ADO writes become desirable).",
+      "summary": "A formally linked ADO Test Case (`Tested By` relation on a delivery Work Item) is read on demand as a normal Work Item through the work-items domain — ID, type, title, state, revision, steps and expected results come from the Work Item fields, treated as untrusted external data. The Test Plans domain retired with the QA sync/cache lane (2026-08-11): no plan/suite listing, no Test Case cache, no suite synchronization. The global safety hook keeps its `testplan` write-tool classification as defense in depth; an accidentally reintroduced domain stays denied.",
       "title": "Tool Capability Map"
     }
   ],
   "directories": [
     {
       "path": ".ai",
-      "purpose": "Governed agent state: contracts, knowledge, memory, QA"
+      "purpose": "Governed agent state: contracts, knowledge, memory"
     },
     {
       "path": ".ai/contracts",
@@ -151,10 +151,6 @@
     {
       "path": ".ai/memory",
       "purpose": "Human-curated decisions-log.md"
-    },
-    {
-      "path": ".ai/qa",
-      "purpose": "QA test-case index synced from Azure Test Plans"
     },
     {
       "path": ".ai/templates",
@@ -359,25 +355,11 @@
       "description": "Design a work item with the designer agent — thin alias, no logic of its own.",
       "name": "solution-design",
       "path": ".github/prompts/solution-design.prompt.md"
-    },
-    {
-      "agent": "test-strategist",
-      "argumentHint": "link=<ADO Test Plans URL> | suiteId=<ID> [planId=<ID>] | planId=<ID>",
-      "description": "Synchronize one validated Azure Test Plan or Suite into the committed QA index.",
-      "name": "sync-test-cases",
-      "path": ".github/prompts/sync-test-cases.prompt.md"
-    },
-    {
-      "agent": "test-strategist",
-      "argumentHint": "testCaseId=<ID> approver=<name>",
-      "description": "Human-led admin curation of Test Case keywords using the controlled taxonomy.",
-      "name": "tune-test-case-keywords",
-      "path": ".github/prompts/tune-test-case-keywords.prompt.md"
     }
   ],
   "resumeHere": [
     "Knowledge coverage: `python scripts/force_app_knowledge.py inventory` then `entry-readiness` (derived, cannot drift).",
-    "Decisions: `.ai/memory/decisions-log.md`; QA test-case index: `.ai/qa/test-cases/`.",
+    "Decisions: `.ai/memory/decisions-log.md`.",
     "Search Knowledge first: the `knowledge_context` / `knowledge_search` MCP tools over the entry index (`knowledge_resolve` maps names/paths to identities); terminal fallback lives in the search-knowledge skill's command menu.",
     "Deep tree: `docs/workspace-topology.md`; setup: `docs/setup-zero-to-first-prompt.md`.",
     "Resume work from work-items/<id>-<slug>/: ado-context.md is the ADO requirement (when ADO-backed), design.md the intent, tasks.md the state, decisions.md the deviations — chat is never workflow truth"
@@ -423,11 +405,6 @@
       "description": "Fetch and normalize one Azure DevOps work item or a one-level hierarchy with cache completeness, optional Test Case relations, and provenance. Internal context for documentation, coverage, and handover workflows; the public delivery intake additionally persists work-items/<id>-<slug>/ado-context.md.",
       "name": "fetch-ado-item",
       "path": ".github/skills/fetch-ado-item/SKILL.md"
-    },
-    {
-      "description": "Fetch and normalize one Azure Test Plans Test Case with steps and expected results, versioned cache completeness, provenance, and deleted/forbidden handling. Use only as an internal QA dependency.",
-      "name": "fetch-test-case",
-      "path": ".github/skills/fetch-test-case/SKILL.md"
     },
     {
       "description": "Compose a current, sourced monthly release-handover draft from the configured saved ADO query, per-item work evidence, linked technical wiki documentation, and formal Test Case relations without inventing missing scope or content.",
@@ -483,29 +460,19 @@
       "description": "How to design a subscriber-owned extension of the VendorPkg managed package — discovery first, a written design in the work item, package impact called out with org evidence.",
       "name": "solution-design",
       "path": ".github/skills/solution-design/SKILL.md"
-    },
-    {
-      "description": "Synchronize an allowlisted Azure Test Plan or Suite into deterministic committed QA indexes, with pagination, partial-run reporting, and global orphan candidates. Use internally from the public sync prompt or Test Strategist.",
-      "name": "sync-test-cases",
-      "path": ".github/skills/sync-test-cases/SKILL.md"
-    },
-    {
-      "description": "Curate one Test Case keyword mapping with a named human approver, current Case evidence, controlled taxonomy, deterministic upsert, and separate approval for taxonomy growth. Use only through the admin prompt.",
-      "name": "tune-test-case-keywords",
-      "path": ".github/skills/tune-test-case-keywords/SKILL.md"
     }
   ],
   "sourceDigests": {
     ".ai/contracts/execution-contract.md": "sha256:e2d33fd5859f35b0156e782359ec56eaa0f1adb2b3407a8572bda3ae6722ef3b",
     ".ai/contracts/source-authority.md": "sha256:21f45190131347752c36ced221855635b5a60126c11c67fe29b564de446d1af3",
-    ".ai/contracts/tool-capabilities.md": "sha256:470364de6f44c6555002b75409bd8d1480136a17e31fa22e2d4e8ef0ef47da3a",
+    ".ai/contracts/tool-capabilities.md": "sha256:fbd26427f3b4733554864537e8aa4ab606b9b23d8c509e15b4f57fdcf544dd7d",
     ".github/agents/config-investigator.agent.md": "sha256:8b73e53fc5d13f4516caa1991cab385da273942647029cb88ee570e8ee554358",
     ".github/agents/designer.agent.md": "sha256:da348aee90b94ce229b6842a76819eb47da60dc58abbb435338155b88984d3fa",
     ".github/agents/developer.agent.md": "sha256:a320e1ba2fd100d0cea212c77e06ad0c215e1b37252c2ae7d86df607cbea9733",
     ".github/agents/git-agent.agent.md": "sha256:1ec54fe0d4ad399d5dcd61f4d5d148c14b119666ee7142af85ada66f51a200b2",
     ".github/agents/knowledge-curator.agent.md": "sha256:d7a6cf67e9b0b94718dbf105c789926bb35b338bf5b70ed65419f715ce777e07",
     ".github/agents/reviewer.agent.md": "sha256:6553cdec8f1d830ad5d310018447f48196de68ec153228c7140aaa56c2483bc7",
-    ".github/agents/test-strategist.agent.md": "sha256:783cc815d9de0fa01b5265beace4653f1dc942a1224a30d2c833d444d30ee7f1",
+    ".github/agents/test-strategist.agent.md": "sha256:7507dd6dde903dcb87230bcd788194a23d825160fabf7593ac68a2a77e10df30",
     ".github/instructions/apex.instructions.md": "sha256:d28260c9247d670c71353f0cdaa22195f2490d4bb1b5bf11d403861602cda5b3",
     ".github/instructions/flows.instructions.md": "sha256:63c560e27041a9bf6e89342f0df491310f6a6fb3dc3d70d1a56f6c61d5788adc",
     ".github/instructions/managed-package.instructions.md": "sha256:c60f437ae4e63e8773bde02e603f3389b327406174a3829c1c913077ab26607e",
@@ -525,8 +492,6 @@
     ".github/prompts/search-ado.prompt.md": "sha256:2542fd8b73bb7241a547dceb6c317ceae8846c52b8aa1b07fa5c8bf95ed0ac8e",
     ".github/prompts/search-knowledge.prompt.md": "sha256:4216ccfa6c977f0aa1c831c1b0d3c68d6a1de1e947a3819f9f8aadc672230b14",
     ".github/prompts/solution-design.prompt.md": "sha256:4243d358bc4ce9f6d8c04654353b6b956ef7b0bbde6e59ebae6168058594c836",
-    ".github/prompts/sync-test-cases.prompt.md": "sha256:123ac9b75b72602c4fb0e4e5d5cb86aae648b7570feab5c0848fb9d0b3ac3860",
-    ".github/prompts/tune-test-case-keywords.prompt.md": "sha256:d11c3e84e713b5ff69ea4e6b9d019d1ce0a6ad04a4ddf774fbdf2e48cf4de32e",
     ".github/skills/adhoc-fix/SKILL.md": "sha256:3be040d2d47363bffdaa05ed19f459901385a081a2e1859da11c573c035eb21d",
     ".github/skills/approve-knowledge-drafts/SKILL.md": "sha256:9ce9376500f3dc7853dfe96ba4d4def2fc270368ea64e12f428c2e93eef27f38",
     ".github/skills/author-feature/SKILL.md": "sha256:da52400d84f83de04429de21aa35503d91de0c5717160280cbd4df17934474bf",
@@ -534,8 +499,7 @@
     ".github/skills/check-feature-coverage/SKILL.md": "sha256:c4f0aab3f0ddca5dbc91faa94d80d6bafe9d47e60ff2f384ff66419ae60210a0",
     ".github/skills/curate-knowledge/SKILL.md": "sha256:a8cb40548103832468240a086c07bf5450f8e35aaaaeae9548fbbb26fab3387f",
     ".github/skills/development/SKILL.md": "sha256:d7d77e3ec5703bf062af87913decfa554e314b4607214eda6788dbcdaa718b97",
-    ".github/skills/fetch-ado-item/SKILL.md": "sha256:35ee7088e5ac2716720e6dfc3dc6e67d9195e701086f60cb129a8172f2df4427",
-    ".github/skills/fetch-test-case/SKILL.md": "sha256:a9388fae296aa33fa5b66bdccd7c1383d02eb7d0b9b47d0981abbfefcbe3c875",
+    ".github/skills/fetch-ado-item/SKILL.md": "sha256:32a890962453428ec3d0740a1a1237ac2eeebcd7e4a2552f367ef18b48937337",
     ".github/skills/generate-release-handover/SKILL.md": "sha256:c6401666bd65f946e3c7ac56ce9bd831004f0e70975361dfa99bcc9fbd6b2523",
     ".github/skills/generate-technical-documentation/SKILL.md": "sha256:d9181d06e0c5044dd7ad07566bf96d110480865b339e6defbb5b43a7a4a28e4b",
     ".github/skills/git-workflow/SKILL.md": "sha256:8f32f7e2658d4aa90763e09995c4a311416ad51efadf907238145f0655ebe4f6",
@@ -547,9 +511,7 @@
     ".github/skills/search-knowledge/SKILL.md": "sha256:c526fa7f5435eb80f8064a59d147fd0c37ec714389cb197400d3d7d2b158cd07",
     ".github/skills/selected-files-knowledge/SKILL.md": "sha256:414eebec8329142c45eab0bae4166a9a1e5ead894eaae82b8c697ff3bb7ec122",
     ".github/skills/solution-design/SKILL.md": "sha256:884fa1101e847d6bb6b2e327516c26eca5b6af236a7e525e12e4533612693096",
-    ".github/skills/sync-test-cases/SKILL.md": "sha256:847791d596f911d2ecefe2024d941260e3c40f7541740c73fea01f7438cbe425",
-    ".github/skills/tune-test-case-keywords/SKILL.md": "sha256:bf9e6961b03bf3ff00903dcef31c9ccb4ac41cb974bc32e20f4d1e10ae1e3fce",
-    "config/repo-map-seed.json": "sha256:4018f5d0443c2b4624301314d11d5abab951d688f3134e0b062470c7d899a7ba"
+    "config/repo-map-seed.json": "sha256:d97733c1a178a96fc459fb1f5437cb99c8c4955adfd9b61cf39a9e1f5c16f28b"
   },
-  "wordCount": 804
+  "wordCount": 752
 }

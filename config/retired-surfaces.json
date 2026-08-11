@@ -88,6 +88,27 @@
    ]
   },
   {
+   "name": "test-case-inventory-cache-lane",
+   "retiredIn": "interactive QA test-plan handoff",
+   "retiredOn": "2026-08-11",
+   "replacement": "the /prepare-qa-test-plan command: an interactive per-work-item qa-test-plan.md authored by the Test Strategist; formally linked ADO Test Cases are read live as Work Items through the work-items domain — no suite sync, no committed QA index, no Test Case cache, no ADO test-plans MCP domain",
+   "tokens": [
+    "sync-test-cases",
+    "sync_test_cases",
+    "tune-test-case-keywords",
+    "fetch-test-case",
+    "test-case-cache",
+    ".ai/qa",
+    ".cache/test-cases",
+    "testplan_list_test"
+   ],
+   "historicalAllowlist": [
+    ".ai/memory/decisions-log.md",
+    "tests/test_safety_hooks.py",
+    "scripts/validate_harness.py"
+   ]
+  },
+  {
    "name": "knowledge-registry-claim-module",
    "retiredIn": "v1 retirement P2b",
    "retiredOn": "2026-07-27",
