@@ -32,21 +32,21 @@ For BRD attachments:
    layers for each affected object rather than only reading the static view:
    - the `knowledge_context` tool — parts, dependents and
      permission grants for the entry-homed types, with their coverage denominator. Count
-     coverage from `parts`, `permissions` and `incoming` only — those are the approved-current
-     buckets; the `*NonCurrent` siblings are opted-in lanes and belong in the gap list. `incoming`
-     and `outgoing` are keyed by relation kind, so iterate the keys; a kind with no key has no
-     rows, which is not proof that nothing depends on the component. A row with `hydrated: false`
-     failed re-reading and stays out of the coverage denominator on either side of the matrix;
+     coverage from `parts`, `permissions` and `incoming` only — the effective approved buckets;
+     the `*NonCurrent` siblings are opted-in non-effective lanes and belong in the gap list.
+     A row with `hydrated: false` failed re-reading and stays out of the coverage denominator
+     on either side of the matrix. Lane semantics, bucket rules and the citation boundary are
+     defined once in [search-knowledge](../search-knowledge/SKILL.md) — read them there;
    - **Unprofiled-type dependents are an UNCOVERED class, and the matrix must say so** (owner
-     D-C, 2026-08-03): metadata types without an entry profile (the generic-bucket remainder —
-     Settings, Letterhead, Group, Network, Certificate, Document, Territory2 and similar
-     label-only types) have no governed dependency lookup. The coverage matrix MUST carry an
-     explicit `not covered: <type list>`
-     line naming every such type present in the inventory — a result without that line reads
-     as a clean bill of health it did not earn.
-   Treat approved entries as facts — `approved-current` outright, `approved-drifted` with its
-   drift disclosed in the row. Drafts and revoked entries are never facts. An empty result is a
-   recorded gap and is NEVER proof that nothing depends on the component.
+     D-C, 2026-08-03): the generic-bucket types named in
+     [search-knowledge](../search-knowledge/SKILL.md) have no governed dependency lookup. The
+     coverage matrix MUST carry an explicit `not covered: <type list>` line naming every such
+     type present in the inventory — a result without that line reads as a clean bill of
+     health it did not earn.
+   Treat effective approved entries as facts — `approved-current` and `approved-drifted` alike,
+   the latter with its drift disclosed in the row. Drafts, revoked and not-effective entries are
+   never facts. An empty result is a recorded gap and is NEVER proof that nothing depends on the
+   component.
 5. Save all mandatory sections using the Feature Health template and the output envelope.
 
 ## Verdict
