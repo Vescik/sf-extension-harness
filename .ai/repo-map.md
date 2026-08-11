@@ -38,7 +38,7 @@ the deep directory tree lives in `docs/workspace-topology.md`.
 - **git-agent** — Routine git operations by the …. Loads skills: git-workflow.
 - **knowledge-curator** — Maintains governed Knowledge from repository …. Loads instructions: managed-package; contracts: source-authority; skills: approve-knowledge-drafts, curate-knowledge, search-knowledge.
 - **reviewer** — Challenge a design or implementation …. Loads skills: check-against-principles.
-- **test-strategist** — Assess QA inventory freshness and …. Loads instructions: apex; contracts: execution-contract, tool-capabilities; skills: search-knowledge.
+- **test-strategist** — Own the QA perspective — …. Loads instructions: apex; contracts: execution-contract, tool-capabilities; skills: check-feature-coverage, prepare-qa-test-plan, search-knowledge.
 
 ## Skills (`.github/skills/`)
 
@@ -57,6 +57,7 @@ the deep directory tree lives in `docs/workspace-topology.md`.
 - `investigate-config-records` — Take a bounded, sanitized snapshot …
 - `investigate-object` — Collect bounded, sanitized evidence about …
 - `org-discovery` — The recipe for investigating the …
+- `prepare-qa-test-plan` — Author or refresh one work …
 - `search-ado` — Read-only Azure DevOps text search …
 - `search-knowledge` — Read-only search over governed Knowledge …
 - `selected-files-knowledge` — Convert an explicitly selected handful …
@@ -76,6 +77,7 @@ the deep directory tree lives in `docs/workspace-topology.md`.
 - `/investigate-config-records` → config-investigator
 - `/investigate-object` → config-investigator
 - `/pin-knowledge` → config-investigator
+- `/prepare-qa-test-plan` → test-strategist
 - `/release-handover` → test-strategist
 - `/search-ado` → designer
 - `/search-knowledge` → config-investigator
