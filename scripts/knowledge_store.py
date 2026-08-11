@@ -59,6 +59,22 @@ ORG_LEDGER_PATH = ROOT / ".ai/knowledge/artifacts-org-ledger.jsonl"
 ORG_USAGE_CACHE = ROOT / ".cache/org-usage"
 KNOWLEDGE_POLICY_PATH = ROOT / "config/knowledge-policy.json"
 
+# Approval effectiveness and source freshness are two axes, not one (owner decision D1,
+# 2026-08-11). Human approval binds `reviewedContentDigest` — the facts and semantics that
+# were reviewed — not the later immutability of the source bytes those facts were read from.
+# So an entry whose source moved on is still approved: it is `approved-drifted`, effective and
+# citable, carrying a SOURCE_DRIFT advisory. This frozenset is the ONE definition of "this lane
+# can ground a citation"; knowledge_search imports it rather than re-deciding effectiveness.
+# What does NOT belong here: draft, revoked, not-effective — and a missing or unreadable source
+# fragment, which is an evidence failure (D3), not drift.
+EFFECTIVE_ENTRY_LANES = frozenset({"approved-current", "approved-drifted"})
+
+
+def is_effective_entry_lane(lane: str | None) -> bool:
+    """True when an Entry in this lane may be served by default and cited as effective."""
+    return lane in EFFECTIVE_ENTRY_LANES
+
+
 SENTINEL_PATTERN = re.compile(r"<AGENT_[A-Z0-9_]*>?")
 PROSE_CHUNK_LIMIT = 25
 MANIFEST_CHUNK_LIMIT = 500
@@ -837,6 +853,21 @@ def approved_taxonomy_terms() -> set[str]:
 
 
 def compute_lane(path: Path, latest: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    """Effectiveness lane for one entry, with `effective` derived — never asserted.
+
+    The lane itself is computed by `_compute_entry_lane`, which has several early returns.
+    Deriving `effective` here, in one place, from `is_effective_entry_lane` is what keeps the
+    two from drifting apart: a lane added tomorrow is non-effective until it is added to
+    EFFECTIVE_ENTRY_LANES, rather than defaulting to whatever the nearest early return set."""
+
+    result = _compute_entry_lane(path, latest)
+    result["effective"] = is_effective_entry_lane(result.get("lane"))
+    result.setdefault("freshness", "unknown")
+    result.setdefault("advisories", [])
+    return result
+
+
+def _compute_entry_lane(path: Path, latest: dict[str, dict[str, Any]]) -> dict[str, Any]:
     """Effectiveness lane for one entry — always the full check.
 
     There is deliberately no partial mode. One existed, skipping the source-fragment re-digest
@@ -902,8 +933,34 @@ def compute_lane(path: Path, latest: dict[str, dict[str, Any]]) -> dict[str, Any
         result["lane"] = "not-effective"
         result["problems"].append("in-file approval provenance mismatches the ledger record")
     else:
-        regenerated = regenerate_fragment_digest(frontmatter)
-        result["lane"] = "approved-current" if regenerated else "approved-drifted"
+        freshness = source_fragment_freshness(frontmatter)
+        if freshness["status"] == "current":
+            result["lane"] = "approved-current"
+            result["freshness"] = "current"
+        elif freshness["status"] == "drifted":
+            # Approved, effective, citable — with the changed paths named. The advisory is a
+            # disclosure, not a verdict: it does not block SAFE, does not reduce coverage and
+            # does not demand re-approval (D2).
+            result["lane"] = "approved-drifted"
+            result["freshness"] = "drifted"
+            result["advisories"] = [{"code": "SOURCE_DRIFT", "paths": list(freshness["changed"])}]
+        else:
+            result["lane"] = "not-effective"
+            codes: list[dict[str, Any]] = []
+            if freshness["missing"]:
+                codes.append({"code": "SOURCE_FRAGMENT_MISSING", "paths": list(freshness["missing"])})
+                result["problems"].append(
+                    "approved source fragment is missing from the working tree: "
+                    + ", ".join(freshness["missing"])
+                )
+            if freshness["unreadable"]:
+                codes.append({"code": "SOURCE_FRAGMENT_UNREADABLE", "paths": list(freshness["unreadable"])})
+                result["problems"].append(
+                    "approved source fragment could not be read: " + ", ".join(freshness["unreadable"])
+                )
+            # Machine-readable beside the human text, never parsed back out of it: downstream
+            # branches on `problemCodes`, and `problems` stays free to be reworded.
+            result["problemCodes"] = codes
         result["factsDigest"] = facts_digest(frontmatter)
     result["sourceTreeDigest"] = frontmatter["scope"]["sourceTreeDigest"]
     result["profile"] = f"{frontmatter['profile']['id']}@{frontmatter['profile']['version'].split('.', 1)[0]}"
@@ -936,46 +993,96 @@ def verify_entry_citations(root: Path, entry_refs: list[dict[str, Any]]) -> list
         record: dict[str, Any] = {"entryId": entry_id}
         lane = lane_for_identity(root, entry_id) if entry_id else None
         if lane is None:
-            record.update(verdict="missing", severity="invalid", reason="no entry with this identity")
+            record.update(verdict="missing", severity="invalid", effective=False, reason="no entry with this identity")
         elif lane["lane"] == "revoked":
-            record.update(verdict="revoked", severity="invalid", reason="approval was revoked")
+            record.update(verdict="revoked", severity="invalid", effective=False, reason="approval was revoked")
         elif lane["lane"] == "draft":
-            record.update(verdict="not-approved", severity="invalid", reason="entry is still a draft")
+            record.update(verdict="not-approved", severity="invalid", effective=False, reason="entry is still a draft")
         elif lane["lane"] == "not-effective":
             record.update(
                 verdict="not-effective",
                 severity="invalid",
+                effective=False,
                 reason="; ".join(lane.get("problems", [])) or "entry failed its integrity checks",
             )
+            if lane.get("problemCodes"):
+                record["problemCodes"] = lane["problemCodes"]
         elif reference.get("reviewedContentDigest") and lane.get("reviewedContentDigest") != reference["reviewedContentDigest"]:
+            # Content tampering outranks the drift policy: the citation names a digest this
+            # entry no longer carries, so what was approved is not what is being cited.
             record.update(
                 verdict="digest-mismatch",
                 severity="invalid",
+                effective=False,
                 reason="cited content digest is not the entry's current approved digest",
             )
         elif lane["lane"] == "approved-drifted":
+            # `verdict` stays "drifted" for consumers that already branch on it; the severity is
+            # what changed. Drift is disclosed, not penalised — re-approval is a maintainer's
+            # option, never this verifier's demand (D1/D2).
             record.update(
                 verdict="drifted",
-                severity="warning",
-                reason="source moved on since approval; re-approve before citing as current",
+                severity="ok",
+                effective=True,
+                reason=(
+                    "approved and effective; source moved on since approval — cite it and "
+                    "disclose the drift"
+                ),
+                advisories=lane.get("advisories", []),
             )
         else:
-            record.update(verdict="current", severity="ok", reason="approved-current")
+            record.update(verdict="current", severity="ok", effective=True, reason="approved-current")
         results.append(record)
     return results
 
 
-def regenerate_fragment_digest(frontmatter: dict[str, Any]) -> bool:
-    """True when every recorded source fragment still matches the working tree."""
+def source_fragment_freshness(frontmatter: dict[str, Any]) -> dict[str, Any]:
+    """How the recorded source fragments compare to the working tree — and WHY they differ.
+
+    The predecessor returned a bare boolean, which forced `compute_lane` to treat three
+    materially different worlds as one: the file changed, the file is gone, the file cannot be
+    read. Only the first is drift. A fragment that vanished or that raises on read is an
+    evidence failure — there is nothing left to disclose a drift against — so it must not be
+    laundered into an advisory (owner decision D3, 2026-08-11).
+
+    Status precedence is missing > unreadable > drifted > current: the strongest integrity
+    problem names the status, while every list is reported in full so a caller can disclose the
+    exact paths rather than the count."""
+
     from scripts.force_app_knowledge import file_digest  # local import: heavy module
 
+    changed: list[str] = []
+    missing: list[str] = []
+    unreadable: list[str] = []
     for fragment in frontmatter["source"]["fragments"]:
-        fragment_path = ROOT / fragment["path"]
-        if not fragment_path.exists():
-            return False
-        if file_digest(fragment_path) != fragment["sourceDigest"].removeprefix("sha256:"):
-            return False
-    return True
+        relative = fragment["path"]
+        fragment_path = ROOT / relative
+        try:
+            if not fragment_path.exists():
+                missing.append(relative)
+                continue
+            digest = file_digest(fragment_path)
+        except OSError:
+            # Permission denied, a dangling symlink, an unreadable device node: the pin cannot
+            # be evaluated at all, which is not the same claim as "it no longer matches".
+            unreadable.append(relative)
+            continue
+        if digest != fragment["sourceDigest"].removeprefix("sha256:"):
+            changed.append(relative)
+    if missing:
+        status = "missing"
+    elif unreadable:
+        status = "unreadable"
+    elif changed:
+        status = "drifted"
+    else:
+        status = "current"
+    return {
+        "status": status,
+        "changed": changed,
+        "missing": missing,
+        "unreadable": unreadable,
+    }
 
 
 def all_entry_paths(include_case_twins: bool = False) -> list[Path]:
@@ -2097,6 +2204,10 @@ def command_entry_verify_citations(args: argparse.Namespace) -> dict[str, Any]:
         "counts": {
             "ok": severities.count("ok"),
             "warning": severities.count("warning"),
+            # Additive, never a replacement: `ok`/`warning`/`invalid` keep their meaning for
+            # existing consumers, and drifted citations now land in `ok` (D2). `advisory`
+            # counts the disclosures inside that `ok` — visible without being a failure.
+            "advisory": sum(1 for item in citations if item.get("advisories")),
             "invalid": severities.count("invalid"),
         },
         "citations": citations,
@@ -3171,7 +3282,7 @@ def _feature_binding_resolver(entry_id: str) -> dict[str, Any]:
     if not path.is_file():
         raise StoreError(f"binding target {entry_id} has no Knowledge Entry")
     lane = compute_lane(path, ledger_latest(read_ledger()))
-    if lane.get("lane") not in ("approved-current", "approved-drifted"):
+    if not is_effective_entry_lane(lane.get("lane")):
         raise StoreError(
             f"binding target {entry_id} is {lane.get('lane')}; only approved entries bind "
             "(approved-current or approved-drifted — draft and revoked never do)"

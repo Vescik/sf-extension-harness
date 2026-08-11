@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 import unittest
+import unittest.mock
 from pathlib import Path
 
 import yaml
@@ -82,18 +83,37 @@ class KnowledgeSchemaTests(unittest.TestCase):
     def test_agent_surfaces_do_not_call_a_drifted_entry_non_effective(self) -> None:
         """The runtime says `approved-drifted` is effective with disclosure; the prose must too.
 
-        `knowledge_store.verify_entry_citations` grades a drifted citation `warning` while
-        draft/revoked/not-effective/digest-mismatch grade `invalid`, and the binding resolver
-        accepts drifted entries. search-knowledge had been listing `drifted` among the
-        non-effective lanes, so a skill inheriting its rules by pointer silently learned the
-        opposite of what the executor does — that is how check-against-principles came to
-        contradict its own pointer target. The negative half of this test is the point: a future
-        edit may not put `drifted` back into a non-effective enumeration.
+        This pin used to assert a source substring (`severity="warning"`), which pinned a
+        halfway state — drift was neither invalid nor fully effective — and broke the moment
+        phase 1 finished the job. It now asserts the BEHAVIOUR through the public functions, so
+        the rule survives any rewording of the code that implements it.
+
+        The negative half is the point: a future edit may not put `drifted` back into a
+        non-effective enumeration. That is exactly how check-against-principles came to
+        contradict its own pointer target.
         """
         from scripts import knowledge_store
 
-        source = Path(knowledge_store.__file__).read_text(encoding="utf-8")
-        self.assertIn('verdict="drifted",\n                severity="warning"', source)
+        # One definition of effectiveness, and drift is inside it (owner decision D1).
+        self.assertTrue(knowledge_store.is_effective_entry_lane("approved-drifted"))
+        self.assertTrue(knowledge_store.is_effective_entry_lane("approved-current"))
+        for lane in ("draft", "revoked", "not-effective"):
+            self.assertFalse(knowledge_store.is_effective_entry_lane(lane))
+
+        # A drifted citation grades ok-with-advisory, never warning and never invalid (D2).
+        drifted_lane = {
+            "lane": "approved-drifted",
+            "reviewedContentDigest": "sha256:" + "a" * 64,
+            "advisories": [{"code": "SOURCE_DRIFT", "paths": ["force-app/x.flow-meta.xml"]}],
+        }
+        with unittest.mock.patch.object(
+            knowledge_store, "lane_for_identity", return_value=drifted_lane
+        ):
+            verdict = knowledge_store.verify_entry_citations(ROOT, [{"entryId": "Flow:c:X"}])[0]
+        self.assertEqual("drifted", verdict["verdict"])
+        self.assertEqual("ok", verdict["severity"])
+        self.assertTrue(verdict["effective"])
+        self.assertNotIn("re-approve", verdict["reason"].lower())
 
         skill = (ROOT / ".github/skills/search-knowledge/SKILL.md").read_text(encoding="utf-8")
         self.assertIn("`approved-drifted` is effective, with disclosure", skill)
@@ -102,8 +122,30 @@ class KnowledgeSchemaTests(unittest.TestCase):
                 "drifted",
                 enumeration,
                 "search-knowledge lists drifted as non-effective, contradicting "
-                "verify_entry_citations (severity 'warning', not 'invalid')",
+                "verify_entry_citations (severity 'ok', effective)",
             )
+
+    def test_entry_age_never_changes_a_lane_or_its_effectiveness(self) -> None:
+        """No-expiry-by-age (owner decision D4, 2026-08-11).
+
+        The release cycle is a reporting window, not a clock on approval. The failure this
+        guards against is a plausible-sounding future edit that expires old entries "for
+        hygiene" — which would silently drop approved knowledge out of every default search.
+        `compute_lane` therefore takes no clock at all: its inputs are the entry file and the
+        ledger, and nothing in its call graph reads the current time.
+        """
+        import inspect
+
+        from scripts import knowledge_store
+
+        source = inspect.getsource(knowledge_store._compute_entry_lane)
+        for clock in ("datetime.now", "time.time", "reviewCycle", "ageDays"):
+            self.assertNotIn(
+                clock,
+                source,
+                f"_compute_entry_lane consults {clock}; age must never move a lane (D4)",
+            )
+        self.assertNotIn("now", inspect.signature(knowledge_store.compute_lane).parameters)
 
     def test_legal_business_names_are_not_screened_as_fixture_leaks(self) -> None:
         """Regression for the retired name denylist (introduced in 07c1788): a real
