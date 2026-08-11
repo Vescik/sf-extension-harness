@@ -151,6 +151,16 @@ metadata type, namespace, lifecycle state.
    unusable and need a fresh probe; it says nothing about the repository-source Entry, which
    stays effective. Never merge the two into one verdict.
 
+   **`factAnalysis` is a maintenance diagnostic, not a citation receipt.** It appears only when
+   someone explicitly ran `entry-coverage --analyze-facts`, and it never reaches a retrieval
+   answer. `FACTS_EQUIVALENT` means only that the extracted facts did not move — not that the
+   source, the Purpose, the runtime behaviour or the org numbers are unchanged. `FACTS_CHANGED`
+   withdraws no approval, moves no lane, blocks no citation and demands no re-approval; whether
+   a changed fact matters to YOUR task is not decided by that report. Never ask about entries
+   one by one because a diff exists. If the report was part of your evidence and it contradicts
+   a fact you are about to state, disclose the contradiction — that is a real finding, unlike
+   the diff itself.
+
    Cite what the executor gives you, not what the view shows: obtain the citable ref with
    `python scripts/knowledge_store.py entry-status --identity <Identity>`. A search hit, a
    `context` pack and a rendered dossier are never themselves citable — the `citation` block they

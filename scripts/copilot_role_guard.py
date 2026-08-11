@@ -126,8 +126,11 @@ KNOWLEDGE_STORE_COMMAND_FLAGS = {
     "entry-revoke": frozenset({"--identity", "--rationale"}),
     "entry-status": frozenset({"--identity"}),
     # Read-only report; --review-cycle-days only widens or narrows the maintenance window it
-    # summarises and can write nothing (owner decision D5, 2026-08-11).
-    "entry-coverage": frozenset({"--review-cycle-days"}),
+    # summarises and can write nothing (owner decision D5, 2026-08-11). --analyze-facts adds the
+    # structural facts comparison, which re-derives facts in memory and compares digests: it
+    # writes no entry, ledger, source pin or approval artifact either (phase 2 D1), so it stays
+    # inside the same read-only grant rather than needing a mutation role.
+    "entry-coverage": frozenset({"--review-cycle-days", "--analyze-facts"}),
     "entry-check": frozenset({"--changed-since"}),
     # Read-only citation verdicts (entryRefs); the entry-side successor of the registry's
     # verify-citations, relocated in v1-retirement P0. Reads stay universal.

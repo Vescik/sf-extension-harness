@@ -16,6 +16,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+import unittest.mock
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -1522,6 +1523,322 @@ class IndexFreshnessDisclosureTests(EntryFixtureMixin, unittest.TestCase):
         self.assertLess(len(disclosure), 220, "the row disclosure grew back into a paragraph")
         sentences = [part for part in disclosure.split(". ") if part.strip()]
         self.assertEqual(2, len(sentences), "one statement of fact, one instruction — no more")
+
+
+class PerRowDisclosureTests(EntryFixtureMixin, unittest.TestCase):
+    """Every lane-labelled row carries `effective` and `advisories`, not a lane label alone.
+
+    Phase 1 split approval effectiveness from source freshness — `compute_lane` and the citation
+    receipts gained `effective` plus a `SOURCE_DRIFT` advisory naming the changed files — and
+    stopped there. Retrieval rows kept the single `lifecycle` string they had before, so a
+    consumer had to re-derive effectiveness from a lane literal (the re-decision
+    `is_effective_entry_lane` exists to prevent) and could not tell WHICH served row was the
+    drifted one: the disclosure existed for the anchor and for nothing else in the answer.
+
+    The fixture drifts three different sources after approval and rebuilds, so a drifted entry
+    reaches each surface as a ROW rather than as the anchor. The fields are index-fresh, like the
+    label they accompany — the tests below pin that too, because a per-row live re-hash is exactly
+    the per-query cost §15.3 refuses to pay.
+    """
+
+    OBJECT_SOURCE = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">\n'
+        "    <label>Harness Alpha Case</label>\n"
+        "    <sharingModel>ReadWrite</sharingModel>\n"
+        "</CustomObject>\n"
+    )
+    PERMISSION_SET_SOURCE = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<PermissionSet xmlns="http://soap.sforce.com/2006/04/metadata">\n'
+        "    <label>Harness Alpha Grants</label>\n"
+        "    <objectPermissions><object>HarnessAlphaCase__c</object>"
+        "<allowRead>true</allowRead></objectPermissions>\n"
+        "</PermissionSet>\n"
+    )
+    FLOW_FRAGMENT = "force-app/main/default/flows/HarnessAlphaRouter.flow-meta.xml"
+    FIELD_FRAGMENT = "force-app/main/default/objects/HarnessAlphaCase__c/fields/Status__c.field-meta.xml"
+    GRANTS_FRAGMENT = "force-app/main/default/permissionsets/HarnessAlphaGrants.permissionset-meta.xml"
+
+    def setUp(self) -> None:
+        super().setUp()
+        (self.temp / "force-app/main/default/permissionsets").mkdir(parents=True)
+        (self.temp / self.GRANTS_FRAGMENT).write_text(self.PERMISSION_SET_SOURCE, encoding="utf-8")
+        objects = self.temp / "force-app/main/default/objects/HarnessAlphaCase__c"
+        (objects / "HarnessAlphaCase__c.object-meta.xml").write_text(
+            self.OBJECT_SOURCE, encoding="utf-8"
+        )
+        self.seeded = self.seed()
+        self.object_entry = self.draft(
+            "CustomObject", "HarnessAlphaCase__c", "Cases handled by the alpha team."
+        )
+        self.grants_entry = self.draft(
+            "PermissionSet", "HarnessAlphaGrants", "Grants the alpha team read on the case object."
+        )
+        self.approve(self.object_entry, self.grants_entry)
+        # Drift AFTER approval, then rebuild: the projection has to carry the lane the store
+        # computes, or the row disclosure would be testing the index's memory of a clean corpus.
+        for fragment in (self.FLOW_FRAGMENT, self.FIELD_FRAGMENT, self.GRANTS_FRAGMENT):
+            with (self.temp / fragment).open("a", encoding="utf-8") as handle:
+                handle.write("<!-- appended after approval -->\n")
+        search.build_index()
+        self.drifted = {
+            self.seeded["alpha"]["identity"]: self.FLOW_FRAGMENT,
+            self.seeded["status"]["identity"]: self.FIELD_FRAGMENT,
+            self.grants_entry["identity"]: self.GRANTS_FRAGMENT,
+        }
+
+    # --- helpers -------------------------------------------------------------------
+
+    def explain(self, identity, **kwargs):
+        args = dict(identity=identity, state=None, top=50, include_heuristic=True)
+        args.update(kwargs)
+        return search.run_explain(argparse.Namespace(**args))
+
+    def context(self, identity, **kwargs):
+        args = dict(identity=identity, state=None, top=25, include_heuristic=True,
+                    direction="incoming")
+        args.update(kwargs)
+        return search.run_context(argparse.Namespace(**args))
+
+    def impact(self, identity, **kwargs):
+        args = dict(identity=identity, depth=2, direction="incoming", state=None, top=50,
+                    include_heuristic=True)
+        args.update(kwargs)
+        return search.run_impact(argparse.Namespace(**args))
+
+    @staticmethod
+    def flat(section):
+        if isinstance(section, dict):
+            return [row for rows in section.values() for row in rows]
+        return list(section)
+
+    def assert_discloses(self, row, identity, label=""):
+        """The whole per-row contract for one drifted row, in one place."""
+        self.assertEqual("approved-drifted", row["lifecycle"], label)
+        self.assertIs(True, row["effective"], f"{label}: a drifted row is effective knowledge")
+        drift = [item for item in row["advisories"] if item["code"] == "SOURCE_DRIFT"]
+        self.assertEqual(1, len(drift), f"{label}: exactly one drift advisory, {row['advisories']}")
+        self.assertEqual(identity, drift[0]["identity"], f"{label}: advisory does not name its entry")
+        self.assertEqual([self.drifted[identity]], drift[0]["paths"], label)
+
+    def test_an_exact_search_row_names_the_drifted_entry_and_the_moved_file(self) -> None:
+        result = self.search(identity=self.seeded["alpha"]["identity"])
+        [hit] = result["approvedResults"]
+        self.assert_discloses(hit, self.seeded["alpha"]["identity"], "search exact")
+
+    def test_a_free_text_search_row_carries_the_same_fields(self) -> None:
+        # The same projection feeds both match classes; the previous shape let a caller believe
+        # otherwise, because only the identity lookup was ever asserted on.
+        result = self.search(text="kieruje sprawy")
+        hits = [hit for hit in result["approvedResults"]
+                if hit["artifactId"] == self.seeded["alpha"]["identity"]]
+        self.assertTrue(hits, "fixture no longer reaches the drifted entry by free text")
+        self.assertNotEqual("exact-identity", hits[0]["matchClass"])
+        self.assert_discloses(hits[0], self.seeded["alpha"]["identity"], "search free-text")
+
+    def test_context_parts_permissions_and_incoming_rows_all_disclose(self) -> None:
+        result = self.context(self.object_entry["identity"])
+        sections = {
+            "parts": (self.seeded["status"]["identity"], "source"),
+            "permissions": (self.grants_entry["identity"], "source"),
+            "incoming": (self.seeded["alpha"]["identity"], "source"),
+        }
+        for section, (identity, key) in sections.items():
+            with self.subTest(section=section):
+                rows = [row for row in self.flat(result[section]) if row[key] == identity]
+                self.assertTrue(rows, f"fixture no longer serves a drifted `{section}` row")
+                for row in rows:
+                    self.assert_discloses(row, identity, f"context {section}")
+
+    def test_explain_incoming_and_outgoing_rows_all_disclose(self) -> None:
+        incoming = self.explain(self.object_entry["identity"])["incoming"]
+        rows = [row for row in incoming if row["source"] == self.seeded["alpha"]["identity"]]
+        self.assertTrue(rows, "fixture no longer serves the drifted entry as an incoming row")
+        for row in rows:
+            self.assert_discloses(row, self.seeded["alpha"]["identity"], "explain incoming")
+        # An outgoing edge is declared BY the anchor, so the anchor is its authority — the row
+        # wears the anchor's lane and advisory, not a lane borrowed from its target.
+        outgoing = self.explain(self.seeded["alpha"]["identity"])["outgoing"]
+        self.assertTrue(outgoing, "fixture no longer declares outgoing edges")
+        for row in outgoing:
+            self.assert_discloses(row, self.seeded["alpha"]["identity"], "explain outgoing")
+
+    def test_impact_nodes_disclose_the_entry_the_hop_reached(self) -> None:
+        result = self.impact("HarnessAlphaCase__c")
+        rows = result["nodes"] + result["nodesNonCurrent"]
+        reached = {row["node"] for row in rows}
+        for identity in (self.seeded["alpha"]["identity"], self.seeded["status"]["identity"]):
+            with self.subTest(identity=identity):
+                self.assertIn(identity, reached, "fixture no longer reaches the drifted entry")
+                for row in [item for item in rows if item["node"] == identity]:
+                    self.assert_discloses(row, identity, "impact node")
+                    self.assertTrue(row["path"], "a node row without its path is not a chain row")
+
+    def test_one_row_never_repeats_one_advisory(self) -> None:
+        """Two entries pointing at one anchor is two rows; one entry is one advisory.
+
+        The drift advisory is per-ENTRY, and a row is joined to its entry more than once on the
+        way to the answer (identity and fullName are both walked). A list that grew a duplicate
+        would read as two findings about one file.
+        """
+
+        result = self.context(self.object_entry["identity"])
+        rows = [row for key in ("parts", "permissions", "incoming", "outgoing")
+                for row in self.flat(result[key])]
+        self.assertTrue(rows)
+        for row in rows:
+            serialized = [json.dumps(item, sort_keys=True) for item in row["advisories"]]
+            self.assertEqual(len(set(serialized)), len(serialized), f"duplicated advisory: {row}")
+        # And the global disclosure stays one short line that names no identity or path — the
+        # per-row fields are what carry the specifics now.
+        self.assertNotIn(self.seeded["alpha"]["identity"], search.ROW_LIFECYCLE_DISCLOSURE)
+        self.assertNotIn(self.FLOW_FRAGMENT, search.ROW_LIFECYCLE_DISCLOSURE)
+
+    def test_a_non_effective_row_is_marked_not_effective_and_gains_no_drift(self) -> None:
+        store.command_entry_revoke(
+            argparse.Namespace(identity=self.seeded["alpha"]["identity"], rationale="test revocation")
+        )
+        search.build_index()
+        result = self.context(
+            self.object_entry["identity"], state=["approved-current", "approved-drifted", "revoked"]
+        )
+        rows = [row for row in self.flat(result["incomingNonCurrent"])
+                if row["source"] == self.seeded["alpha"]["identity"]]
+        self.assertTrue(rows, "fixture no longer serves the revoked entry as an opted-in row")
+        for row in rows:
+            self.assertEqual("revoked", row["lifecycle"])
+            self.assertIs(False, row["effective"])
+            self.assertEqual([], row["advisories"], "a revoked entry is not 'drifted'")
+
+    def test_an_unresolved_traversal_row_does_not_look_like_knowledge(self) -> None:
+        result = self.impact(self.seeded["beta"]["identity"], direction="outgoing")
+        rows = result["nodes"] + result["nodesNonCurrent"]
+        unresolved = [row for row in rows if not row["resolved"]]
+        self.assertTrue(unresolved, "fixture no longer walks into a name with no entry")
+        for row in unresolved:
+            self.assertIsNone(row["lifecycle"])
+            self.assertIs(False, row["effective"], "a bare name is not effective knowledge")
+            self.assertEqual([], row["advisories"], "there is no entry to advise about")
+
+    def test_the_new_fields_are_index_fresh_and_say_so(self) -> None:
+        """The fields join the label; they do not quietly upgrade it to a live reading.
+
+        Drifting a fourth source AFTER the build must change nothing in the served rows: if it
+        did, the query path had re-hashed source per row — the cost §15.3 declines to pay — and
+        `lifecycleBasis.rows` would be a false statement rather than a disclosure.
+        """
+
+        before = self.context(self.object_entry["identity"])
+        beta_fragment = self.temp / "force-app/main/default/flows/HarnessBetaDispatch.flow-meta.xml"
+        with beta_fragment.open("a", encoding="utf-8") as handle:
+            handle.write("<!-- drifted after the index was built -->\n")
+        after = self.context(self.object_entry["identity"])
+        self.assertEqual("index-fresh", after["lifecycleBasis"]["rows"])
+        for key in ("parts", "permissions", "incoming"):
+            self.assertEqual(self.flat(before[key]), self.flat(after[key]), key)
+
+    def test_the_query_path_hashes_source_for_the_anchor_only(self) -> None:
+        # The structural half of the statement above: rows are DISCLOSED, not re-checked, so the
+        # only live source read in a call is the anchor's — one entry, whatever the row count.
+        calls: list[str] = []
+        real = search.source_drift_gaps
+
+        def counting(document):
+            calls.append(document["identity"])
+            return real(document)
+
+        with unittest.mock.patch.object(search, "source_drift_gaps", counting):
+            result = self.context(self.object_entry["identity"])
+        rows = [row for key in ("parts", "permissions", "incoming") for row in self.flat(result[key])]
+        self.assertGreater(len(rows), 1, "fixture must serve several rows to make this meaningful")
+        self.assertEqual([self.object_entry["identity"]], calls)
+
+
+class QueryPathHasNoFactExtractionTests(EntryFixtureMixin, unittest.TestCase):
+    """Nothing on the ordinary read path re-extracts facts. Not once, not for the anchor.
+
+    Phase 2's analyzer runs the collector over source and re-derives structural facts. That is
+    affordable exactly because it happens only when a maintainer asks for it: putting it on
+    `search`/`context`/`explain`/`impact`, on `entry-status`, or on the citation verifier would
+    add a source-tree read to every call an agent makes, which is the cost §15.3 explicitly
+    declines to pay and the reason phase 2 is a flag on a report rather than an overlay.
+
+    The stubs raise rather than count: a single call is the regression, so there is no threshold
+    to argue about.
+    """
+
+    SURFACES = ("search", "explain", "context", "impact")
+
+    def call(self, surface, identity):
+        if surface == "search":
+            return self.search(identity=identity)
+        args = {
+            "explain": dict(identity=identity, state=None, top=50, include_heuristic=False),
+            "context": dict(identity=identity, state=None, top=25, include_heuristic=False,
+                            direction="incoming"),
+            "impact": dict(identity=identity, depth=1, direction="incoming", state=None, top=50,
+                           include_heuristic=False),
+        }[surface]
+        return {"explain": search.run_explain, "context": search.run_context,
+                "impact": search.run_impact}[surface](argparse.Namespace(**args))
+
+    def forbid_extraction(self):
+        def refuse(*args, **kwargs):
+            raise AssertionError("the read path re-extracted facts")
+
+        return [
+            unittest.mock.patch.object(store, name, refuse)
+            for name in ("derive_structured_facts", "analyze_entry_facts", "fact_analysis_report",
+                         "collector_component")
+        ]
+
+    def test_no_retrieval_surface_re_extracts_facts(self) -> None:
+        seeded = self.seed()
+        for surface in self.SURFACES:
+            with self.subTest(surface=surface):
+                patches = self.forbid_extraction()
+                for patch in patches:
+                    patch.start()
+                try:
+                    self.call(surface, seeded["alpha"]["identity"])
+                finally:
+                    for patch in patches:
+                        patch.stop()
+
+    def test_neither_entry_status_nor_the_citation_verifier_re_extracts(self) -> None:
+        seeded = self.seed()
+        patches = self.forbid_extraction()
+        for patch in patches:
+            patch.start()
+        try:
+            status = store.command_entry_status(
+                argparse.Namespace(identity=seeded["alpha"]["identity"])
+            )
+            verdicts = store.verify_entry_citations(
+                self.temp, [{"entryId": seeded["alpha"]["identity"]}]
+            )
+        finally:
+            for patch in patches:
+                patch.stop()
+        # The receipts still answer — this is a "no extra work" test, not a "no work" test.
+        self.assertEqual("approved-current", status["entries"][0]["lane"])
+        self.assertTrue(verdicts)
+        # And neither receipt grew a facts-analysis field it would have to have re-extracted for.
+        self.assertNotIn("factAnalysis", status)
+        self.assertNotIn("analysisCode", json.dumps(verdicts))
+
+    def test_the_index_build_does_not_re_extract_either(self) -> None:
+        # `build` re-projects entries; it must keep reading the entry files, never the source.
+        self.seed()
+        patches = self.forbid_extraction()
+        for patch in patches:
+            patch.start()
+        try:
+            search.build_index()
+        finally:
+            for patch in patches:
+                patch.stop()
 
 
 class RelationMultiplicityTests(EntryFixtureMixin, unittest.TestCase):

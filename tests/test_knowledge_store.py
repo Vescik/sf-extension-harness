@@ -837,6 +837,133 @@ class EntryCitationVerificationTests(KnowledgeStoreFixture):
         self.assertNotIn("CustomObject", report["missingEntryCounts"])
 
 
+class SharedFactsProjectionTests(KnowledgeStoreFixture):
+    """`entry-draft` and the read-only facts analyzer derive facts through ONE function.
+
+    Phase 2 compares an approved entry's `factsDigest` against a fresh extraction of the same
+    component. If the analyzer re-implemented the ~15 lines that turn a collector component into
+    `{typeFacts, intentionalErrors, limitations, extractionCoverage, assurance}`, every
+    disagreement between the two copies would be reported forever as artifact drift — the exact
+    silent divergence phase 2 exists to detect, reproduced inside the detector. So there is one
+    projection, and these tests pin both halves of it: draft output IS the helper's output, and
+    the helper's output for the fixture corpus is byte-stable.
+
+    GOLDEN_FACTS_DIGESTS were measured on the commit BEFORE the shared helper existed, by
+    drafting the same four fixtures against the pre-refactor code and diffing the rendered
+    entries: the refactor changed no byte of any draft. They are pinned here so a later edit to
+    the projection cannot silently move what an approved corpus would be compared against.
+    """
+
+    GOLDEN_FACTS_DIGESTS = {
+        "Flow:c:HarnessAlphaRouter":
+            "sha256:acb434aaed85590cf9c2f37e14fd9c8c92fd1f3917ea9e4c29fd15af8392bdcd",
+        "CustomField:c:HarnessAlphaCase__c.Status__c":
+            "sha256:e41ff746ae5967e5e7a8ad609031796628d9262ed4202fffe31ff38e0a7116da",
+        "ApexClass:c:HarnessAlphaService":
+            "sha256:290eb2ee0a3ad29322e13917aaf691d37f17f7611659c0b53085193b48951e16",
+        "ValidationRule:c:HarnessAlphaCase__c.Status_Required":
+            "sha256:9f8038ba9e52d242862dba9d2b8aeb61dcdb3ce913139d9b43eaff5a38f8b869",
+    }
+    CASES = (
+        ("Flow", "HarnessAlphaRouter"),
+        ("CustomField", "HarnessAlphaCase__c.Status__c"),
+        ("ApexClass", "HarnessAlphaService"),
+        ("ValidationRule", "HarnessAlphaCase__c.Status_Required"),
+    )
+
+    def drafted_facts(self, metadata_type: str, full_name: str):
+        result = self.draft(metadata_type=metadata_type, full_name=full_name)
+        front, body = store.split_entry((store.ROOT / result["path"]).read_text(encoding="utf-8"))
+        return result, front, body
+
+    def test_draft_facts_are_exactly_the_shared_projection(self) -> None:
+        for metadata_type, full_name in self.CASES:
+            with self.subTest(metadataType=metadata_type):
+                _result, front, _body = self.drafted_facts(metadata_type, full_name)
+                component = store.collector_component(metadata_type, full_name)
+                derived = store.derive_structured_facts(metadata_type, component, limitations=[])
+                self.assertEqual(derived["typeFacts"], front["typeFacts"])
+                self.assertEqual(derived["extractionCoverage"], front["extractionCoverage"])
+                self.assertEqual(derived["assurance"], front["assurance"])
+                self.assertEqual(derived["limitations"], front["limitations"])
+                self.assertEqual(
+                    derived["intentionalErrors"], front.get("intentionalErrors", []),
+                    "the Flow adapter's intentional errors must survive the shared projection",
+                )
+                # The digest boundary itself, not only the fields it is built from.
+                self.assertEqual(store.facts_digest(front), store.facts_digest(derived))
+
+    def test_the_projection_digests_are_the_pre_refactor_digests(self) -> None:
+        for metadata_type, full_name in self.CASES:
+            with self.subTest(metadataType=metadata_type):
+                result, front, body = self.drafted_facts(metadata_type, full_name)
+                self.assertEqual(
+                    self.GOLDEN_FACTS_DIGESTS[result["identity"]], store.facts_digest(front)
+                )
+                # The reviewed digest closes over factsDigest, so an unchanged facts digest with
+                # a moved reviewed digest would mean the refactor leaked into semantics.
+                self.assertEqual(
+                    result["reviewedContentDigest"], store.reviewed_content_digest(front, body)
+                )
+
+    def test_a_flow_keeps_its_intentional_errors_and_their_assurance(self) -> None:
+        component = store.collector_component("Flow", "HarnessAlphaRouter")
+        derived = store.derive_structured_facts("Flow", component, limitations=[])
+        [error] = derived["intentionalErrors"]
+        self.assertEqual("flow-custom-error", error["kind"])
+        self.assertEqual("customErrors", error["originTag"])
+        self.assertEqual("Block_Discount", error["elementApiName"])
+        # Presence of intentional errors is what adds the second coverage and assurance key;
+        # dropping that step would weaken a digest-bound marker without moving any fact.
+        self.assertEqual("full", derived["extractionCoverage"]["intentionalErrors"])
+        self.assertEqual("source-exact", derived["assurance"]["intentionalErrors"])
+
+    def test_truncated_extraction_still_marks_the_section_partial(self) -> None:
+        # Coverage is digest-bound (contract §5.1): a full->partial regression is a material
+        # weakening, so the truncation aggregates must keep deciding it inside the shared helper.
+        for flag in ("referencesTruncated", "factsTruncated"):
+            with self.subTest(flag=flag):
+                component = {"metadataType": "CustomField", "facts": {"label": "L", flag: True}}
+                derived = store.derive_structured_facts("CustomField", component)
+                self.assertEqual("partial", derived["extractionCoverage"]["typeFacts"])
+        clean = store.derive_structured_facts(
+            "CustomField", {"metadataType": "CustomField", "facts": {"label": "L"}}
+        )
+        self.assertEqual("full", clean["extractionCoverage"]["typeFacts"])
+
+    def test_limitations_are_carried_through_not_invented(self) -> None:
+        """Limitations are human-governed and inside `factsDigest` — the collector cannot
+        derive them. An analyzer that defaulted them to `[]` would report every entry whose
+        reviewer wrote one as facts-changed, which is a false positive with a human cause."""
+
+        component = store.collector_component("CustomField", "HarnessAlphaCase__c.Status__c")
+        kept = store.derive_structured_facts(
+            component=component, metadata_type="CustomField", limitations=["Picklist values not read."]
+        )
+        self.assertEqual(["Picklist values not read."], kept["limitations"])
+        self.assertEqual([], store.derive_structured_facts("CustomField", component)["limitations"])
+
+    def test_the_projection_is_pure(self) -> None:
+        """No filesystem, no mutation of the caller's component. Both were real risks: the
+        draft path this was lifted from reads source and writes an entry around these lines,
+        and an adapter that returned an alias of the component's own lists would let a caller's
+        later edit reach back into the inventory the analyzer is iterating."""
+
+        component = store.collector_component("Flow", "HarnessAlphaRouter")
+        before = copy.deepcopy(component)
+        with unittest.mock.patch("builtins.open", side_effect=AssertionError("read the filesystem")):
+            derived = store.derive_structured_facts("Flow", component, limitations=["keep me"])
+        self.assertEqual(before, component, "the projection mutated the component it was given")
+        derived["typeFacts"]["references"] = []
+        derived["limitations"].append("mutated")
+        self.assertEqual(before, component, "the result aliases the component's own containers")
+
+    def test_an_unprofiled_type_is_refused_rather_than_projected_empty(self) -> None:
+        with self.assertRaises(store.StoreError) as raised:
+            store.derive_structured_facts("NotAType", {"facts": {}})
+        self.assertIn("unsupported metadata type", str(raised.exception))
+
+
 class AdapterFaithfulnessTests(unittest.TestCase):
     """An entry must carry what the collector extracted.
 
@@ -2283,3 +2410,553 @@ class ReleaseCycleMaintenanceTests(KnowledgeStoreFixture):
         # D5: the maintenance pass is read-only. Nothing is refreshed, re-pinned or recorded.
         self.assertEqual(ledger_before, store.LEDGER_PATH.read_bytes())
         self.assertEqual(entry_before, (self.temp / drafted["path"]).read_bytes())
+
+
+class StructuredFactsDeltaTests(unittest.TestCase):
+    """The diff between two canonical facts payloads: keyed where identity exists, positional
+    where order is semantic, and paths only — never values.
+
+    Two properties carry the whole feature. Ordering-only differences must be invisible, or the
+    report becomes a stream of false maintenance the moment a collector changes enumeration
+    order; and the delta must be non-empty exactly when the digests differ, or a maintainer
+    reading `FACTS_CHANGED` with no paths cannot tell a real change from a broken comparison.
+    """
+
+    def facts(self, **overrides):
+        base = {
+            "typeFacts": {"status": "Active", "references": [], "variables": []},
+            "intentionalErrors": [],
+            "limitations": [],
+            "extractionCoverage": {"typeFacts": "full"},
+            "assurance": {"typeFacts": "source-exact"},
+        }
+        base.update(overrides)
+        return base
+
+    def test_identical_facts_produce_no_paths(self) -> None:
+        delta = store.structured_facts_delta(self.facts(), self.facts())
+        self.assertEqual([], delta["deltaPaths"])
+        self.assertEqual([], delta["changedSections"])
+        self.assertEqual({"added": 0, "removed": 0, "changed": 0}, delta["deltaCounts"])
+
+    def test_reordered_keyed_lists_and_scalar_sets_are_not_a_change(self) -> None:
+        references = [
+            {"kind": "writes-field", "target": "A__c.B__c", "assurance": "source-exact"},
+            {"kind": "queries-object", "target": "A__c", "assurance": "source-exact"},
+        ]
+        variables = [{"apiName": "beta"}, {"apiName": "alpha"}]
+        stored = self.facts(
+            typeFacts={"references": list(references), "variables": list(variables)},
+            limitations=["one", "two"],
+        )
+        current = self.facts(
+            typeFacts={
+                "references": list(reversed(references)), "variables": list(reversed(variables))
+            },
+            limitations=["two", "one"],
+        )
+        self.assertEqual([], store.structured_facts_delta(stored, current)["deltaPaths"])
+
+    def test_operations_are_positional_because_execution_order_is_semantic(self) -> None:
+        first = {"kind": "recordLookup", "object": "A__c", "elementApiName": "Get"}
+        second = {"kind": "recordUpdate", "object": "A__c", "elementApiName": "Set"}
+        stored = self.facts(typeFacts={"operations": [first, second]})
+        current = self.facts(typeFacts={"operations": [second, first]})
+        delta = store.structured_facts_delta(stored, current)
+        self.assertTrue(delta["deltaPaths"], "a reordered operation list is a changed flow")
+        self.assertTrue(all("/typeFacts/operations/" in row["path"] for row in delta["deltaPaths"]))
+
+    def test_an_added_reference_names_its_composite_key_not_an_index(self) -> None:
+        stored = self.facts(typeFacts={"references": []})
+        current = self.facts(typeFacts={
+            "references": [{"kind": "writes-field", "target": "Account.Status__c",
+                            "assurance": "source-exact"}]
+        })
+        delta = store.structured_facts_delta(stored, current)
+        self.assertEqual(
+            [{"op": "added", "path": "/typeFacts/references/writes-field:Account.Status__c",
+              "valueType": "object"}],
+            delta["deltaPaths"],
+        )
+        self.assertEqual(["typeFacts"], delta["changedSections"])
+
+    def test_assurance_and_coverage_regressions_are_reported(self) -> None:
+        delta = store.structured_facts_delta(
+            self.facts(),
+            self.facts(assurance={"typeFacts": "source-derived-heuristic"},
+                       extractionCoverage={"typeFacts": "partial"}),
+        )
+        paths = {row["path"] for row in delta["deltaPaths"]}
+        self.assertEqual({"/assurance/typeFacts", "/extractionCoverage/typeFacts"}, paths)
+        self.assertEqual(["assurance", "extractionCoverage"], delta["changedSections"])
+        self.assertEqual(2, delta["deltaCounts"]["changed"])
+
+    def test_intentional_error_changes_are_keyed_by_element(self) -> None:
+        error = {"kind": "flow-custom-error", "elementApiName": "Block", "messageTemplate": "no",
+                 "presentation": {"mode": "record"}}
+        moved = {**error, "presentation": {"mode": "field", "field": "Status__c"}}
+        delta = store.structured_facts_delta(
+            self.facts(intentionalErrors=[error]), self.facts(intentionalErrors=[moved])
+        )
+        self.assertEqual(
+            {"/intentionalErrors/flow-custom-error:Block/presentation/field",
+             "/intentionalErrors/flow-custom-error:Block/presentation/mode"},
+            {row["path"] for row in delta["deltaPaths"]},
+        )
+
+    def test_pointer_escaping_follows_rfc_6901(self) -> None:
+        stored = self.facts(typeFacts={})
+        current = self.facts(typeFacts={"a/b": 1, "c~d": 2})
+        paths = {row["path"] for row in store.structured_facts_delta(stored, current)["deltaPaths"]}
+        self.assertEqual({"/typeFacts/a~1b", "/typeFacts/c~0d"}, paths)
+        # `~` is escaped before `/`, or the escape eats itself.
+        self.assertEqual("~01", store._pointer_segment("~1"))
+
+    def test_no_path_row_carries_a_value(self) -> None:
+        """D9: the delta is paths, ops and JSON types. Copying old/new values would put picklist
+        values, formulas and error message text into a maintenance report."""
+
+        delta = store.structured_facts_delta(
+            self.facts(), self.facts(typeFacts={"status": "SECRET-VALUE", "references": [],
+                                                "variables": []})
+        )
+        blob = json.dumps(delta)
+        self.assertNotIn("SECRET-VALUE", blob)
+        self.assertEqual({"op", "path", "valueType"}, set(delta["deltaPaths"][0]))
+
+    def test_the_path_list_is_capped_while_the_count_stays_complete(self) -> None:
+        wide = {f"field{index:03d}": index for index in range(store.FACT_DELTA_PATH_CAP + 25)}
+        delta = store.structured_facts_delta(self.facts(typeFacts={}), self.facts(typeFacts=wide))
+        self.assertEqual(store.FACT_DELTA_PATH_CAP, len(delta["deltaPaths"]))
+        self.assertTrue(delta["deltaTruncated"])
+        self.assertEqual(store.FACT_DELTA_PATH_CAP + 25, delta["deltaPathCount"])
+        self.assertEqual(store.FACT_DELTA_PATH_CAP + 25, delta["deltaCounts"]["added"])
+
+    def test_the_delta_is_non_empty_exactly_when_the_digest_moves(self) -> None:
+        pairs = [
+            (self.facts(), self.facts()),
+            (self.facts(), self.facts(assurance={"typeFacts": "source-derived-heuristic"})),
+            (self.facts(limitations=["a", "b"]), self.facts(limitations=["b", "a"])),
+            (self.facts(limitations=["a"]), self.facts(limitations=["a", "b"])),
+            (self.facts(typeFacts={"operations": [{"kind": "recordLookup"}]}),
+             self.facts(typeFacts={"operations": []})),
+        ]
+        for stored, current in pairs:
+            with self.subTest(stored=stored, current=current):
+                digests_differ = store.facts_digest(stored) != store.facts_digest(current)
+                delta = store.structured_facts_delta(
+                    store._canonical_facts(stored), store._canonical_facts(current)
+                )
+                self.assertEqual(digests_differ, bool(delta["deltaPaths"]))
+
+    def test_paths_are_sorted_so_two_runs_agree(self) -> None:
+        current = self.facts(typeFacts={"zeta": 1, "alpha": 2, "mu": 3})
+        first = store.structured_facts_delta(self.facts(typeFacts={}), current)
+        second = store.structured_facts_delta(self.facts(typeFacts={}), current)
+        self.assertEqual(first, second)
+        self.assertEqual(
+            sorted(row["path"] for row in first["deltaPaths"]),
+            [row["path"] for row in first["deltaPaths"]],
+        )
+
+
+class FactAnalysisTests(KnowledgeStoreFixture):
+    """`entry-coverage --analyze-facts`: does today's collector still derive the approved facts?
+
+    Byte drift cannot answer that question — a reformatted XML and a deleted comment both drift —
+    and neither can a version comparison, because an adapter edited without a COLLECTOR_VERSION
+    bump changes what is derived while every recorded version still matches. So the facts are
+    re-derived from current source and compared at the exact `factsDigest` boundary.
+
+    The invariants these tests exist to hold: a failure is NEVER counted as equivalent; the
+    analysis changes no lane, no approval and no file; and none of it runs without the flag.
+    """
+
+    FLOW_FRAGMENT = "force-app/main/default/flows/HarnessAlphaRouter.flow-meta.xml"
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.flow = self.draft()
+        self.field = self.draft(
+            metadata_type="CustomField", full_name="HarnessAlphaCase__c.Status__c"
+        )
+        self.approve([
+            f"{item['identity']}:{item['reviewedContentDigest']}" for item in (self.flow, self.field)
+        ])
+
+    def coverage(self, **overrides):
+        args = argparse.Namespace(review_cycle_days=30, analyze_facts=None)
+        for key, value in overrides.items():
+            setattr(args, key, value)
+        return store.command_entry_coverage(args)
+
+    def drift_flow_comment_only(self) -> None:
+        """A source edit the collector cannot see: bytes move, derived facts do not."""
+        path = self.temp / self.FLOW_FRAGMENT
+        path.write_text(
+            path.read_text(encoding="utf-8") + "<!-- reformatted after approval -->\n",
+            encoding="utf-8",
+        )
+
+    def drift_flow_materially(self) -> None:
+        path = self.temp / self.FLOW_FRAGMENT
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                "<status>Active</status>", "<status>Draft</status>"
+            ),
+            encoding="utf-8",
+        )
+
+    # --- D3: no cost, and no output, without the flag ---------------------------------
+
+    def test_without_the_flag_no_analysis_runs_and_no_block_appears(self) -> None:
+        def explode(*args, **kwargs):
+            raise AssertionError("the analyzer ran on a plain coverage call")
+
+        with unittest.mock.patch.object(store, "fact_analysis_report", explode):
+            result = self.coverage()
+        self.assertNotIn("factAnalysis", result)
+        self.assertIn("maintenance", result)
+
+    def test_an_absent_attribute_is_the_same_as_no_flag(self) -> None:
+        # Every existing caller constructs the namespace without the new field.
+        result = store.command_entry_coverage(argparse.Namespace(review_cycle_days=30))
+        self.assertNotIn("factAnalysis", result)
+
+    # --- modes and eligibility ---------------------------------------------------------
+
+    def test_drifted_mode_analyzes_drifted_entries_only(self) -> None:
+        self.drift_flow_comment_only()
+        analysis = self.coverage(analyze_facts="drifted")["factAnalysis"]
+        self.assertEqual("drifted", analysis["mode"])
+        self.assertEqual(1, analysis["counts"]["eligible"])
+        self.assertEqual([self.flow["identity"]],
+                         [row["identity"] for row in analysis["factsEquivalent"]])
+        # The approved-current field entry is excluded BY MODE, not by effectiveness.
+        self.assertEqual({"ENTRY_NOT_SELECTED_BY_MODE": 1}, analysis["excludedCounts"])
+        self.assertEqual(1, analysis["counts"]["excluded"])
+
+    def test_a_comment_only_edit_is_drift_but_not_a_fact_change(self) -> None:
+        self.drift_flow_comment_only()
+        analysis = self.coverage(analyze_facts="drifted")["factAnalysis"]
+        [row] = analysis["factsEquivalent"]
+        self.assertEqual("FACTS_EQUIVALENT", row["analysisCode"])
+        self.assertEqual("approved-drifted", row["lane"])
+        self.assertIs(True, row["effective"], "drift never withdraws effectiveness (D2)")
+        self.assertEqual("drifted", row["sourceFreshness"])
+        self.assertEqual(row["storedFactsDigest"], row["currentFactsDigest"])
+        # The claim is exactly "the extracted facts did not move" — never "nothing changed".
+        self.assertIn("no extracted-fact change", row["interpretation"])
+        self.assertNotIn("semantic", row["interpretation"])
+
+    def test_a_material_source_change_is_reported_as_changed_with_paths(self) -> None:
+        self.drift_flow_materially()
+        analysis = self.coverage(analyze_facts="drifted")["factAnalysis"]
+        [row] = analysis["factsChanged"]
+        self.assertEqual("FACTS_CHANGED", row["analysisCode"])
+        self.assertNotEqual(row["storedFactsDigest"], row["currentFactsDigest"])
+        self.assertEqual(["typeFacts"], row["changedSections"])
+        self.assertEqual([{"op": "changed", "path": "/typeFacts/status", "valueType": "string"}],
+                         row["deltaPaths"])
+        self.assertFalse(row["deltaTruncated"])
+        self.assertEqual(0, analysis["counts"]["equivalent"])
+        self.assertEqual(1, analysis["counts"]["changed"])
+
+    def test_facts_changed_moves_no_lane_and_withdraws_no_approval(self) -> None:
+        """D2 in the only form that matters: after the report, the store answers exactly as it
+        did before it. `FACTS_CHANGED` is a finding, not a verdict and not a blocker."""
+
+        self.drift_flow_materially()
+        before = self.lane_of(self.flow["identity"])
+        self.coverage(analyze_facts="all-approved")
+        after = self.lane_of(self.flow["identity"])
+        self.assertEqual(before, after)
+        self.assertEqual("approved-drifted", after["lane"])
+        self.assertTrue(after["effective"])
+
+    def test_all_approved_covers_both_lanes(self) -> None:
+        self.drift_flow_comment_only()
+        analysis = self.coverage(analyze_facts="all-approved")["factAnalysis"]
+        self.assertEqual(2, analysis["counts"]["eligible"])
+        self.assertEqual(2, analysis["counts"]["equivalent"])
+        self.assertEqual({}, analysis["excludedCounts"])
+        self.assertEqual(
+            {"approved-current", "approved-drifted"},
+            {row["lane"] for row in analysis["factsEquivalent"]},
+        )
+
+    def test_all_approved_catches_an_assurance_change_on_untouched_source(self) -> None:
+        """The drift no other mechanism can see: source bytes identical, every recorded
+        collector version identical, and what the collector DERIVES has changed. `drifted` mode
+        cannot find it by construction, which is why the release-time mode exists."""
+
+        real = store.ADAPTERS["Flow"]
+
+        def weakened(component):
+            type_facts, errors, _assurance = real(component)
+            return type_facts, errors, {"typeFacts": "source-derived-heuristic"}
+
+        with unittest.mock.patch.dict(store.ADAPTERS, {"Flow": weakened}):
+            drifted_mode = self.coverage(analyze_facts="drifted")["factAnalysis"]
+            all_approved = self.coverage(analyze_facts="all-approved")["factAnalysis"]
+        self.assertEqual(0, drifted_mode["counts"]["eligible"], "no entry is source-drifted")
+        [row] = all_approved["factsChanged"]
+        self.assertEqual(self.flow["identity"], row["identity"])
+        self.assertEqual("approved-current", row["lane"])
+        self.assertEqual("current", row["sourceFreshness"])
+        self.assertEqual(["assurance"], row["changedSections"])
+        self.assertEqual(row["storedCollectorVersion"],
+                         all_approved["basis"]["currentCollectorVersion"])
+
+    def test_a_draft_or_revoked_entry_is_excluded_and_counted_never_compared(self) -> None:
+        store.command_entry_revoke(
+            argparse.Namespace(identity=self.field["identity"], rationale="test")
+        )
+        self.draft(metadata_type="ApexClass", full_name="HarnessAlphaService")  # stays draft
+        analysis = self.coverage(analyze_facts="all-approved")["factAnalysis"]
+        self.assertEqual(2, analysis["excludedCounts"]["ENTRY_NOT_EFFECTIVE"])
+        self.assertEqual(1, analysis["counts"]["eligible"])
+        analyzed = {row["identity"] for row in
+                    analysis["factsEquivalent"] + analysis["factsChanged"] + analysis["analysisFailures"]}
+        self.assertEqual({self.flow["identity"]}, analyzed)
+
+    def test_a_missing_source_fragment_stays_a_decision_and_is_never_equivalent(self) -> None:
+        # D3: missing evidence is not drift. The entry leaves the effective lanes, so it is
+        # excluded from the comparison and stays in the maintenance queue that asks for a human.
+        (self.temp / self.FLOW_FRAGMENT).unlink()
+        result = self.coverage(analyze_facts="all-approved")
+        analysis = result["factAnalysis"]
+        classified = {row["identity"] for row in analysis["factsEquivalent"]
+                      + analysis["factsChanged"] + analysis["analysisFailures"]}
+        self.assertNotIn(self.flow["identity"], classified)
+        self.assertEqual(1, analysis["excludedCounts"]["ENTRY_NOT_EFFECTIVE"])
+        self.assertEqual(
+            [self.flow["identity"]],
+            [row["identity"] for row in result["maintenance"]["requiresDecision"]],
+        )
+
+    # --- failures are never equivalence ------------------------------------------------
+
+    def test_an_entry_whose_component_vanished_from_the_inventory_is_a_failure(self) -> None:
+        real = store.ForceAppKnowledge if hasattr(store, "ForceAppKnowledge") else None
+        self.assertIsNone(real, "the collector must stay a local import, not a module attribute")
+        from scripts import force_app_knowledge
+
+        original = force_app_knowledge.ForceAppKnowledge.inventory
+
+        def without_the_flow(self_inner, *args, **kwargs):
+            inventory = original(self_inner, *args, **kwargs)
+            return {
+                **inventory,
+                "components": [
+                    component for component in inventory["components"]
+                    if component.get("metadataType") != "Flow"
+                ],
+            }
+
+        with unittest.mock.patch.object(
+            force_app_knowledge.ForceAppKnowledge, "inventory", without_the_flow
+        ):
+            analysis = self.coverage(analyze_facts="all-approved")["factAnalysis"]
+        failures = [row for row in analysis["analysisFailures"]
+                    if row["identity"] == self.flow["identity"]]
+        self.assertEqual(["ENTRY_COMPONENT_NOT_FOUND"], [row["analysisCode"] for row in failures])
+        self.assertEqual(1, analysis["counts"]["unavailable"])
+        self.assertNotIn(self.flow["identity"],
+                         {row["identity"] for row in analysis["factsEquivalent"]})
+
+    def test_an_unavailable_inventory_reports_failure_rather_than_a_clean_zero(self) -> None:
+        from scripts import force_app_knowledge
+
+        def broken(*args, **kwargs):
+            raise RuntimeError("source tree unreadable")
+
+        with unittest.mock.patch.object(
+            force_app_knowledge.ForceAppKnowledge, "inventory", broken
+        ):
+            result = self.coverage(analyze_facts="all-approved")
+        analysis = result["factAnalysis"]
+        self.assertEqual(0, analysis["counts"]["equivalent"])
+        self.assertEqual(2, analysis["counts"]["unavailable"])
+        self.assertIn("source tree unreadable", analysis["unavailableReason"])
+        self.assertEqual(
+            {"REEXTRACTION_UNAVAILABLE"}, {row["analysisCode"] for row in analysis["analysisFailures"]}
+        )
+
+    def test_a_candidate_outside_the_entrys_profile_is_invalid_not_changed(self) -> None:
+        """A re-extraction the entry's own profile schema refuses is not evidence of drift — it
+        is evidence the pipeline and the profile disagree, and phase 2 does not migrate schemas."""
+
+        def off_profile(component):
+            return {"status": ["not", "a", "string"]}, [], {"typeFacts": "source-exact"}
+
+        with unittest.mock.patch.dict(store.ADAPTERS, {"Flow": off_profile}):
+            analysis = self.coverage(analyze_facts="all-approved")["factAnalysis"]
+        [row] = [item for item in analysis["analysisFailures"]
+                 if item["identity"] == self.flow["identity"]]
+        self.assertEqual("REEXTRACTION_INVALID", row["analysisCode"])
+        self.assertEqual(1, analysis["counts"]["invalid"])
+        self.assertIn("salesforce.flow@1.0.0", row["profile"])
+        self.assertTrue(row["reason"])
+
+    def test_a_collector_crash_is_a_controlled_failure(self) -> None:
+        def crash(component):
+            raise ValueError("adapter blew up")
+
+        with unittest.mock.patch.dict(store.ADAPTERS, {"Flow": crash}):
+            analysis = self.coverage(analyze_facts="all-approved")["factAnalysis"]
+        [row] = [item for item in analysis["analysisFailures"]
+                 if item["identity"] == self.flow["identity"]]
+        self.assertEqual("REEXTRACTION_ERROR", row["analysisCode"])
+        self.assertIn("adapter blew up", row["reason"])
+        self.assertEqual(1, analysis["counts"]["error"])
+
+    def test_every_row_is_classified_exactly_once_and_the_counts_add_up(self) -> None:
+        self.drift_flow_materially()
+        analysis = self.coverage(analyze_facts="all-approved")["factAnalysis"]
+        counts = analysis["counts"]
+        self.assertEqual(
+            counts["analyzed"],
+            counts["equivalent"] + counts["changed"] + counts["unavailable"] + counts["invalid"]
+            + counts["error"],
+        )
+        self.assertEqual(counts["eligible"], counts["analyzed"])
+
+    # --- batch shape, determinism, cost ------------------------------------------------
+
+    def test_one_inventory_pass_and_no_per_entry_collector_lookup(self) -> None:
+        """The N x scan runtime this command was rebuilt to avoid. `collector_component()`
+        re-checks the source tree digest and may rebuild the whole inventory, so calling it once
+        per entry restores exactly the cost the batch pass exists to remove."""
+
+        from scripts import force_app_knowledge
+
+        calls: list[str] = []
+        original = force_app_knowledge.ForceAppKnowledge.inventory
+
+        def counting(self_inner, *args, **kwargs):
+            calls.append("inventory")
+            return original(self_inner, *args, **kwargs)
+
+        def forbidden(*args, **kwargs):
+            raise AssertionError("collector_component() was called per entry")
+
+        with unittest.mock.patch.object(
+            force_app_knowledge.ForceAppKnowledge, "inventory", counting
+        ), unittest.mock.patch.object(store, "collector_component", forbidden):
+            self.coverage(analyze_facts="all-approved")
+        self.assertEqual(1, len(calls))
+
+    def test_two_runs_over_the_same_source_produce_the_same_block(self) -> None:
+        self.drift_flow_materially()
+        first = self.coverage(analyze_facts="all-approved")["factAnalysis"]
+        second = self.coverage(analyze_facts="all-approved")["factAnalysis"]
+        self.assertEqual(first, second)
+
+    def test_lists_are_capped_while_counts_describe_the_population(self) -> None:
+        # The classification itself is exercised above; this pins the batch envelope, so the
+        # 60-row population is built by stubbing the per-entry analysis rather than by drafting
+        # 60 fixtures (which would measure the collector, not the report).
+        candidates = [
+            (Path(f"entry-{index:03d}.md"), {"identity": f"Flow:c:Entry{index:03d}",
+                                             "lane": "approved-drifted", "effective": True,
+                                             "freshness": "drifted"})
+            for index in range(60)
+        ]
+
+        def classify(path, lane, components):
+            return {"identity": lane["identity"], "lane": lane["lane"], "effective": True,
+                    "analysisCode": "FACTS_CHANGED"}
+
+        with unittest.mock.patch.object(store, "analyze_entry_facts", classify):
+            report = store.fact_analysis_report(
+                "drifted", candidates, {}, {}, source_tree_digest="sha256:x"
+            )
+        self.assertEqual(60, report["counts"]["changed"])
+        self.assertEqual(store.FACT_ANALYSIS_LIST_CAP, len(report["factsChanged"]))
+        self.assertEqual(60, report["listTruncation"]["fullCounts"]["factsChanged"])
+        self.assertEqual(store.FACT_ANALYSIS_LIST_CAP, report["listTruncation"]["cap"])
+        # Sorted by identity, so the capped window is the same window on every run.
+        self.assertEqual(
+            [row["identity"] for row in report["factsChanged"]],
+            sorted(row["identity"] for row in report["factsChanged"]),
+        )
+
+    def test_an_empty_corpus_answers_with_zeros_and_a_basis(self) -> None:
+        for path in store.all_entry_paths():
+            path.unlink()
+        store.LEDGER_PATH.unlink()
+        analysis = self.coverage(analyze_facts="all-approved")["factAnalysis"]
+        self.assertEqual(0, analysis["counts"]["eligible"])
+        self.assertEqual([], analysis["factsEquivalent"])
+        self.assertTrue(analysis["basis"]["currentCollectorVersion"])
+        self.assertTrue(analysis["basis"]["sourceTreeDigest"])
+        self.assertIn(analysis["basis"]["workspaceStatus"], {"clean", "dirty", "unknown"})
+
+    def test_the_report_states_its_own_boundary(self) -> None:
+        analysis = self.coverage(analyze_facts="all-approved")["factAnalysis"]
+        self.assertEqual(store.FACT_ANALYSIS_POLICY, analysis["policy"])
+        self.assertIn("factsDigest", analysis["basis"]["comparedAt"])
+        # The one sentence that must never be simplified into "the source did not change".
+        self.assertIn("not that the artifact is", analysis["note"])
+        self.assertIn("Purpose", analysis["note"])
+
+    # --- D1/D12: the whole point is that it writes nothing ------------------------------
+
+    def snapshot(self) -> dict[str, bytes]:
+        """Every byte in the workspace except git internals and the derived inventory cache.
+
+        Keys are POSIX, never `str(Path)`: the team runs Windows, where the native form is
+        `.ai\\knowledge\\…` and every path assertion below silently stops matching. The bytes
+        comparison would still have worked — but only by luck, because both snapshots would key
+        the same way, so the test would have kept passing while its explicit
+        "the ledger is in here" precondition quietly asserted nothing (caught by CI on
+        windows-latest, 2026-08-11)."""
+
+        return {
+            path.relative_to(self.temp).as_posix(): path.read_bytes()
+            for path in sorted(self.temp.rglob("*"))
+            if path.is_file()
+            and ".git/" not in path.relative_to(self.temp).as_posix() + "/"
+            and not path.relative_to(self.temp).as_posix().startswith(".cache/")
+        }
+
+    def test_the_analysis_writes_nothing_authoritative(self) -> None:
+        """The no-write proof, by bytes rather than by inspection: entries, the approval ledger,
+        force-app source, config and any feature/org ledger are identical after both modes run.
+
+        The one permitted change is `.cache/knowledge-proposals/` — the collector's derived
+        inventory, which `entry-coverage` already refreshed before phase 2, is not authority and
+        cannot be cited. Nothing else moves, and in particular no source pin is refreshed even
+        when the facts come back equivalent (D12) and no approval artifact is produced."""
+
+        self.drift_flow_materially()
+        before = self.snapshot()
+        self.assertIn(".ai/knowledge/artifacts-ledger.jsonl", before)
+        self.assertTrue(any(name.startswith("force-app/") for name in before))
+        for mode in store.FACT_ANALYSIS_MODES:
+            with self.subTest(mode=mode):
+                self.coverage(analyze_facts=mode)
+                self.assertEqual(before, self.snapshot(), f"{mode} wrote to the workspace")
+        # A refreshed source pin is the specific write a "the facts still match" result would
+        # most plausibly tempt an implementer into (D12).
+        front, _ = store.split_entry((self.temp / self.flow["path"]).read_text(encoding="utf-8"))
+        freshness = store.source_fragment_freshness(front)
+        self.assertEqual("drifted", freshness["status"], "the source pin was silently refreshed")
+        # The approvals directory is non-empty because setUp approved through it; what must not
+        # happen is the analysis ADDING an artifact of its own, so the file set is pinned too.
+        approvals = [name for name in self.snapshot() if name.startswith("output/knowledge-approvals/")]
+        self.assertEqual(
+            [name for name in before if name.startswith("output/knowledge-approvals/")], approvals
+        )
+
+    def test_the_analysis_never_guesses_why_the_facts_moved(self) -> None:
+        # D7: source and pipeline can move together, and an un-bumped adapter contradicts the
+        # version, so the report shows the coordinates and refuses to name a cause.
+        self.drift_flow_materially()
+        analysis = self.coverage(analyze_facts="drifted")["factAnalysis"]
+        [row] = analysis["factsChanged"]
+        self.assertNotIn("changeOrigin", row)
+        self.assertIn("storedCollectorVersion", row)
+        self.assertIn("currentCollectorVersion", analysis["basis"])
+        self.assertIn("sourceFreshness", row)

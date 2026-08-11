@@ -808,21 +808,14 @@ def validate_entry(frontmatter: dict[str, Any], body: str) -> list[str]:
     # the append-only SCHEMA_REGISTRY — never from the current PROFILES mapping for the
     # type. A consolidation that repoints PROFILES therefore never re-validates existing
     # entries against a schema they were not drafted with (plan 2026-08-09 §2.1).
-    declared = frontmatter.get("profile") or {}
-    declared_major = profile_major(declared.get("version") or "")
-    schema_name = SCHEMA_REGISTRY.get((declared.get("id"), declared_major))
-    if schema_name is None:
-        problems.append(
-            "no registered schema for profile "
-            f"{declared.get('id')!r}@{declared_major!r} (metadataType {metadata_type!r})"
-        )
-    else:
-        profile_validator = Draft202012Validator(load_schema(schema_name))
-        payload = {
-            "typeFacts": frontmatter.get("typeFacts", {}),
-            "intentionalErrors": frontmatter.get("intentionalErrors", []),
-        }
-        problems.extend(_schema_problem(error) for error in profile_validator.iter_errors(payload))
+    # One resolution + validation, shared with the read-only facts analyzer: a candidate
+    # re-extraction has to be judged by exactly the schema an existing entry is judged by, or
+    # the analyzer would report a validation difference of its own making as artifact drift.
+    problems.extend(
+        f"{problem} (metadataType {metadata_type!r})" if problem.startswith("no registered schema")
+        else problem
+        for problem in profile_facts_problems(frontmatter.get("profile") or {}, frontmatter)
+    )
     raw = yaml.dump(frontmatter, sort_keys=True) + body
     if SENTINEL_PATTERN.search(raw):
         problems.append("unfilled <AGENT_...> sentinel present (contract §6.4.6)")
@@ -1409,6 +1402,58 @@ ADAPTERS = {
 }
 
 
+def derive_structured_facts(
+    metadata_type: str,
+    component: dict[str, Any],
+    *,
+    limitations: list[str] | None = None,
+) -> dict[str, Any]:
+    """The five `factsDigest` inputs derived from one collector component — and nothing else.
+
+    ONE projection, shared by `entry-draft` (which writes it into a new entry) and by the
+    read-only facts analyzer (which recomputes it to compare against an approved entry). A second
+    copy of these ~15 lines is the failure mode phase 2 exists to detect, reproduced inside the
+    detector: the analyzer would compare an entry against a projection nothing else produces, and
+    every disagreement between the two copies would be reported as artifact drift forever.
+
+    Pure by construction — no filesystem, no ledger, no cache, no clock, no Purpose — so the only
+    thing that moves its output is the collector, the adapter, or the assurance vocabulary, which
+    is exactly the surface the analyzer is trying to measure. The result is deep-copied so a
+    caller that edits the facts it was handed cannot reach back into the component it was
+    derived from.
+
+    `limitations` are human-governed: the collector cannot derive them, but they ARE inside
+    `factsDigest`, so the analyzer must pass the approved entry's own list through rather than
+    let an empty default read as "the human removed every limitation" (contract §5.1).
+    """
+
+    adapter = ADAPTERS.get(metadata_type)
+    if adapter is None:
+        raise StoreError(
+            f"unsupported metadata type {metadata_type!r}; profiled types: " + ", ".join(sorted(PROFILES))
+        )
+    type_facts, intentional, assurance = adapter(component)
+    coverage = {
+        # Either truncation aggregate marks the section partial: referencesTruncated for
+        # capped edges, factsTruncated for capped fact arrays (contract §5, 2026-08-04).
+        "typeFacts": "partial"
+        if type_facts.get("referencesTruncated") or type_facts.get("factsTruncated")
+        else "full"
+    }
+    if intentional:
+        coverage["intentionalErrors"] = "full"
+        assurance = {**assurance, "intentionalErrors": "source-exact"}
+    return copy.deepcopy(
+        {
+            "typeFacts": type_facts,
+            "intentionalErrors": intentional,
+            "limitations": list(limitations or []),
+            "extractionCoverage": coverage,
+            "assurance": assurance,
+        }
+    )
+
+
 # --- write path -------------------------------------------------------------------------
 
 
@@ -1465,7 +1510,9 @@ def command_entry_draft(args: argparse.Namespace) -> dict[str, Any]:
             + ", ".join(sorted(PROFILES))
         )
     component = collector_component(metadata_type, args.full_name)
-    type_facts, intentional, assurance = adapter(component)
+    # The same projection the read-only facts analyzer runs, so a drafted entry and a
+    # re-extraction of the same component are comparable by construction (phase 2, D5).
+    facts = derive_structured_facts(metadata_type, component, limitations=[])
     # Without an authored description the entry carries a sentinel: the facts are extracted,
     # but the artifact cannot be approved until an agent has read the source and written what
     # the component does. An empty body would look finished; a sentinel cannot be approved.
@@ -1479,16 +1526,6 @@ def command_entry_draft(args: argparse.Namespace) -> dict[str, Any]:
 
     fragment_path = ROOT / component["path"]
     fragments = [{"path": component["path"], "sourceDigest": f"sha256:{file_digest(fragment_path)}"}]
-    coverage = {
-        # Either truncation aggregate marks the section partial: referencesTruncated for
-        # capped edges, factsTruncated for capped fact arrays (contract §5, 2026-08-04).
-        "typeFacts": "partial"
-        if type_facts.get("referencesTruncated") or type_facts.get("factsTruncated")
-        else "full"
-    }
-    if intentional:
-        coverage["intentionalErrors"] = "full"
-        assurance = {**assurance, "intentionalErrors": "source-exact"}
     frontmatter: dict[str, Any] = {
         "schemaVersion": 1,
         "subject": {"metadataType": metadata_type, "fullName": args.full_name, "namespace": args.namespace},
@@ -1507,17 +1544,17 @@ def command_entry_draft(args: argparse.Namespace) -> dict[str, Any]:
         },
         "source": {"fragments": fragments},
         "lifecycle": {"state": "draft", "contentDigest": "sha256:" + "0" * 64},
-        "typeFacts": type_facts,
-        "extractionCoverage": coverage,
-        "assurance": assurance,
-        "limitations": [],
+        "typeFacts": facts["typeFacts"],
+        "extractionCoverage": facts["extractionCoverage"],
+        "assurance": facts["assurance"],
+        "limitations": facts["limitations"],
         "keywords": [],
         "candidateKeywords": list(args.candidate_keyword or [])[:5],
         "sensitivity": "internal-sanitized",
         "approval": {"reviewedContentDigest": None, "reviewedBy": None, "reviewedAt": None, "mechanism": None},
     }
-    if intentional:
-        frontmatter["intentionalErrors"] = intentional
+    if facts["intentionalErrors"]:
+        frontmatter["intentionalErrors"] = facts["intentionalErrors"]
     # M-R4 carry-forward (contract §2.3): a redraft rebuilds this frontmatter wholesale and must
     # not silently drop the digest-excluded org observation an earlier attach persisted.
     carry_forward_org_usage(frontmatter, entry_path(metadata_type, args.namespace, args.full_name))
@@ -2065,6 +2102,384 @@ def maintenance_summary(
     return summary
 
 
+# --- read-only structural facts analysis (phase 2) --------------------------------------
+#
+# One question, asked explicitly and answered without writing anything: does the current
+# collector, run over the current source, derive the same canonical facts that are recorded in
+# an approved entry? Byte drift cannot answer it (a reformatted XML drifts; a comment drifts)
+# and neither can a version comparison (an adapter edit without a COLLECTOR_VERSION bump changes
+# what is derived while every version matches). So the facts are re-derived and compared at the
+# exact `factsDigest` boundary — no second canonicalization, no "almost the same" digest.
+#
+# What this is NOT (owner decisions D1/D2, master plan §4): it is not a lane, not an approval
+# verdict, not a citation input, and not task-aware. `FACTS_CHANGED` is a finding a maintainer
+# reads; it withdraws nothing. Nothing here runs unless `--analyze-facts` is passed.
+
+FACT_ANALYSIS_MODES = ("drifted", "all-approved")
+FACT_ANALYSIS_LIST_CAP = 50
+FACT_DELTA_PATH_CAP = 100
+
+# Keyed lists: identity inside the array is a composite of these fields, so an insertion in the
+# middle is one added path rather than a re-index of every element after it. The keys mirror the
+# canonicalization the digest already uses (contract §5.1) — `operations[]` is deliberately
+# absent, because execution order IS semantic there and index comparison is the honest one.
+_DELTA_LIST_KEYS = {
+    "references": ("kind", "target"),
+    "variables": ("apiName",),
+    "intentionalErrors": ("kind", "elementApiName"),
+}
+# Order-insensitive scalar collections: canonicalization sorts them, so a reorder is not a change.
+_DELTA_SCALAR_SETS = frozenset({"customLabelRefs", "limitations"})
+
+
+def _pointer_segment(value: Any) -> str:
+    """RFC 6901 escaping — `~` before `/`, or the escape would eat itself."""
+    return str(value).replace("~", "~0").replace("/", "~1")
+
+
+def _value_type(value: Any) -> str:
+    """The JSON type of a value, which is disclosure; the value itself never is (D9)."""
+    if value is None:
+        return "null"
+    if isinstance(value, bool):
+        return "boolean"
+    if isinstance(value, int):
+        return "integer"
+    if isinstance(value, float):
+        return "number"
+    if isinstance(value, str):
+        return "string"
+    if isinstance(value, list):
+        return "array"
+    if isinstance(value, dict):
+        return "object"
+    return "unknown"
+
+
+def _keyed_index(rows: list[Any], keys: tuple[str, ...]) -> dict[str, Any] | None:
+    """`{composite key: element}`, or None when the key is not usable for this list.
+
+    A non-mapping element or a repeated key means the composite is not an identity here, and a
+    diff keyed on a non-identity invents paired changes out of unrelated rows. Returning None
+    makes the caller fall back to positional comparison, which is noisier but never wrong."""
+
+    index: dict[str, Any] = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            return None
+        composite = ":".join(str(row.get(key, "")) for key in keys)
+        if composite in index:
+            return None
+        index[composite] = row
+    return index
+
+
+def _delta_paths(stored: Any, current: Any, pointer: str, name: str, out: list[dict[str, Any]]) -> None:
+    """Append `{op, path, valueType}` rows for every difference between two canonical payloads.
+
+    Paths only, never values (D9): a delta that copied facts would carry literal picklist values,
+    formulas and error message text into a maintenance report — token budget spent on the exact
+    material `sensitivity` exists to keep bounded."""
+
+    if isinstance(stored, dict) and isinstance(current, dict):
+        for key in sorted(set(stored) | set(current)):
+            child = f"{pointer}/{_pointer_segment(key)}"
+            if key not in current:
+                out.append({"op": "removed", "path": child, "valueType": _value_type(stored[key])})
+            elif key not in stored:
+                out.append({"op": "added", "path": child, "valueType": _value_type(current[key])})
+            else:
+                _delta_paths(stored[key], current[key], child, key, out)
+        return
+    if isinstance(stored, list) and isinstance(current, list):
+        if name in _DELTA_SCALAR_SETS:
+            for value in sorted(set(map(str, stored)) - set(map(str, current))):
+                out.append({"op": "removed", "path": f"{pointer}/{_pointer_segment(value)}",
+                            "valueType": "string"})
+            for value in sorted(set(map(str, current)) - set(map(str, stored))):
+                out.append({"op": "added", "path": f"{pointer}/{_pointer_segment(value)}",
+                            "valueType": "string"})
+            return
+        keys = _DELTA_LIST_KEYS.get(name)
+        stored_index = _keyed_index(stored, keys) if keys else None
+        current_index = _keyed_index(current, keys) if keys else None
+        if stored_index is not None and current_index is not None:
+            for composite in sorted(set(stored_index) | set(current_index)):
+                child = f"{pointer}/{_pointer_segment(composite)}"
+                if composite not in current_index:
+                    out.append({"op": "removed", "path": child, "valueType": "object"})
+                elif composite not in stored_index:
+                    out.append({"op": "added", "path": child, "valueType": "object"})
+                else:
+                    _delta_paths(stored_index[composite], current_index[composite], child, name, out)
+            return
+        # Positional: `operations[]` (execution order is semantic) and any list whose declared
+        # key turned out not to identify its rows.
+        for position in range(max(len(stored), len(current))):
+            child = f"{pointer}/{position}"
+            if position >= len(current):
+                out.append({"op": "removed", "path": child, "valueType": _value_type(stored[position])})
+            elif position >= len(stored):
+                out.append({"op": "added", "path": child, "valueType": _value_type(current[position])})
+            else:
+                _delta_paths(stored[position], current[position], child, name, out)
+        return
+    if stored != current:
+        out.append({"op": "changed", "path": pointer, "valueType": _value_type(current)})
+
+
+def structured_facts_delta(stored: dict[str, Any], current: dict[str, Any]) -> dict[str, Any]:
+    """The compact, deterministic difference between two `_canonical_facts` payloads.
+
+    Deterministic in the strong sense the report needs: sorted by `(path, op)` after the list
+    rules are applied, so two runs over the same source and the same code produce the same block
+    byte for byte. Counts describe the whole delta even when the path list is capped — a capped
+    list that does not say it is capped reads as "that is all of it"."""
+
+    paths: list[dict[str, Any]] = []
+    _delta_paths(stored, current, "", "", paths)
+    paths.sort(key=lambda row: (row["path"], row["op"]))
+    counts = {"added": 0, "removed": 0, "changed": 0}
+    for row in paths:
+        counts[row["op"]] += 1
+    # Every pointer starts at the facts root, so element 1 of the split is the facts section.
+    sections = sorted({row["path"].split("/")[1] for row in paths if row["path"].startswith("/")})
+    return {
+        "changedSections": [section for section in sections if section],
+        "deltaCounts": counts,
+        "deltaPaths": paths[:FACT_DELTA_PATH_CAP],
+        "deltaTruncated": len(paths) > FACT_DELTA_PATH_CAP,
+        "deltaPathCount": len(paths),
+    }
+
+
+def profile_facts_problems(profile: dict[str, Any], facts: dict[str, Any]) -> list[str]:
+    """Validate a facts payload against the schema the ENTRY declares, via SCHEMA_REGISTRY.
+
+    Never against `PROFILES[metadataType]`: an entry approved under an older profile major must
+    keep being read against the schema it was drafted with, and a re-extraction validated against
+    a newer schema would report a migration as artifact drift (contract §5, plan 2026-08-09 §2.1).
+    """
+
+    from jsonschema import Draft202012Validator
+
+    declared_major = profile_major(profile.get("version") or "")
+    schema_name = SCHEMA_REGISTRY.get((profile.get("id"), declared_major))
+    if schema_name is None:
+        return [f"no registered schema for profile {profile.get('id')!r}@{declared_major!r}"]
+    validator = Draft202012Validator(load_schema(schema_name))
+    payload = {
+        "typeFacts": facts.get("typeFacts", {}),
+        "intentionalErrors": facts.get("intentionalErrors", []),
+    }
+    return [_schema_problem(error) for error in validator.iter_errors(payload)]
+
+
+def analyze_entry_facts(
+    path: Path, lane: dict[str, Any], components: dict[str, dict[str, Any]]
+) -> dict[str, Any]:
+    """Re-derive one approved entry's structural facts and compare them at the digest boundary.
+
+    Reads the entry and the in-memory component map; writes nothing, touches no ledger, and never
+    substitutes fresh source digests into the entry to make a digest recomputable (D1/D12).
+    Every exit is one of the classification codes — a failure can never be counted as equivalent,
+    which is the one confusion that would make the whole report unsafe to act on."""
+
+    identity = lane["identity"]
+    row: dict[str, Any] = {
+        "identity": identity,
+        "lane": lane["lane"],
+        "effective": bool(lane.get("effective", False)),
+        "sourceFreshness": lane.get("freshness", "unknown"),
+    }
+    try:
+        frontmatter, body = split_entry(path.read_text(encoding="utf-8"))
+    except (OSError, StoreError, yaml.YAMLError) as error:
+        return {**row, "analysisCode": "REEXTRACTION_UNAVAILABLE",
+                "reason": f"entry could not be parsed: {error}"}
+    # An entry that does not validate is not evidence to compare against — and it says so before
+    # any facts talk, so a schema problem never surfaces as an artifact change (plan §7 krok 4.4).
+    problems = validate_entry(frontmatter, body)
+    if problems:
+        return {**row, "analysisCode": "ENTRY_NOT_EFFECTIVE",
+                "reason": "; ".join(problems[:3])}
+    subject = frontmatter["subject"]
+    metadata_type = subject["metadataType"]
+    component = components.get(f"{metadata_type}:{subject['fullName']}")
+    if component is None:
+        return {**row, "analysisCode": "ENTRY_COMPONENT_NOT_FOUND",
+                "reason": "no component with this metadata type and full name in the current inventory"}
+    stored_collector = (frontmatter.get("scope") or {}).get("collectorVersion")
+    profile = frontmatter.get("profile") or {}
+    row.update({
+        "storedCollectorVersion": stored_collector,
+        "profile": f"{profile.get('id')}@{profile.get('version')}",
+    })
+    try:
+        candidate = derive_structured_facts(
+            metadata_type, component, limitations=list(frontmatter.get("limitations") or [])
+        )
+    except StoreError as error:
+        return {**row, "analysisCode": "REEXTRACTION_ERROR", "reason": str(error)}
+    except Exception as error:  # a collector/adapter crash is a controlled failure, not a verdict
+        return {**row, "analysisCode": "REEXTRACTION_ERROR",
+                "reason": f"{type(error).__name__}: {error}"}
+    invalid = profile_facts_problems(profile, candidate)
+    if invalid:
+        return {**row, "analysisCode": "REEXTRACTION_INVALID", "reason": "; ".join(invalid[:3])}
+    stored_digest = facts_digest(frontmatter)
+    current_digest = facts_digest(candidate)
+    row.update({"storedFactsDigest": stored_digest, "currentFactsDigest": current_digest})
+    if stored_digest == current_digest:
+        # The digest is the boundary, so it wins over any cosmetic ordering difference the raw
+        # payloads might still show (contract §5.1 sorts them; §5.8 of the plan pins the rule).
+        return {**row, "analysisCode": "FACTS_EQUIVALENT", "interpretation": FACTS_EQUIVALENT_MEANING}
+    delta = structured_facts_delta(_canonical_facts(frontmatter), _canonical_facts(candidate))
+    if not delta["deltaPathCount"]:
+        # Fail closed: differing digests with an empty structured delta means the delta and the
+        # canonicalization disagree. That is an internal inconsistency, never an "equivalent".
+        return {**row, "analysisCode": "REEXTRACTION_ERROR",
+                "reason": "facts digest differs but the structured delta is empty (internal inconsistency)"}
+    return {
+        **row,
+        "analysisCode": "FACTS_CHANGED",
+        "changedSections": delta["changedSections"],
+        "deltaCounts": delta["deltaCounts"],
+        "deltaPaths": delta["deltaPaths"],
+        "deltaTruncated": delta["deltaTruncated"],
+        "deltaPathCount": delta["deltaPathCount"],
+        "interpretation": FACTS_CHANGED_MEANING,
+    }
+
+
+FACTS_EQUIVALENT_MEANING = (
+    "no extracted-fact change detected; source drift, Purpose freshness and org usage remain "
+    "separate axes and this says nothing about them"
+)
+FACTS_CHANGED_MEANING = (
+    "structured facts differ; approval, lane and citability are unchanged and task materiality "
+    "is not decided here"
+)
+FACT_ANALYSIS_POLICY = "diagnostic only; no lane, approval, citation or source-pin mutation"
+_FAILURE_CODES = (
+    "REEXTRACTION_UNAVAILABLE",
+    "ENTRY_COMPONENT_NOT_FOUND",
+    "REEXTRACTION_INVALID",
+    "REEXTRACTION_ERROR",
+    "ENTRY_NOT_EFFECTIVE",
+)
+
+
+def _workspace_status() -> str:
+    """`clean`/`dirty`/`unknown` — basis for the reader, never an input to a classification.
+
+    A facts difference measured against uncommitted source is still a true measurement; it is
+    just not a statement about a commit. Anything that goes wrong (no git, no repo, a slow FS)
+    is `unknown` rather than an exception: this is a disclosure line in a read-only report."""
+
+    import subprocess
+
+    try:
+        result = subprocess.run(
+            ["git", "status", "--porcelain"], cwd=ROOT, capture_output=True, text=True, timeout=20
+        )
+    except (OSError, subprocess.SubprocessError):
+        return "unknown"
+    if result.returncode != 0:
+        return "unknown"
+    return "dirty" if result.stdout.strip() else "clean"
+
+
+def fact_analysis_report(
+    mode: str,
+    candidates: list[tuple[Path, dict[str, Any]]],
+    excluded_counts: dict[str, int],
+    components: dict[str, dict[str, Any]] | None,
+    *,
+    source_tree_digest: str | None,
+    unavailable_reason: str | None = None,
+) -> dict[str, Any]:
+    """One batch report for the whole population — counts always, capped lists, no questions.
+
+    `components is None` means the inventory could not be produced. The caller asked for the
+    analysis explicitly, so the answer is a controlled failure with a named reason: reporting
+    zero changes because nothing could be examined is the one output shape that would be read as
+    "all clear" while meaning "nothing was checked" (plan §7 krok 3.5)."""
+
+    from scripts.force_app_knowledge import COLLECTOR_VERSION
+
+    rows: list[dict[str, Any]] = []
+    for path, lane in candidates:
+        if components is None:
+            rows.append({
+                "identity": lane["identity"], "lane": lane["lane"],
+                "effective": bool(lane.get("effective", False)),
+                "sourceFreshness": lane.get("freshness", "unknown"),
+                "analysisCode": "REEXTRACTION_UNAVAILABLE",
+                "reason": unavailable_reason or "force-app inventory unavailable",
+            })
+            continue
+        rows.append(analyze_entry_facts(path, lane, components))
+    rows.sort(key=lambda item: item["identity"])
+
+    equivalent = [row for row in rows if row["analysisCode"] == "FACTS_EQUIVALENT"]
+    changed = [row for row in rows if row["analysisCode"] == "FACTS_CHANGED"]
+    failures = [row for row in rows if row["analysisCode"] in _FAILURE_CODES]
+    by_code: dict[str, int] = {}
+    for row in failures:
+        by_code[row["analysisCode"]] = by_code.get(row["analysisCode"], 0) + 1
+    counts = {
+        "eligible": len(candidates),
+        "analyzed": len(rows),
+        "equivalent": len(equivalent),
+        "changed": len(changed),
+        "unavailable": by_code.get("REEXTRACTION_UNAVAILABLE", 0)
+        + by_code.get("ENTRY_COMPONENT_NOT_FOUND", 0),
+        "invalid": by_code.get("REEXTRACTION_INVALID", 0),
+        "error": by_code.get("REEXTRACTION_ERROR", 0) + by_code.get("ENTRY_NOT_EFFECTIVE", 0),
+        "excluded": sum(excluded_counts.values()),
+    }
+    report: dict[str, Any] = {
+        "mode": mode,
+        "policy": FACT_ANALYSIS_POLICY,
+        "basis": {
+            "currentCollectorVersion": COLLECTOR_VERSION,
+            "sourceTreeDigest": source_tree_digest,
+            "workspaceStatus": _workspace_status(),
+            "comparedAt": "factsDigest (typeFacts, intentionalErrors, limitations, "
+                          "extractionCoverage, assurance)",
+        },
+        "counts": counts,
+        "failuresByCode": dict(sorted(by_code.items())),
+        "factsEquivalent": equivalent[:FACT_ANALYSIS_LIST_CAP],
+        "factsChanged": changed[:FACT_ANALYSIS_LIST_CAP],
+        "analysisFailures": failures[:FACT_ANALYSIS_LIST_CAP],
+        "excludedCounts": dict(sorted(excluded_counts.items())),
+        "note": (
+            "FACTS_EQUIVALENT means the extracted facts did not move — not that the artifact is "
+            "semantically unchanged: Purpose, runtime behaviour, vendor guarantees and org usage "
+            "are outside factsDigest. FACTS_CHANGED withdraws no approval."
+        ),
+    }
+    if unavailable_reason and components is None:
+        report["unavailableReason"] = unavailable_reason
+    truncated = {
+        key: len(values)
+        for key, values in (
+            ("factsEquivalent", equivalent), ("factsChanged", changed),
+            ("analysisFailures", failures),
+        )
+        if len(values) > FACT_ANALYSIS_LIST_CAP
+    }
+    if truncated:
+        report["listTruncation"] = {
+            "cap": FACT_ANALYSIS_LIST_CAP,
+            "fullCounts": truncated,
+            "note": "counts describe the full population; the lists above are capped",
+        }
+    return report
+
+
 def _entry_age_days(reviewed_at: str | None, now: datetime) -> int | None:
     if not reviewed_at:
         return None
@@ -2086,18 +2501,42 @@ def command_entry_coverage(args: argparse.Namespace) -> dict[str, Any]:
     It also carries the release-cycle maintenance summary (`--review-cycle-days`), because the
     corpus sweep it already performs is exactly the sweep that summary needs. A second command
     would have doubled the cost to answer half the question. Read-only throughout: nothing here
-    writes an entry, a source pin or a ledger record."""
+    writes an entry, a source pin or a ledger record.
+
+    `--analyze-facts` adds the read-only structural facts comparison to the SAME two sweeps —
+    one corpus pass, one inventory — for the same reason. Without the flag no analyzer code runs
+    and the output is byte-compatible with what it was before phase 2 (D3)."""
 
     from scripts.force_app_knowledge import ForceAppKnowledge
 
     latest = ledger_latest(read_ledger())
     now = datetime.now(timezone.utc)
     cycle_days = int(getattr(args, "review_cycle_days", None) or 30)
+    analyze_mode = getattr(args, "analyze_facts", None)
+    # `drifted` asks the narrow question a maintenance queue raises: of the entries whose source
+    # moved, which ones actually derive different facts? `all-approved` is the release-time
+    # question and deliberately does NOT trust `collectorVersion` as a skip condition — an
+    # adapter edited without a version bump changes what is derived while every version matches,
+    # which is precisely the drift no other mechanism can see (master plan §3.2).
+    selected_lanes = (
+        {"approved-drifted"} if analyze_mode == "drifted"
+        else set(EFFECTIVE_ENTRY_LANES) if analyze_mode else set()
+    )
+    candidates: list[tuple[Path, dict[str, Any]]] = []
+    excluded_counts: dict[str, int] = {}
     lanes: dict[str, dict[str, int]] = {}
     entry_names: dict[str, set[str]] = {}
     maintenance_rows: list[dict[str, Any]] = []
     for path in all_entry_paths():
         lane = compute_lane(path, latest)
+        if analyze_mode:
+            if lane["lane"] in selected_lanes:
+                candidates.append((path, lane))
+            else:
+                code = (
+                    "ENTRY_NOT_SELECTED_BY_MODE" if lane.get("effective") else "ENTRY_NOT_EFFECTIVE"
+                )
+                excluded_counts[code] = excluded_counts.get(code, 0) + 1
         metadata_type, _namespace, full_name = lane["identity"].split(":", 2)
         lanes.setdefault(metadata_type, {})
         lanes[metadata_type][lane["lane"]] = lanes[metadata_type].get(lane["lane"], 0) + 1
@@ -2129,19 +2568,34 @@ def command_entry_coverage(args: argparse.Namespace) -> dict[str, Any]:
     try:
         inventory = ForceAppKnowledge(ROOT).inventory()
     except Exception as error:  # inventory is optional context, never a hard failure here
-        return {
+        degraded = {
             "outcome": "COVERAGE",
             "lanes": lanes,
             "sourceComparison": f"unavailable: {error}",
             "profiledTypes": sorted(PROFILES),
             "maintenance": maintenance,
         }
+        if analyze_mode:
+            # The caller asked for the analysis explicitly. A soft-failed inventory degrades the
+            # coverage half of this report, but it must never let the analysis half return zeros
+            # that read as "no facts changed" when in fact nothing could be examined.
+            degraded["factAnalysis"] = fact_analysis_report(
+                analyze_mode, candidates, excluded_counts, None,
+                source_tree_digest=None, unavailable_reason=f"force-app inventory unavailable: {error}",
+            )
+        return degraded
+    # ONE component map for the whole invocation. Calling `collector_component()` per entry would
+    # re-check the tree digest and potentially rebuild the inventory once per entry — the N x scan
+    # runtime this command was rebuilt to avoid — while an O(1) lookup costs one dict.
+    components: dict[str, dict[str, Any]] = {}
     for component in inventory.get("components", []):
         metadata_type = component["metadataType"]
         source_counts[metadata_type] = source_counts.get(metadata_type, 0) + 1
+        if analyze_mode and component.get("id"):
+            components.setdefault(component["id"], component)
         if metadata_type in PROFILES and component["name"] not in entry_names.get(metadata_type, set()):
             gaps.setdefault(metadata_type, []).append(component["name"])
-    return {
+    result: dict[str, Any] = {
         "outcome": "COVERAGE",
         "profiledTypes": sorted(PROFILES),
         "lanes": {key: dict(sorted(value.items())) for key, value in sorted(lanes.items())},
@@ -2156,6 +2610,12 @@ def command_entry_coverage(args: argparse.Namespace) -> dict[str, Any]:
             "gap (docs/knowledge-one-file-contract.md §1)."
         ),
     }
+    if analyze_mode:
+        result["factAnalysis"] = fact_analysis_report(
+            analyze_mode, candidates, excluded_counts, components,
+            source_tree_digest=inventory.get("sourceTreeDigest"),
+        )
+    return result
 
 
 def command_entry_revoke(args: argparse.Namespace) -> dict[str, Any]:
@@ -3263,6 +3723,19 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "release-cycle window in days (1-365, default 30) for the read-only maintenance "
             "summary; age never expires an approval"
+        ),
+    )
+    coverage.add_argument(
+        "--analyze-facts",
+        choices=FACT_ANALYSIS_MODES,
+        default=None,
+        help=(
+            "add the read-only structural facts comparison: re-derive each approved entry's "
+            "facts from current source and diff them at the factsDigest boundary. `drifted` "
+            "covers effective approved-drifted entries; `all-approved` covers both effective "
+            "lanes and is the mode to run after a collector/adapter/assurance change, because "
+            "it does not trust collectorVersion as a skip condition. Diagnostic only: it "
+            "changes no lane, no approval, no citation and writes nothing"
         ),
     )
     coverage.set_defaults(func=command_entry_coverage)
