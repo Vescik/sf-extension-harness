@@ -1755,6 +1755,92 @@ class PerRowDisclosureTests(EntryFixtureMixin, unittest.TestCase):
         self.assertEqual([self.object_entry["identity"]], calls)
 
 
+class QueryPathHasNoFactExtractionTests(EntryFixtureMixin, unittest.TestCase):
+    """Nothing on the ordinary read path re-extracts facts. Not once, not for the anchor.
+
+    Phase 2's analyzer runs the collector over source and re-derives structural facts. That is
+    affordable exactly because it happens only when a maintainer asks for it: putting it on
+    `search`/`context`/`explain`/`impact`, on `entry-status`, or on the citation verifier would
+    add a source-tree read to every call an agent makes, which is the cost §15.3 explicitly
+    declines to pay and the reason phase 2 is a flag on a report rather than an overlay.
+
+    The stubs raise rather than count: a single call is the regression, so there is no threshold
+    to argue about.
+    """
+
+    SURFACES = ("search", "explain", "context", "impact")
+
+    def call(self, surface, identity):
+        if surface == "search":
+            return self.search(identity=identity)
+        args = {
+            "explain": dict(identity=identity, state=None, top=50, include_heuristic=False),
+            "context": dict(identity=identity, state=None, top=25, include_heuristic=False,
+                            direction="incoming"),
+            "impact": dict(identity=identity, depth=1, direction="incoming", state=None, top=50,
+                           include_heuristic=False),
+        }[surface]
+        return {"explain": search.run_explain, "context": search.run_context,
+                "impact": search.run_impact}[surface](argparse.Namespace(**args))
+
+    def forbid_extraction(self):
+        def refuse(*args, **kwargs):
+            raise AssertionError("the read path re-extracted facts")
+
+        return [
+            unittest.mock.patch.object(store, name, refuse)
+            for name in ("derive_structured_facts", "analyze_entry_facts", "fact_analysis_report",
+                         "collector_component")
+        ]
+
+    def test_no_retrieval_surface_re_extracts_facts(self) -> None:
+        seeded = self.seed()
+        for surface in self.SURFACES:
+            with self.subTest(surface=surface):
+                patches = self.forbid_extraction()
+                for patch in patches:
+                    patch.start()
+                try:
+                    self.call(surface, seeded["alpha"]["identity"])
+                finally:
+                    for patch in patches:
+                        patch.stop()
+
+    def test_neither_entry_status_nor_the_citation_verifier_re_extracts(self) -> None:
+        seeded = self.seed()
+        patches = self.forbid_extraction()
+        for patch in patches:
+            patch.start()
+        try:
+            status = store.command_entry_status(
+                argparse.Namespace(identity=seeded["alpha"]["identity"])
+            )
+            verdicts = store.verify_entry_citations(
+                self.temp, [{"entryId": seeded["alpha"]["identity"]}]
+            )
+        finally:
+            for patch in patches:
+                patch.stop()
+        # The receipts still answer — this is a "no extra work" test, not a "no work" test.
+        self.assertEqual("approved-current", status["entries"][0]["lane"])
+        self.assertTrue(verdicts)
+        # And neither receipt grew a facts-analysis field it would have to have re-extracted for.
+        self.assertNotIn("factAnalysis", status)
+        self.assertNotIn("analysisCode", json.dumps(verdicts))
+
+    def test_the_index_build_does_not_re_extract_either(self) -> None:
+        # `build` re-projects entries; it must keep reading the entry files, never the source.
+        self.seed()
+        patches = self.forbid_extraction()
+        for patch in patches:
+            patch.start()
+        try:
+            search.build_index()
+        finally:
+            for patch in patches:
+                patch.stop()
+
+
 class RelationMultiplicityTests(EntryFixtureMixin, unittest.TestCase):
     """An entry that touches one anchor twice is two facts about it, on every surface.
 
