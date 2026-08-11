@@ -2,7 +2,7 @@
   "name": "sf-harness-brain-core",
   "version": "1.0.0",
   "private": true,
-  "license": "MIT",
+  "license": "UNLICENSED",
   "description": "Single-root Salesforce DX project and governed GitHub Copilot harness.",
   "scripts": {
     "lint": "eslint \"scripts/**/*.mjs\"",
