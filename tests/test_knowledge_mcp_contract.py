@@ -235,6 +235,38 @@ class KnowledgeMcpContractTests(unittest.TestCase):
             (tool,) = [t for t in self.exports["tools"] if t["name"] == name]
             self.assertIn("BEFORE searching force-app", tool["description"])
 
+    def test_the_state_parameter_states_the_two_effective_default_lanes(self) -> None:
+        """What an agent reads about `state` has to match what the engine does.
+
+        Two failure modes this pins apart. The engine REPLACES the default lane list when
+        `state` is passed — a description saying "opt into extra lanes" invites an agent to
+        request ["draft"] and silently lose every approved row it was standing on. And the
+        default is now both effective lanes (owner decision D1, 2026-08-11); a description
+        naming only `approved-current` would teach agents that drifted knowledge is
+        second-class, which is the belief phase 1 removes from the runtime.
+        """
+
+        from scripts import knowledge_search
+
+        described = 0
+        for tool in self.exports["tools"]:
+            state = tool["inputSchema"].get("properties", {}).get("state")
+            if state is None:
+                continue
+            described += 1
+            with self.subTest(tool=tool["name"]):
+                self.assertIn("approved-current", state["description"])
+                self.assertIn("approved-drifted", state["description"])
+                self.assertIn("REPLACES", state["description"])
+                # The enum still offers every lane — narrowing it would make the engine's own
+                # remediation hints unfollowable through MCP.
+                self.assertEqual(sorted(knowledge_search.ALL_LANES), sorted(state["items"]["enum"]))
+        self.assertTrue(described, "no tool exposes `state`; the pin would be vacuous")
+        # The default the description promises is the default the engine applies.
+        self.assertEqual(
+            ["approved-current", "approved-drifted"], sorted(knowledge_search.ESTABLISHED_STATES)
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

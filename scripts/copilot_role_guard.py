@@ -125,7 +125,9 @@ KNOWLEDGE_STORE_COMMAND_FLAGS = {
     "entry-context": frozenset({"--identity", "--max-source-chars"}),
     "entry-revoke": frozenset({"--identity", "--rationale"}),
     "entry-status": frozenset({"--identity"}),
-    "entry-coverage": frozenset(),
+    # Read-only report; --review-cycle-days only widens or narrows the maintenance window it
+    # summarises and can write nothing (owner decision D5, 2026-08-11).
+    "entry-coverage": frozenset({"--review-cycle-days"}),
     "entry-check": frozenset({"--changed-since"}),
     # Read-only citation verdicts (entryRefs); the entry-side successor of the registry's
     # verify-citations, relocated in v1-retirement P0. Reads stay universal.

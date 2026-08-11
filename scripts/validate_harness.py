@@ -451,6 +451,43 @@ def check_customizations(audit: Audit, root: Path = ROOT) -> None:
     audit.require("salesforce-development/*" not in reviewer_tools, "reviewer must not mutate Salesforce")
     reviewer_hooks = agents.get("reviewer", {}).get("hooks", {})
     audit.require("--role reviewer" in json.dumps(reviewer_hooks, default=str), "reviewer role guard is required")
+    # Owner decision 2026-08-11: reviewer.agent.md is the single source of the review lane's
+    # tool grants. A prompt-level `tools` key overrides the agent's list, and the override had
+    # silently removed `knowledge/*` while the skill (and §7 Set A) require `knowledge_context`.
+    # The prompt must inherit, so a future grant is reviewed in exactly one place.
+    review_prompt, _ = frontmatter(ROOT / ".github/prompts/check-against-principles.prompt.md", audit)
+    audit.require(
+        "tools" not in review_prompt,
+        ".github/prompts/check-against-principles.prompt.md must not declare `tools`: the review "
+        "lane inherits reviewer.agent.md, which is the single source of its grants",
+    )
+    audit.require(
+        "knowledge/*" in reviewer_tools,
+        "reviewer needs `knowledge/*`: the check-against-principles skill runs `knowledge_context` "
+        "as its step-1 lookup (§7 Set A)",
+    )
+    # Every grant the review procedure actually spends, pinned against the procedure. A skill
+    # step whose tool is missing does not fail loudly — it degrades into the agent guessing,
+    # which is how the prompt-level override went unnoticed. `execute/runInTerminal` is the
+    # sharpest of these: step 7 must run `entry-verify-citations --envelope` BEFORE the verdict,
+    # so without the terminal the citation gate is skipped and `SAFE` is issued unverified.
+    for tool, reason in (
+        ("search", "the review reads a diff and repository files, not single known paths"),
+        (
+            "execute/runInTerminal",
+            "step 7 runs `knowledge_store.py entry-verify-citations --envelope` before the verdict",
+        ),
+        ("salesforce-readonly/review_soql_query", "the review reconciles design claims against org records"),
+        ("salesforce-readonly/review_object_contract", "package-namespace claims need the object contract"),
+        ("salesforce-readonly/review_org_identity", "evidence must name the org it came from"),
+        ("salesforce-readonly/review_installed_packages", "package version is part of the evidence"),
+    ):
+        audit.require(tool in reviewer_tools, f"reviewer needs `{tool}`: {reason}")
+    audit.require(
+        not any(tool.startswith("ado-readonly") for tool in reviewer_tools),
+        "reviewer must not gain ADO access: the review subject is the persisted design or the "
+        "exact diff (owner decision 2026-08-11)",
+    )
 
     prompt_names: list[str] = []
     for path in prompt_paths:

@@ -55,15 +55,21 @@ no-entry-profile), and the entry it will produce; then the expected approval pas
 (one `#tool:vscode/askQuestions` call): approve, change the selection, or cancel. Never execute
 without this go-ahead, regardless of how small the selection is.
 
-Skip-current is the default for components already documented and fresh (`approved-current`
-entries) — list them as skipped, do not redraft.
+Skip is the default for components that already have an EFFECTIVE entry — `approved-current`
+and `approved-drifted` alike — so list them as skipped and do not redraft. A drifted entry is
+still approved and still citable; its source moved, which is disclosed at the point of use.
+Redrafting one is a maintainer's deliberate choice (it is offered once per release cycle by
+`entry-coverage --review-cycle-days`, in `optionalRefresh`), never an obligation this skill
+imposes. Only a `not-effective` entry — missing or unreadable source, integrity failure —
+needs action here.
 
 ## 4 — Execute (entry-profiled components)
 
 Per component:
 
 1. `python scripts/knowledge_store.py entry-draft --metadata-type <Type> --full-name <Name>` —
-   a drifted entry redrafts the same way (facts carry forward; the body returns to draft).
+   a drifted entry the maintainer chose to refresh redrafts the same way (facts carry forward;
+   the body returns to draft).
 2. `python scripts/knowledge_store.py entry-context --identity <Identity>`, then author the 1–8
    sentence Purpose from source and callers, and store it with
    `python scripts/knowledge_store.py entry-describe --identity <Identity> --purpose-file <file>`.

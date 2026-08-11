@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 import unittest
+import unittest.mock
 from pathlib import Path
 
 import yaml
@@ -78,6 +79,100 @@ class KnowledgeSchemaTests(unittest.TestCase):
         for surface in surfaces:
             leaks = reserved_fixture_leaks(surface.read_text(encoding="utf-8"))
             self.assertEqual([], leaks, f"{surface}: reserved fixture tokens leaked: {leaks}")
+
+    def test_agent_surfaces_do_not_call_a_drifted_entry_non_effective(self) -> None:
+        """The runtime says `approved-drifted` is effective with disclosure; the prose must too.
+
+        This pin used to assert a source substring (`severity="warning"`), which pinned a
+        halfway state — drift was neither invalid nor fully effective — and broke the moment
+        phase 1 finished the job. It now asserts the BEHAVIOUR through the public functions, so
+        the rule survives any rewording of the code that implements it.
+
+        The negative half is the point: a future edit may not put `drifted` back into a
+        non-effective enumeration. That is exactly how check-against-principles came to
+        contradict its own pointer target.
+        """
+        from scripts import knowledge_store
+
+        # One definition of effectiveness, and drift is inside it (owner decision D1).
+        self.assertTrue(knowledge_store.is_effective_entry_lane("approved-drifted"))
+        self.assertTrue(knowledge_store.is_effective_entry_lane("approved-current"))
+        for lane in ("draft", "revoked", "not-effective"):
+            self.assertFalse(knowledge_store.is_effective_entry_lane(lane))
+
+        # A drifted citation grades ok-with-advisory, never warning and never invalid (D2).
+        drifted_lane = {
+            "lane": "approved-drifted",
+            "reviewedContentDigest": "sha256:" + "a" * 64,
+            "advisories": [{"code": "SOURCE_DRIFT", "paths": ["force-app/x.flow-meta.xml"]}],
+        }
+        with unittest.mock.patch.object(
+            knowledge_store, "lane_for_identity", return_value=drifted_lane
+        ):
+            verdict = knowledge_store.verify_entry_citations(ROOT, [{"entryId": "Flow:c:X"}])[0]
+        self.assertEqual("drifted", verdict["verdict"])
+        self.assertEqual("ok", verdict["severity"])
+        self.assertTrue(verdict["effective"])
+        self.assertNotIn("re-approve", verdict["reason"].lower())
+
+        skill = (ROOT / ".github/skills/search-knowledge/SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("`approved-drifted` is effective, with disclosure", skill)
+        for enumeration in re.findall(r"[Nn]on-effective matches \(([^)]*)\)", skill):
+            self.assertNotIn(
+                "drifted",
+                enumeration,
+                "search-knowledge lists drifted as non-effective, contradicting "
+                "verify_entry_citations (severity 'ok', effective)",
+            )
+
+    def test_the_written_contract_states_both_phase_1_rules(self) -> None:
+        """The prose is what agents are steered by; the code is what runs. Both, or neither.
+
+        The failure this pins against is real and recent: the contract went on describing
+        drifted entries as "not approved-current knowledge and must not be cited" while the
+        executor bound them happily, and a skill inheriting the contract by pointer learned the
+        opposite of what the runtime does.
+        """
+
+        contract = (ROOT / "docs/knowledge-one-file-contract.md").read_text(encoding="utf-8")
+        self.assertIn("Both approved lanes are EFFECTIVE", contract)
+        self.assertIn("There is no expiry by age", contract)
+        self.assertIn("A missing source fragment is not drift", contract)
+        # The never-implemented expiry lane must not come back into the enum.
+        lane_block = contract.split("## 4.", 1)[1].split("```", 2)[1]
+        self.assertNotIn("approved-expired", lane_block)
+        self.assertIn("approved-drifted", lane_block)
+        # And no active surface may tell an agent that a drifted entry cannot be cited.
+        for surface in (
+            ROOT / "docs/knowledge-one-file-contract.md",
+            ROOT / ".ai/knowledge/README.md",
+            ROOT / ".github/skills/search-knowledge/SKILL.md",
+        ):
+            text = surface.read_text(encoding="utf-8")
+            for banned in ("re-approve before citing", "not approved-current knowledge"):
+                self.assertNotIn(banned, text, f"{surface.name} contradicts D1/D2")
+
+    def test_entry_age_never_changes_a_lane_or_its_effectiveness(self) -> None:
+        """No-expiry-by-age (owner decision D4, 2026-08-11).
+
+        The release cycle is a reporting window, not a clock on approval. The failure this
+        guards against is a plausible-sounding future edit that expires old entries "for
+        hygiene" — which would silently drop approved knowledge out of every default search.
+        `compute_lane` therefore takes no clock at all: its inputs are the entry file and the
+        ledger, and nothing in its call graph reads the current time.
+        """
+        import inspect
+
+        from scripts import knowledge_store
+
+        source = inspect.getsource(knowledge_store._compute_entry_lane)
+        for clock in ("datetime.now", "time.time", "reviewCycle", "ageDays"):
+            self.assertNotIn(
+                clock,
+                source,
+                f"_compute_entry_lane consults {clock}; age must never move a lane (D4)",
+            )
+        self.assertNotIn("now", inspect.signature(knowledge_store.compute_lane).parameters)
 
     def test_legal_business_names_are_not_screened_as_fixture_leaks(self) -> None:
         """Regression for the retired name denylist (introduced in 07c1788): a real

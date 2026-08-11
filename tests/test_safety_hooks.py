@@ -556,6 +556,42 @@ class RoleGuardTests(unittest.TestCase):
                 with self.subTest(role=role, command=command):
                     self.assertTrue(role_guard.allowed_role_command(command, ROOT, role))
 
+    def test_reviewer_can_run_the_citation_verifier_and_nothing_that_writes(self) -> None:
+        """The review lane's terminal grant, pinned on both sides.
+
+        check-against-principles step 7 must verify every supplied envelope BEFORE issuing a
+        verdict. If the guard refuses that command the step cannot run, and the failure is
+        silent: the agent proceeds to a verdict it did not verify. So the exact command in the
+        skill is asserted allowed — in both the POSIX and Windows invocations the workspace
+        documents, because the team runs Windows and PowerShell is blocked there.
+
+        The negative half is what keeps the grant honest. A terminal is a wide capability, and
+        the argument for giving it to a read-only role is precisely that the role guard denies
+        every mutation reachable through it.
+        """
+
+        from scripts import copilot_role_guard as role_guard
+
+        for command in (
+            "python scripts/knowledge_store.py entry-verify-citations --envelope output/x.json",
+            r".venv\Scripts\python.exe scripts\knowledge_store.py entry-verify-citations --envelope output\x.json",
+        ):
+            with self.subTest(command=command):
+                self.assertTrue(role_guard.allowed_role_command(command, ROOT, "reviewer"))
+
+        for denied in (
+            "python scripts/knowledge_store.py entry-approve --entry Flow:c:X:sha256:abc",
+            "python scripts/knowledge_store.py entry-revoke --identity Flow:c:X --rationale x",
+            "python scripts/knowledge_store.py feature-approve --feature Feature:x:sha256:abc",
+            "python scripts/knowledge_store.py entry-draft --metadata-type Flow --full-name X",
+            "python scripts/knowledge_store.py entry-org-attach --identity Flow:c:X --org devmp",
+        ):
+            with self.subTest(command=denied):
+                self.assertFalse(
+                    role_guard.allowed_role_command(denied, ROOT, "reviewer"),
+                    "the reviewer's terminal must not reach a Knowledge mutation",
+                )
+
     def test_read_only_orientation_commands_are_allowed_for_every_role(self) -> None:
         from scripts import copilot_role_guard as role_guard
 

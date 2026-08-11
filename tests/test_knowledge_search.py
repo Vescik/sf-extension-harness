@@ -536,7 +536,7 @@ class KnowledgeSearchTests(EntryFixtureMixin, unittest.TestCase):
         # a consumer would read as approved knowledge.
         self.assertEqual([], explicit["approvedResults"])
         self.assertEqual([draft["identity"]], [hit["artifactId"] for hit in explicit["nonCurrentResults"]])
-        self.assertTrue(any("not approved-current" in gap for gap in explicit["gaps"]))
+        self.assertTrue(any("not effective knowledge" in gap for gap in explicit["gaps"]))
 
     def test_g13_namespace_twins_are_ambiguous_not_guessed(self) -> None:
         self.seed()
@@ -551,15 +551,55 @@ class KnowledgeSearchTests(EntryFixtureMixin, unittest.TestCase):
         scoped = self.search(identity="HarnessAlphaRouter", namespace="pkg")
         self.assertEqual(["Flow:pkg:HarnessAlphaRouter"], self.ids(scoped))
 
-    def test_g15_drifted_entries_leave_the_current_lane(self) -> None:
+    def test_g15_drifted_entries_are_served_by_default_as_effective(self) -> None:
+        """Phase 1 (owner decision D1, 2026-08-11) inverts what this used to pin.
+
+        It previously asserted that a source edit removed the entry from the default result
+        set — the entry was there, approved, and one undiscoverable `--state` flag away. That
+        is the false blocker phase 1 exists to remove: approval binds the reviewed facts, not
+        the immutability of the source bytes. The drifted entry is served, in the APPROVED
+        bucket, and it is the disclosure — not the exclusion — that carries the news.
+        """
+
         self.seed()
         flow = self.temp / "force-app/main/default/flows/HarnessAlphaRouter.flow-meta.xml"
         flow.write_text(ALPHA_FLOW.replace("<status>Active</status>", "<status>Draft</status>"), encoding="utf-8")
         search.build_index()
-        current = self.search(identity="Flow:c:HarnessAlphaRouter")
-        self.assertEqual([], self.ids(current))
-        drifted = self.search(identity="Flow:c:HarnessAlphaRouter", state=["approved-drifted"])
-        self.assertEqual(["Flow:c:HarnessAlphaRouter"], self.ids(drifted))
+        result = self.search(identity="Flow:c:HarnessAlphaRouter")
+        self.assertEqual(["Flow:c:HarnessAlphaRouter"], self.ids(result))
+        self.assertEqual(
+            ["approved-drifted"], [hit["lifecycle"] for hit in result["approvedResults"]]
+        )
+        # And it must NOT be double-served, or filed with the inspection rows: a consumer
+        # reading nonCurrentResults is entitled to treat that bucket as non-effective.
+        self.assertEqual([], result["nonCurrentResults"])
+
+    def test_g15b_free_text_search_also_serves_a_drifted_entry(self) -> None:
+        # The exact-identity path and the BM25 path filter states separately; fixing one and
+        # leaving the other is the shape of half-migration this pins against.
+        self.seed()
+        flow = self.temp / "force-app/main/default/flows/HarnessAlphaRouter.flow-meta.xml"
+        flow.write_text(ALPHA_FLOW.replace("<status>Active</status>", "<status>Draft</status>"), encoding="utf-8")
+        search.build_index()
+        result = self.search(text="harnessalpharouter")
+        self.assertIn("Flow:c:HarnessAlphaRouter", self.ids(result))
+        self.assertEqual([], [hit["artifactId"] for hit in result["nonCurrentResults"]])
+
+    def test_g15c_inspection_lanes_still_require_an_explicit_state(self) -> None:
+        # The negative half: widening the default to drifted must not widen it to anything
+        # else. Draft and revoked stay opt-in, in their own bucket.
+        seeded = self.seed()
+        store.command_entry_revoke(
+            argparse.Namespace(identity=seeded["alpha"]["identity"], rationale="mistake")
+        )
+        search.build_index()
+        self.assertEqual([], self.ids(self.search(identity="Flow:c:HarnessAlphaRouter")))
+        opted_in = self.search(identity="Flow:c:HarnessAlphaRouter", state=["revoked"])
+        self.assertEqual([], opted_in["approvedResults"])
+        self.assertEqual(
+            ["Flow:c:HarnessAlphaRouter"],
+            [hit["artifactId"] for hit in opted_in["nonCurrentResults"]],
+        )
 
     def test_g16_exact_intentional_error_message_finds_owner(self) -> None:
         self.seed()
@@ -740,7 +780,9 @@ class KnowledgeSearchTests(EntryFixtureMixin, unittest.TestCase):
         self.assertIn("family", result["facets"])
         self.assertNotIn("field.referenceTo", result["facets"])
         self.assertEqual(list(search.FACET_OPERATORS), result["operators"])
-        self.assertEqual(["approved-current"], result["defaultStates"])
+        # Both effective lanes are the default, and the capability report is where a consumer
+        # reads that contract without guessing from behaviour.
+        self.assertEqual(["approved-current", "approved-drifted"], result["defaultStates"])
 
 
 if __name__ == "__main__":
@@ -1197,14 +1239,22 @@ class AnchorVerificationTests(EntryFixtureMixin, unittest.TestCase):
                 self.assertEqual("approved-current", result.get("lifecycle", result.get(
                     "anchorLifecycle")))
                 gaps = self.anchor_gaps(result)
+                advisories = [
+                    gap
+                    for gap in gaps
+                    if "SOURCE_DRIFT" in gap and "HarnessAlphaRouter.flow-meta.xml" in gap
+                ]
                 self.assertTrue(
-                    any(
-                        "approved-drifted" in gap
-                        and "HarnessAlphaRouter.flow-meta.xml" in gap
-                        for gap in gaps
-                    ),
+                    advisories,
                     f"{name} served a source-drifted anchor with no disclosure: {result['gaps']}",
                 )
+                # Exactly one advisory per anchor: the disclosure is a line, not a paragraph
+                # repeated per fragment.
+                self.assertEqual(1, len(advisories), f"{name} repeated the drift advisory")
+                # And it discloses without blocking (D2). None of these may come back.
+                self.assertIn("remains approved and effective", advisories[0])
+                for forbidden in ("do not cite", "re-approve", "before citing it"):
+                    self.assertNotIn(forbidden, advisories[0].lower())
 
     def test_the_drift_claim_is_only_made_where_the_store_would_agree(self) -> None:
         # The gap asserts what `compute_lane` returns right now, so it must only be raised in the
@@ -1226,7 +1276,10 @@ class AnchorVerificationTests(EntryFixtureMixin, unittest.TestCase):
             with self.subTest(surface=name):
                 gaps = self.anchor_gaps(result)
                 self.assertTrue(gaps, "the revoked disclosure must still fire")
-                self.assertFalse([gap for gap in gaps if "approved-drifted" in gap])
+                # Matched on the advisory marker, not on the lane name: the lane-filter gap
+                # legitimately enumerates the requested states, and `approved-drifted` is now
+                # one of them — so the old substring match would pass on the wrong text.
+                self.assertFalse([gap for gap in gaps if "SOURCE_DRIFT" in gap])
 
     def test_a_healthy_anchor_gains_no_drift_gap(self) -> None:
         # The other half of the pin: a check that fires on everything discloses nothing.
@@ -1456,9 +1509,19 @@ class IndexFreshnessDisclosureTests(EntryFixtureMixin, unittest.TestCase):
         self.assertTrue(drifted[0]["hydrated"], "the entry file itself is untouched")
         self.assertIn(search.ROW_LIFECYCLE_DISCLOSURE, result["gaps"])
 
-    def test_the_disclosure_names_the_command_that_closes_the_window(self) -> None:
-        # A gap that states a limitation without naming the remedy makes the reader guess.
-        self.assertIn("knowledge_search.py build", search.ROW_LIFECYCLE_DISCLOSURE)
+    def test_the_disclosure_is_compact_and_names_the_real_gate(self) -> None:
+        """A gap that states a limitation without naming the remedy makes the reader guess —
+        but the remedy it used to name was the wrong one. `build` refreshes the cache; it does
+        not make a row citable. The store-fresh `entry-status` receipt is the actual citation
+        gate, and phase 1 says so in one line instead of five sentences that read as a
+        precondition for citing anything at all."""
+
+        disclosure = search.ROW_LIFECYCLE_DISCLOSURE
+        self.assertIn("entry-status", disclosure)
+        self.assertIn("SOURCE_DRIFT", disclosure)
+        self.assertLess(len(disclosure), 220, "the row disclosure grew back into a paragraph")
+        sentences = [part for part in disclosure.split(". ") if part.strip()]
+        self.assertEqual(2, len(sentences), "one statement of fact, one instruction — no more")
 
 
 class RelationMultiplicityTests(EntryFixtureMixin, unittest.TestCase):
@@ -2291,3 +2354,148 @@ class EdgeResolutionTests(EntryFixtureMixin, unittest.TestCase):
         self.assertIn("force-app source", result["basis"])
         manifest = search.load_index()[1]
         self.assertIn("edgeResolution", manifest)
+
+
+class DriftedRetrievalSemanticsTests(EntryFixtureMixin, unittest.TestCase):
+    """`approved-drifted` is effective on every retrieval surface, not just on `search`.
+
+    The contradiction phase 1 removes lived in the gap between surfaces: the citation boundary
+    accepted a drifted entry while the four retrieval surfaces filed it with revoked rows. A fix
+    applied to `search` alone would leave `context` — the documented step-1 lookup for every Set
+    A consumer — still hiding the entry that grounds the answer.
+    """
+
+    def drift_the_flow(self) -> str:
+        fragment = self.temp / "force-app/main/default/flows/HarnessAlphaRouter.flow-meta.xml"
+        with fragment.open("a", encoding="utf-8") as handle:
+            handle.write("<!-- appended after approval -->\n")
+        return "Flow:c:HarnessAlphaRouter"
+
+    def context(self, identity, **kwargs):
+        args = argparse.Namespace(
+            identity=identity, state=None, top=25, include_heuristic=False, direction="incoming"
+        )
+        for key, value in kwargs.items():
+            setattr(args, key, value)
+        return search.run_context(args)
+
+    def explain(self, identity):
+        return search.run_explain(
+            argparse.Namespace(identity=identity, state=None, top=50, include_heuristic=False)
+        )
+
+    def impact(self, identity):
+        return search.run_impact(argparse.Namespace(
+            identity=identity, depth=1, direction="incoming", state=None, top=50,
+            include_heuristic=False,
+        ))
+
+    @staticmethod
+    def flat(section):
+        if isinstance(section, dict):
+            return [row for rows in section.values() for row in rows]
+        return list(section)
+
+    def test_context_serves_a_drifted_relation_in_the_main_sections(self) -> None:
+        seeded = self.seed()
+        drifted = self.drift_the_flow()
+        search.build_index()
+        result = self.context(seeded["status"]["identity"])
+        rows = self.flat(result["incoming"])
+        self.assertIn(drifted, [row["source"] for row in rows])
+        # The whole point: it is NOT filed with the inspection rows.
+        self.assertNotIn(drifted, [row["source"] for row in self.flat(result["incomingNonCurrent"])])
+
+    def test_explain_and_impact_agree_with_context(self) -> None:
+        seeded = self.seed()
+        drifted = self.drift_the_flow()
+        search.build_index()
+        explained = self.explain(seeded["status"]["identity"])
+        impacted = self.impact(seeded["status"]["identity"])
+        self.assertIn(drifted, [row["source"] for row in self.flat(explained["incoming"])])
+        self.assertNotIn(
+            drifted, [row["source"] for row in self.flat(explained["incomingNonCurrent"])]
+        )
+        self.assertIn(drifted, [row["node"] for row in impacted["nodes"]])
+        self.assertNotIn(drifted, [row["node"] for row in impacted["nodesNonCurrent"]])
+
+    def test_a_drifted_anchor_is_served_not_lane_filtered(self) -> None:
+        # Anchored ON the drifted entry: the anchor gap must be the SOURCE_DRIFT advisory, not
+        # the "outside the requested states" exclusion that a non-effective lane earns.
+        self.seed()
+        drifted = self.drift_the_flow()
+        search.build_index()
+        for name, result in (("context", self.context(drifted)), ("explain", self.explain(drifted))):
+            with self.subTest(surface=name):
+                self.assertEqual("approved-drifted", result["lifecycle"])
+                anchor_gaps = [gap for gap in result["gaps"] if gap.startswith("ANCHOR:")]
+                self.assertFalse([gap for gap in anchor_gaps if "outside the requested" in gap])
+
+    def test_a_missing_source_fragment_raises_an_integrity_gap_not_an_advisory(self) -> None:
+        # D3 on the retrieval side. Drift and absence must not produce the same sentence:
+        # one says "cite and disclose", the other says "do not cite until you have a receipt".
+        self.seed()
+        (self.temp / "force-app/main/default/flows/HarnessAlphaRouter.flow-meta.xml").unlink()
+        # NO rebuild: this is the window `verify_anchor` exists for. The index still says
+        # approved-current — it is a cache and nothing under force-app/ invalidates it — so the
+        # per-call anchor check is the only thing standing between the caller and a citation
+        # whose evidence no longer exists.
+        result = self.context("Flow:c:HarnessAlphaRouter")
+        gaps = [gap for gap in result["gaps"] if gap.startswith("ANCHOR:")]
+        integrity = [gap for gap in gaps if "INTEGRITY" in gap]
+        self.assertTrue(integrity, f"a missing source fragment passed silently: {result['gaps']}")
+        self.assertIn("entry-status", integrity[0])
+        self.assertIn("not drift", integrity[0])
+        self.assertFalse([gap for gap in gaps if "SOURCE_DRIFT" in gap])
+
+    def test_a_rebuilt_index_moves_the_missing_source_entry_out_of_the_effective_set(self) -> None:
+        # The other side of the same fact: once the store is consulted, the entry is
+        # `not-effective` and lane-filtered out of the default result — never downgraded to a
+        # drift advisory that would leave it citable.
+        self.seed()
+        (self.temp / "force-app/main/default/flows/HarnessAlphaRouter.flow-meta.xml").unlink()
+        search.build_index()
+        self.assertEqual([], self.ids(self.search(identity="Flow:c:HarnessAlphaRouter")))
+        result = self.context("Flow:c:HarnessAlphaRouter")
+        self.assertEqual("not-effective", result["lifecycle"])
+        self.assertTrue(
+            any("NOT effective knowledge" in gap for gap in result["gaps"]),
+            result["gaps"],
+        )
+
+    def test_traversal_passes_through_an_effective_drifted_node(self) -> None:
+        # A drifted node in the middle of a walk must not truncate the graph: the entry is
+        # effective, so the edges it carries are effective too.
+        seeded = self.seed()
+        self.drift_the_flow()
+        search.build_index()
+        result = self.impact(seeded["status"]["identity"])
+        self.assertIn("Flow:c:HarnessAlphaRouter", [row["node"] for row in result["nodes"]])
+
+    def test_cap_budgets_stay_separate_for_effective_and_inspection_rows(self) -> None:
+        # Widening the effective set must not let drifted rows spend the inspection budget or
+        # push draft/revoked rows out of the bucket that exists to show them.
+        seeded = self.seed()
+        self.drift_the_flow()
+        store.command_entry_revoke(
+            argparse.Namespace(identity=seeded["beta"]["identity"], rationale="mistake")
+        )
+        search.build_index()
+        result = self.context(seeded["status"]["identity"], state=["approved-current", "approved-drifted", "revoked"])
+        effective = [row["source"] for row in self.flat(result["incoming"])]
+        inspection = [row["source"] for row in self.flat(result["incomingNonCurrent"])]
+        self.assertIn("Flow:c:HarnessAlphaRouter", effective)
+        self.assertNotIn("Flow:c:HarnessAlphaRouter", inspection)
+
+    def test_the_default_result_is_deterministic_across_rebuilds(self) -> None:
+        self.seed()
+        self.drift_the_flow()
+        search.build_index()
+        first = self.search(text="harnessalpharouter")
+        search.build_index()
+        second = self.search(text="harnessalpharouter")
+        self.assertEqual(self.ids(first), self.ids(second))
+        self.assertEqual(
+            [hit["lifecycle"] for hit in first["approvedResults"]],
+            [hit["lifecycle"] for hit in second["approvedResults"]],
+        )

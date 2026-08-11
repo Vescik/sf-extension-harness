@@ -44,14 +44,13 @@ human deploy.
    - the `knowledge_context` tool — who reads, writes and
      grants access to it today, with per-edge assurance (`knowledge_resolve` maps the
      component's name or file path to its identity). `parts`, `permissions` and `incoming`
-     hold the approved-current rows; the `*NonCurrent` siblings are opted-in lanes and are
-     reported as unknowns in the fix note, never as dependents you have accounted for. `incoming`
-     and `outgoing` are keyed by relation kind — iterate the keys, and treat a missing kind as
-     silence rather than as "nothing depends on this". A row with `hydrated: false` failed
-     re-reading — it is an unknown in the fix note, never a dependent you have accounted for.
-     Generic-bucket types (Settings, Letterhead, Group and similar label-only extraction) have
-     no governed dependency lookup — when one sits in the blast radius, name it as an unknown
-     in the fix note.
+     hold the effective approved rows; the `*NonCurrent` siblings are opted-in non-effective
+     lanes and are reported as unknowns in the fix note, never as dependents you have accounted
+     for. A row with `hydrated: false` failed re-reading — it is an unknown in the fix note,
+     never a dependent you have accounted for. Lane semantics, bucket rules and the
+     generic-bucket types are defined once in
+     [search-knowledge](../search-knowledge/SKILL.md); when a generic-bucket type sits in the
+     blast radius, name it as an unknown in the fix note.
    An empty result from either layer is a recorded gap and is NEVER proof that nothing depends on
    this component. When the fix note cites a repository fact, cite what the executor gives you,
    not what the view shows: obtain the citable ref with `python scripts/knowledge_store.py

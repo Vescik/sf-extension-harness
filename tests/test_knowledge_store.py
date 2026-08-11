@@ -645,6 +645,108 @@ class CrossPlatformDeterminismTests(KnowledgeStoreFixture):
         self.assertFalse(path.with_suffix(".tmp").exists())
 
 
+class SourceFreshnessAxisTests(KnowledgeStoreFixture):
+    """Approval and source freshness are two axes (owner decisions D1–D3, 2026-08-11).
+
+    The point every case here defends: an edit to the source moves an entry along the freshness
+    axis only. It never un-approves it. A source fragment that is GONE is the exception, and it
+    is deliberately not on the freshness axis at all — there is no evidence left to be fresh or
+    stale about, so the entry leaves the effective set entirely."""
+
+    def approved(self) -> dict:
+        drafted = self.draft()
+        self.approve([f"{drafted['identity']}:{drafted['reviewedContentDigest']}"])
+        return drafted
+
+    @property
+    def flow(self) -> Path:
+        return self.temp / "force-app/main/default/flows/HarnessAlphaRouter.flow-meta.xml"
+
+    def test_untouched_source_is_current_and_carries_no_advisory(self) -> None:
+        lane = self.lane_of(self.approved()["identity"])
+        self.assertEqual("approved-current", lane["lane"])
+        self.assertTrue(lane["effective"])
+        self.assertEqual("current", lane["freshness"])
+        self.assertEqual([], lane["advisories"])
+
+    def test_changed_source_stays_effective_and_names_the_path(self) -> None:
+        identity = self.approved()["identity"]
+        self.flow.write_text(
+            FLOW_XML.replace("<status>Active</status>", "<status>Draft</status>"), encoding="utf-8"
+        )
+        lane = self.lane_of(identity)
+        self.assertEqual("approved-drifted", lane["lane"])
+        self.assertTrue(lane["effective"])  # D1: drift never revokes a human approval
+        self.assertEqual("drifted", lane["freshness"])
+        self.assertEqual(["SOURCE_DRIFT"], [item["code"] for item in lane["advisories"]])
+        # The advisory has to say WHICH file moved; a bare flag sends the reader hunting.
+        self.assertEqual(
+            ["force-app/main/default/flows/HarnessAlphaRouter.flow-meta.xml"],
+            lane["advisories"][0]["paths"],
+        )
+
+    def test_missing_source_is_not_effective_with_a_machine_readable_code(self) -> None:
+        identity = self.approved()["identity"]
+        self.flow.unlink()
+        lane = self.lane_of(identity)
+        # D3: this is an evidence failure, NOT drift. The distinction is the whole test.
+        self.assertEqual("not-effective", lane["lane"])
+        self.assertFalse(lane["effective"])
+        self.assertEqual(["SOURCE_FRAGMENT_MISSING"], [item["code"] for item in lane["problemCodes"]])
+        self.assertEqual([], lane["advisories"])
+        self.assertNotEqual("drifted", lane["freshness"])
+
+    def test_unreadable_source_is_not_effective_and_distinct_from_missing(self) -> None:
+        identity = self.approved()["identity"]
+        # The file exists — it just cannot be read. Reported as its own code, because
+        # "someone deleted it" and "the checkout is broken" are different repairs.
+        self.assertTrue(self.flow.exists())
+        with unittest.mock.patch(
+            "scripts.force_app_knowledge.file_digest", side_effect=PermissionError("denied")
+        ):
+            lane = self.lane_of(identity)
+        self.assertEqual("not-effective", lane["lane"])
+        self.assertFalse(lane["effective"])
+        self.assertEqual(
+            ["SOURCE_FRAGMENT_UNREADABLE"], [item["code"] for item in lane["problemCodes"]]
+        )
+
+    def test_a_drifted_envelope_is_valid_and_can_support_safe(self) -> None:
+        drafted = self.approved()
+        self.flow.write_text(
+            FLOW_XML.replace("<status>Active</status>", "<status>Draft</status>"), encoding="utf-8"
+        )
+        envelope = self.temp / "output" / "drifted-envelope.json"
+        envelope.parent.mkdir(parents=True, exist_ok=True)
+        envelope.write_text(
+            json.dumps({"entryRefs": [{"entryId": drafted["identity"]}]}), encoding="utf-8"
+        )
+        report = store.command_entry_verify_citations(
+            argparse.Namespace(envelope=str(envelope), entry_ref=[])
+        )
+        # The gate consumers read is `invalid`. Drift must not touch it, or every design
+        # grounded in a slightly-edited Flow silently loses its SAFE verdict.
+        self.assertEqual(0, report["counts"]["invalid"])
+        self.assertEqual(1, report["counts"]["ok"])
+        self.assertEqual(1, report["counts"]["advisory"])
+
+    def test_a_missing_source_citation_is_invalid_not_an_advisory(self) -> None:
+        # The negative twin of the case above: the two must never collapse into each other.
+        drafted = self.approved()
+        self.flow.unlink()
+        verdict = store.verify_entry_citations(self.temp, [{"entryId": drafted["identity"]}])[0]
+        self.assertEqual("not-effective", verdict["verdict"])
+        self.assertEqual("invalid", verdict["severity"])
+        self.assertFalse(verdict["effective"])
+
+    def test_effectiveness_has_exactly_one_definition(self) -> None:
+        # Acceptance criterion 1: one constant decides. If a future lane is added to the
+        # enum without a deliberate decision here, it is non-effective by default.
+        self.assertEqual({"approved-current", "approved-drifted"}, set(store.EFFECTIVE_ENTRY_LANES))
+        for lane in ("draft", "revoked", "not-effective", None):
+            self.assertFalse(store.is_effective_entry_lane(lane))
+
+
 class EntryCitationVerificationTests(KnowledgeStoreFixture):
     """Entry citation verdicts live in the store (v1 retirement P0), not the registry."""
 
@@ -660,7 +762,18 @@ class EntryCitationVerificationTests(KnowledgeStoreFixture):
         flow.write_text(FLOW_XML.replace("<status>Active</status>", "<status>Draft</status>"), encoding="utf-8")
         drifted = store.verify_entry_citations(self.temp, [ref])[0]
         self.assertEqual("drifted", drifted["verdict"])
-        self.assertEqual("warning", drifted["severity"])
+        # Drift is a disclosure, not a demotion (owner decision D2, 2026-08-11): the citation
+        # stays effective and severity-ok, and it carries the changed path so the consumer can
+        # say WHICH source moved. The verdict string is unchanged so existing branches survive.
+        self.assertEqual("ok", drifted["severity"])
+        self.assertTrue(drifted["effective"])
+        self.assertEqual(["SOURCE_DRIFT"], [item["code"] for item in drifted["advisories"]])
+        self.assertIn(
+            "force-app/main/default/flows/HarnessAlphaRouter.flow-meta.xml",
+            drifted["advisories"][0]["paths"],
+        )
+        # The old text demanded re-approval before citing. Nothing may say that again.
+        self.assertNotIn("re-approve", drifted["reason"].lower())
 
         store.command_entry_revoke(argparse.Namespace(identity=drafted["identity"], rationale="x"))
         self.assertEqual("revoked", store.verify_entry_citations(self.temp, [ref])[0]["verdict"])
@@ -702,7 +815,7 @@ class EntryCitationVerificationTests(KnowledgeStoreFixture):
             argparse.Namespace(envelope=str(envelope), entry_ref=[])
         )
         self.assertEqual(2, report["citationCount"])
-        self.assertEqual({"ok": 1, "warning": 0, "invalid": 1}, report["counts"])
+        self.assertEqual({"ok": 1, "warning": 0, "advisory": 0, "invalid": 1}, report["counts"])
         bare = store.command_entry_verify_citations(
             argparse.Namespace(envelope=None, entry_ref=[drafted["identity"]])
         )
@@ -2063,3 +2176,110 @@ class PathDerivedIdentityTests(KnowledgeStoreFixture):
     def test_a_path_outside_the_artifact_corpus_refuses_to_answer(self) -> None:
         self.assertIsNone(store.identity_from_entry_path(store.FEATURES_ROOT / "scheduling.md"))
         self.assertIsNone(store.identity_from_entry_path(store.ARTIFACTS_ROOT / "Flow" / "loose.md"))
+
+
+class ReleaseCycleMaintenanceTests(KnowledgeStoreFixture):
+    """One batch queue per release cycle, and a clock that never expires an approval.
+
+    The failure mode this guards against is a maintenance report that behaves like a nag: a
+    list of entries "due for review" because they are old. Under owner decision D4 age is a
+    reporting dimension and nothing else — an approval does not decay, so an old
+    `approved-current` entry generates no question at all, and an old drifted one generates an
+    OPTION, not a task.
+    """
+
+    def rows(self, *specs) -> list[dict]:
+        return [
+            {
+                "identity": identity,
+                "lane": lane,
+                "reviewedAt": "2026-01-01T00:00:00Z",
+                "ageDays": age,
+                "changedPaths": ["force-app/x.flow-meta.xml"] if lane == "approved-drifted" else [],
+                "problemCodes": ["SOURCE_FRAGMENT_MISSING"] if lane == "not-effective" else [],
+                "problemPaths": ["force-app/gone.flow-meta.xml"] if lane == "not-effective" else [],
+            }
+            for identity, lane, age in specs
+        ]
+
+    @property
+    def now(self):
+        return store.datetime(2026, 8, 11, tzinfo=store.timezone.utc)
+
+    def test_age_alone_never_produces_a_question(self) -> None:
+        summary = store.maintenance_summary(
+            self.rows(
+                ("Flow:c:Fresh", "approved-current", 3),
+                ("Flow:c:Ancient", "approved-current", 900),
+            ),
+            30,
+            self.now,
+        )
+        counts = summary["counts"]
+        self.assertEqual(2, counts["currentNoAction"])
+        # The old one is COUNTED so the shape of the corpus is visible...
+        self.assertEqual(1, counts["olderCurrentNoAction"])
+        # ...and listed NOWHERE, because a list is an implicit ask.
+        self.assertEqual([], summary["optionalRefresh"])
+        self.assertEqual([], summary["requiresDecision"])
+        self.assertEqual("age never expires approval", summary["policy"])
+
+    def test_drifted_splits_on_the_cycle_into_disclosure_and_option(self) -> None:
+        summary = store.maintenance_summary(
+            self.rows(
+                ("Flow:c:RecentDrift", "approved-drifted", 5),
+                ("Flow:c:OldDrift", "approved-drifted", 45),
+            ),
+            30,
+            self.now,
+        )
+        self.assertEqual(1, summary["counts"]["driftedDisclosureOnly"])
+        self.assertEqual(1, summary["counts"]["optionalRefresh"])
+        self.assertEqual(
+            ["Flow:c:OldDrift"], [item["identity"] for item in summary["optionalRefresh"]]
+        )
+        # It carries what a maintainer needs to decide — and no instruction to re-approve.
+        entry = summary["optionalRefresh"][0]
+        self.assertEqual(["force-app/x.flow-meta.xml"], entry["changedPaths"])
+        self.assertEqual("approved-drifted", entry["lane"])
+        self.assertEqual(45, entry["ageDays"])
+        # Old drift is an option, never a blocker: it stays out of requiresDecision entirely.
+        self.assertEqual([], summary["requiresDecision"])
+
+    def test_broken_evidence_requires_a_decision_regardless_of_age(self) -> None:
+        summary = store.maintenance_summary(
+            self.rows(("Flow:c:Gone", "not-effective", 1)), 30, self.now
+        )
+        self.assertEqual(1, summary["counts"]["requiresDecision"])
+        decision = summary["requiresDecision"][0]
+        self.assertEqual(["SOURCE_FRAGMENT_MISSING"], decision["problemCodes"])
+        self.assertEqual(["force-app/gone.flow-meta.xml"], decision["paths"])
+
+    def test_lists_are_capped_and_say_so_while_counts_stay_complete(self) -> None:
+        many = self.rows(*[(f"Flow:c:Drift{index:03d}", "approved-drifted", 100) for index in range(60)])
+        summary = store.maintenance_summary(many, 30, self.now)
+        self.assertEqual(60, summary["counts"]["optionalRefresh"])
+        self.assertEqual(store.MAINTENANCE_LIST_CAP, len(summary["optionalRefresh"]))
+        # A truncated list that does not say it is truncated reads as "that is all of them".
+        self.assertEqual(60, summary["listTruncation"]["fullCounts"]["optionalRefresh"])
+
+    def test_the_report_is_deterministic_and_takes_its_clock_as_input(self) -> None:
+        rows = self.rows(("Flow:c:B", "approved-drifted", 60), ("Flow:c:A", "approved-drifted", 60))
+        first = store.maintenance_summary(rows, 30, self.now)
+        second = store.maintenance_summary(rows, 30, self.now)
+        self.assertEqual(first, second)
+        self.assertEqual("2026-08-11T00:00:00Z", first["asOf"])
+        # Ties break on identity, so the queue does not reshuffle between runs.
+        self.assertEqual(["Flow:c:A", "Flow:c:B"], [item["identity"] for item in first["optionalRefresh"]])
+
+    def test_entry_coverage_carries_the_summary_and_writes_nothing(self) -> None:
+        drafted = self.draft()
+        self.approve([f"{drafted['identity']}:{drafted['reviewedContentDigest']}"])
+        ledger_before = store.LEDGER_PATH.read_bytes()
+        entry_before = (self.temp / drafted["path"]).read_bytes()
+        result = store.command_entry_coverage(argparse.Namespace(review_cycle_days=30))
+        self.assertEqual(30, result["maintenance"]["reviewCycleDays"])
+        self.assertEqual(1, result["maintenance"]["counts"]["currentNoAction"])
+        # D5: the maintenance pass is read-only. Nothing is refreshed, re-pinned or recorded.
+        self.assertEqual(ledger_before, store.LEDGER_PATH.read_bytes())
+        self.assertEqual(entry_before, (self.temp / drafted["path"]).read_bytes())

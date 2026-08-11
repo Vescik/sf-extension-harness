@@ -10,7 +10,7 @@ upgrade.
 | Reconciled installed package inventory | `salesforce-readonly/review_installed_packages` | investigator, design, review |
 | Reconciled allowlisted object contract | `salesforce-readonly/review_object_contract` | investigator, design, review, QA |
 | Scoped enumeration of configured org aliases (requires `safety.allowScopedEnumeration`) | `salesforce-readonly/review_configured_orgs` | investigator |
-| Composed read-only SOQL incl. record reads (verbatim, facade REST transport, unredacted single-source rows) | `salesforce-readonly/review_soql_query` | investigator, design, development, knowledge curation |
+| Composed read-only SOQL incl. record reads (verbatim, facade REST transport, unredacted single-source rows) | `salesforce-readonly/review_soql_query` | investigator, design, review, development, knowledge curation |
 | Salesforce non-production source retrieve into the project (per-invocation human confirmation; the only direct `sf` command not denied) | `sf project retrieve start` guarded terminal command | development only |
 | Interactive human confirmation | `vscode/askQuestions` | prompts and approval gates |
 | Subagent delegation | `agent` plus explicit `agents` allowlist | Designer, Developer |
@@ -56,8 +56,8 @@ request.
 
 Policy (owner decision 2026-07-30, widened 2026-08-04): composed read-only SOQL is permitted —
 and recommended whenever a task depends on record data structure — through the governed facade's
-`review_soql_query` tool only, for the designer, knowledge-curator, developer, and
-config-investigator roles. The 2026-08-04 decision removed the statement
+`review_soql_query` tool only, for the designer, reviewer, knowledge-curator, developer,
+and config-investigator roles. The 2026-08-04 decision removed the statement
 blockade entirely: no grammar validation, no secret-adjacent object deny-set, no LIMIT
 policing, no value redaction. The statement executes verbatim over the facade's REST transport
 child — never the CLI — against the identity-proven non-production org, and rows return

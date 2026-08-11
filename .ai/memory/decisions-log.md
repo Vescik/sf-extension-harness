@@ -1304,3 +1304,55 @@ output-envelope schema simplification (the schema still declares recordId/record
 consumedHandoffId/promoted — allowlisted in retired-surfaces until that phase).
 
 Gate: 690 unit tests OK in ~87 s, 43 safety evals PASS, validate_harness coherent.
+
+## 2026-08-11 - approved-drifted is effective approved knowledge (Knowledge phase 1)
+
+- Context: the runtime contradicted itself. `author-feature` and the Feature binding resolver
+  already accepted `approved-drifted`, and `entry-verify-citations` graded it a warning rather
+  than invalid — but every retrieval surface served `approved-current` only, filed drifted rows
+  with the revoked ones, and told agents they "must not be cited as effective". A drifted entry
+  was approved, present in the index, and reachable only through an undiscoverable `--state`
+  flag. Agents therefore treated ordinary source edits as evidence loss.
+- Finding / decision: approval and source freshness are two axes, frozen as D1-D7 in
+  docs/plan-2026-08-11-approved-drifted-phase-1.md.
+  - **D1** `approved-drifted` stays approved and effective. Approval binds
+    `reviewedContentDigest` — the facts and semantics a human reviewed — not the later
+    immutability of the source bytes those facts were read from.
+  - **D2** drift is advisory: it does not block `SAFE`, reduce coverage, exclude an entry from
+    the main approved buckets, force re-approval or create a maintenance task. A real
+    contradiction between an approved fact and current evidence still blocks; the flag alone
+    does not.
+  - **D3** a missing or unreadable source fragment is NOT drift. There is no evidence left to
+    be fresh or stale about, so the entry is `not-effective` with `SOURCE_FRAGMENT_MISSING` /
+    `SOURCE_FRAGMENT_UNREADABLE`. No new lifecycle lane was added for it.
+  - **D4** time never expires an approval. The 30-day release cycle is a reporting window of
+    `entry-coverage --review-cycle-days` and nothing else; the never-implemented
+    `approved-expired` lane is removed from the contract's enum.
+  - **D5** phase 1 writes nothing — no source-pin refresh, no entry write, no ledger append.
+    Automatic refresh waits for pilot data.
+  - **D6** one source of procedure: `.github/skills/search-knowledge/SKILL.md` owns lane
+    handling, citations, freshness/hydration and the generic-bucket rule; consumers point at
+    it. Named exception: every Set A surface still carries the literal `knowledge_context` and
+    `hydrated` tokens, because `validate_harness.py` pins both mechanically.
+  - **D7** the reviewer agent is the single source of the review lane's tool grants; the
+    `check-against-principles` prompt declares no `tools` and inherits.
+- Impact: five commits on main — 248116d (core: effectiveness/freshness split, structured
+  source freshness, citation verdicts), 66c1bbe (retrieval serves both lanes; anchor advisory
+  vs integrity gap; MCP wording), 625b2b4 (read-only release-cycle maintenance summary),
+  8ecfcb5 (one-source consumer cleanup + reviewer tool assertions), and this entry's commit
+  (contract, README, evals, repo map). No schema file, lifecycle enum or output-envelope
+  changed; no Entry, Feature or ledger was written; no new MCP tool.
+- Deliberate deviation, named: plan §3 D7 says not to grant the reviewer
+  `vscode/askQuestions`. Commit 0e1e650 (owner, 2026-08-11, after the plan's stated baseline)
+  had already added it, reasoning that `INCOMPLETE — NEEDS HUMAN` is one of the four verdicts
+  and the alternative to asking is guessing. Treated as finished owner work with a recorded
+  rationale and left in place; not extended.
+- Deliberately deferred to phases 2-4: semantic re-extraction and a `factsDigest` diff (so the
+  system still cannot tell whether a source change actually altered an approved fact),
+  task-aware materiality, a live freshness overlay for every served row (rows stay index-fresh
+  until the store-fresh receipt), and automatic source-pin refresh.
+- Gate: 718 unit tests OK (1 skipped), validate_harness PASS (2627 checks, up from 2615),
+  43 safety evals PASS, prettier and eslint clean, repo map re-rendered.
+- Approved by: owner (D1-D7, 2026-08-11)
+- Related: docs/plan-2026-08-11-approved-drifted-phase-1.md,
+  docs/knowledge-one-file-contract.md §4/§5.5/§14.2/§15

@@ -238,12 +238,43 @@ approved-current      state == approved
                       AND scope.sourceTreeDigest matches the requested source scope
                       AND profile.version is supported
 approved-drifted      approved + ledger-latest, but fragment-scope digest has moved on
-approved-expired      approved, but policy review window elapsed
 draft                 state == draft (never served alongside approved results)
 scope-mismatch        citation asks for a different source scope
 unsupported-profile   profile version revoked or unknown
 revoked               a ledger revocation is the latest record for this identity (§6.1)
+not-effective         integrity failure, including a missing or unreadable source fragment
 ```
+
+**Both approved lanes are EFFECTIVE** (owner decision D1, 2026-08-11). `approved-current`
+and `approved-drifted` are two freshness readings of one approval, not two grades of it:
+
+| Lane | `effective` | Citable | Default retrieval | Coverage / `SAFE` | Mandatory disclosure |
+|---|---|---|---|---|---|
+| `approved-current` | true | yes | yes | yes | none |
+| `approved-drifted` | true | yes | yes | yes | `SOURCE_DRIFT` + changed paths |
+| `draft` / `revoked` / `not-effective` / `scope-mismatch` / `unsupported-profile` | false | no | no | no | lane / problem codes |
+| source fragment missing or unreadable | false | no | no | no | `SOURCE_FRAGMENT_MISSING` / `SOURCE_FRAGMENT_UNREADABLE` |
+| `hydrated: false` (per result) | false | no | not as a verified fact | no | hydration / integrity gap |
+
+Why approval survives drift: approval binds `reviewedContentDigest`, which covers the facts
+and semantics a human reviewed — not the later immutability of the source bytes those facts
+were read from. A source edit is therefore news about freshness, disclosed at the point of
+use, and it does not withdraw the approval, block `SAFE`, reduce coverage or oblige
+re-approval. A genuine contradiction between an approved fact and current evidence still
+blocks; the drift flag alone does not.
+
+**There is no expiry by age** (owner decision D4). The former `approved-expired` lane is gone
+from this list: age is a reporting dimension of `entry-coverage --review-cycle-days`, never a
+lane and never a change in effectiveness. An entry approved two years ago is exactly as
+effective as one approved yesterday.
+
+**A missing source fragment is not drift** (owner decision D3). If the evidence behind the
+approval cannot be produced at all, there is nothing to be fresh or stale about: the entry is
+`not-effective` with a machine-readable problem code, and it needs a decision rather than a
+disclosure.
+
+Org usage is a separate axis throughout: an expired `orgUsage` block makes the org NUMBERS
+unusable pending a fresh probe and leaves the repository-source lane untouched (§4.3).
 
 **Read-side rule (review R2-10):** any assertion of an entry's lane or an entryRef's
 currency may be made **only from the reader/verify executor's output receipt**
@@ -324,10 +355,12 @@ fragment-scope digest (§2.1) is computable before any commit exists.
 | Change | Result |
 |---|---|
 | Body prose edited | `semanticsDigest` changes → state forced to `draft` |
-| Source fragment changed → facts regenerate differently | `approved-drifted`; re-approval shows executor-rendered diff |
+| Source fragment changed → facts regenerate differently | `approved-drifted` — still effective and citable, carrying a `SOURCE_DRIFT` advisory; re-approval is an option, not a repair |
+| Source fragment missing or unreadable | `not-effective` + `SOURCE_FRAGMENT_MISSING` / `SOURCE_FRAGMENT_UNREADABLE`; not citable (D3) |
+| Time passes, nothing else changes | **nothing** — age never expires an approval (D4) |
 | Collector bump, identical canonical assertions (incl. reordered arrays) | nothing — stays `approved-current` |
 | Collector bump, changed assertion OR coverage/assurance regression | `approved-drifted` (only affected entries) — **NOT IMPLEMENTED, see below** |
-| Profile MAJOR bump | `approved-drifted` until re-approval; MINOR/PATCH stays current |
+| Profile MAJOR bump | `unsupported-profile` (not effective); MINOR/PATCH stays current — **NOT IMPLEMENTED**: `compute_lane` emits no profile-driven lane today. This row never described drift, and must not be read as one: a drifted entry is effective (D1) |
 | `sensitivity` flip | `reviewedContentDigest` changes → re-approval required |
 | `notes`/`candidateKeywords` edits | stays current (advisory) |
 | `keywords` edit | stays current, but only executor-mediated + ledger-logged |
@@ -337,7 +370,7 @@ fragment-scope digest (§2.1) is computable before any commit exists.
 | `orgUsage` hand-edited (v1.2) | `sectionDigest`/org-ledger mismatch → `org-not-effective`; approval lane untouched |
 
 **Unimplemented row — collector/assurance drift (recorded 2026-07-25).** `compute_lane` decides
-`approved-current` vs `approved-drifted` solely from `regenerate_fragment_digest`, which compares
+`approved-current` vs `approved-drifted` solely from `source_fragment_freshness`, which compares
 **source-file bytes**. Nothing re-runs the collector, nothing diffs assurance, and no entry records
 a collector version. So a change that alters what the collector *derives* from unchanged bytes —
 notably an assurance regression — moves no lane and is never surfaced.
@@ -680,7 +713,7 @@ What retirement means in practice, and what is already enforced:
 |---|---|
 | New repository claims for the type | refused at `propose` (`enforce_entry_home_freeze`) |
 | Collector drafting for the type | skipped, reported as `skippedEntryHome` in the draft manifest |
-| Refresh waves for the type | replaced by the `approved-drifted` lane + per-entry re-approval |
+| Refresh waves for the type | replaced by the `approved-drifted` lane (effective, disclosed) + OPTIONAL per-entry refresh offered once per release cycle by `entry-coverage --review-cycle-days` |
 | Relation claims for the type | replaced by entry `typeFacts.references` and the search relation graph |
 | Existing historical claims | **kept and never reinterpreted**; they remain valid history and are shadowed for SAFE grounding by an approved entry on the same subject |
 | Generated domain indexes / `claims-index.json` | continue to render the claim layer only; entry reporting lives in `entry-coverage` and the search index |
@@ -842,7 +875,8 @@ requested lane** — three cases, all executed against the reference corpus:
 | Anchor state | `anchorLifecycle` | Gap |
 |---|---|---|
 | Approved-current, hydration passes | the lane | none — silence here means verified, and only here |
-| Revoked, drifted, or tampered | the computed lane | names the lane and says the facts are *not* approved-current knowledge and must not be cited |
+| Drifted, hydration passes | `approved-drifted` | a `SOURCE_DRIFT` advisory naming the changed files; the anchor stays effective and citable |
+| Revoked, tampered, or not-effective | the computed lane | names the lane and says the facts are *not* effective knowledge and must not be cited |
 | No entry projects the identity | `null` | says the walk descends from a **name**, not from approved knowledge, and that this is absence of an ENTRY rather than absence of the artifact |
 
 The last row is the one worth keeping. A traversal from an unknown name still returns edges, so a
@@ -878,7 +912,7 @@ same thing in prose. The values are a closed vocabulary:
 
 | Field | Value | Meaning |
 |---|---|---|
-| `rows` | `index-fresh` | computed when this generation was built; nothing invalidates it on a source edit |
+| `rows` | `index-fresh` | computed when this generation was built; nothing invalidates it on a source edit. The store-fresh `entry-status` receipt — not a rebuild — is the citation gate, and source drift alone never makes a rebuild mandatory |
 | `anchor` | `store-fresh` | re-checked against the working tree on this call (`explain`, `context`, and `impact` when an entry projects the identity) |
 | `anchor` | `no-entry` | `impact` on a bare or unknown name — there is no entry to re-check, so nothing about the anchor is verified |
 | `anchor` | `not-applicable` | `search` — it has no anchor; every hit is a row, including the one a caller named |
@@ -895,16 +929,23 @@ likely to read.
 1. **Lane membership** — the anchor's lane is inside the requested `--state` set (§14.2).
 2. **Hydration** — the entry file is re-read and re-digested whole, so an edit to frontmatter the
    `reviewedContentDigest` never covered is caught (`hydrated: false` is not a fact).
-3. **Source drift** — every fragment in the entry's recorded `source.fragments` is re-hashed
-   against the working tree, and a mismatch names **which files moved**, states that the store
-   computes `approved-drifted` for the entry right now, and tells the reader to rebuild before
-   citing it.
+3. **Source freshness** — every fragment in the entry's recorded `source.fragments` is
+   re-hashed against the working tree, and the result splits into two findings that ask for
+   opposite things:
+   - **changed bytes** produce an `ADVISORY SOURCE_DRIFT` naming which files moved and stating
+     that the entry **remains approved and effective** — cite it and disclose the drift. It
+     does not demand re-approval and does not demand an index rebuild: a rebuild cannot un-edit
+     a Flow, and the approval was never withdrawn (D1/D2);
+   - **missing or unreadable bytes** produce an `INTEGRITY` gap: the evidence behind the
+     approval cannot be produced, the entry is not effective, and a store-fresh `entry-status`
+     receipt is required before any citation (D3).
 
 Check 3 is gated on two preconditions, both load-bearing. It runs only **after hydration passes**,
 because until the entry file is proved unchanged the projection's record of its own fragments is
-itself in question; and only in lane **`approved-current`**, because that is the one lane where
+itself in question; and only in an **effective lane**, because those are the lanes where
 `compute_lane` and the index can disagree — raising drift on a draft would report a state the store
-does not recognise.
+does not recognise. Both effective lanes qualify: an already-drifted anchor can still lose a
+fragment, and that integrity gap must surface.
 
 ### 15.3. Rows are disclosed, not re-checked — and why that is the right trade
 

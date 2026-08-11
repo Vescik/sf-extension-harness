@@ -66,13 +66,16 @@ If the answer is "none", this section keeps an explicit "None" — it never disa
 ## 9. Verification Contract
 
 <!--
-Projection of the verification plan in `work-items/<itemId>-<slug>/design.md` — with any
-approved deviation from that work item's `decisions.md` — plus any formally linked ADO Test
-Cases it references.
+Projection of the verification plan in `work-items/<itemId>-<slug>/design.md`, reconciled
+with recorded deviations in that work item's `decisions.md`, plus any formally linked ADO
+Test Cases it references. A recorded deviation is not proof of human approval; report its
+review status as unverified unless current pull-request evidence establishes review.
 This is the canonical verification plan: every in-scope acceptance criterion appears here with an
 assertion, method, pass criteria, expected evidence and executor/stage. It is not a relevance
 ranking and it is never model-ranked. When the work item has no design, state that explicitly
-and list only the formally linked Test Cases from the synced inventory.
+and list only the formally linked Test Cases from the synced inventory. When a design exists but
+has no complete verification plan, write `MISSING — design verification plan unavailable`, list
+only formally linked Test Cases, and do not infer the missing plan fields.
 -->
 
 | Verification ID | AC | Assertion | Method | Pass criteria | Expected evidence | Executor / Stage |

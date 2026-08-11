@@ -19,11 +19,15 @@ clone is normal.
 
 Treat an entry as established when the executor computes an `approved` lane
 (`entry-status`/`entry-check` — never a raw file read), and cite only source-exact,
-fully-covered sections (contract §8.1). An `approved` entry is usable regardless of drift
-or org-usage age — both travel with the entry as a visible caveat, never as a block:
-surface `approved-drifted` to the consumer, and cite org usage with orgKey, observedAt
-and its age ("sampled N days ago"). Only `draft` and `revoked` remain unusable for
-grounding. A re-read gap caused by the described file having changed since the index was
+fully-covered sections (contract §8.1). Both approved lanes — `approved-current` and
+`approved-drifted` — are effective, served by default and citable (contract §4). An
+`approved` entry is usable regardless of drift, of its own age, or of org-usage age; all
+three travel with the entry as a visible caveat, never as a block: surface
+`approved-drifted` with the changed paths, and cite org usage with orgKey, observedAt
+and its age ("sampled N days ago"). Age never expires an approval, and an expired
+`orgUsage` block invalidates the org NUMBERS only, not the entry. `draft`, `revoked` and
+`not-effective` — including an entry whose approved source fragment is missing or
+unreadable — are unusable for grounding. A re-read gap caused by the described file having changed since the index was
 built is not evidence of falsehood, but it is not safe to serve with a caveat either —
 rebuild the index (`knowledge_search.py build`) and retry before answering; this is a
 cheap, mechanical fix, not a return to full discovery. A re-read gap caused by a missing

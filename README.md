@@ -27,7 +27,7 @@ for the index). It was historical input only, never the normative runtime specif
 
 | Layer | Location | Purpose |
 |---|---|---|
-| Safety and Principles | `.github/copilot-instructions.md`, `.github/instructions/` | Minimal always-on kernel; detailed role-loaded Tier 1 → 2 → 3 rules |
+| Safety and Principles | `.github/copilot-instructions.md`, `.github/instructions/` | Minimal always-on kernel plus path-scoped rules loaded through `applyTo` |
 | Orchestration | `.github/agents/` | Design, investigation, development, QA strategy, independent review |
 | Public commands | `.github/prompts/` | Deterministic slash-command entry points (count pinned by `validate_harness.py`) |
 | Internal capabilities | `.github/skills/` | Progressively loaded procedures hidden from the slash menu |

@@ -13,7 +13,7 @@ One store, two kinds of fact — keep their authorities separate in the answer:
 
 | Question | Surface | Authority |
 |---|---|---|
-| What does this component declare in source? What touches this field? Which Flow emits this message? | **Knowledge Entries** (`approved-current`) | intended repository-source state only |
+| What does this component declare in source? What touches this field? Which Flow emits this message? | **Knowledge Entries** (`approved-current` and `approved-drifted`) | intended repository-source state only |
 | How is this object/field used in the org right now? | **Entry `orgUsage` blocks** (unexpired) | governed facade probes, machine-attested |
 
 ## Inputs
@@ -49,10 +49,13 @@ metadata type, namespace, lifecycle state.
      This is the default first lookup; the narrower commands below are follow-ups. `NO_ENTRY`
      means no *entry* exists, not that the artifact does not; `AMBIGUOUS` lists the namespace
      twins and is never resolved by picking the top one. Reading the pack:
-     - `parts`, `permissions` and `incoming` hold **approved-current rows only** — that is what
-       makes them quotable as effective knowledge. Rows from lanes you opted into with `--state`
-       are served in the sibling `partsNonCurrent` / `permissionsNonCurrent` /
+     - `parts`, `permissions` and `incoming` hold **effective approved rows only** — both
+       `approved-current` and `approved-drifted` — and that is what makes them quotable as
+       effective knowledge. Rows from non-effective lanes you opted into with `--state` are
+       served in the sibling `partsNonCurrent` / `permissionsNonCurrent` /
        `incomingNonCurrent` keys and are reported separately, never merged back in.
+       `--state` REPLACES the default filter rather than adding to it: pass
+       `--state draft` alone and you lose every approved row.
      - `incoming`, `incomingNonCurrent` and `outgoing` are **objects keyed by relation kind**
        (`{"writes-field": [...], "operates-on": [...]}`), not flat arrays. Iterate the keys; a
        kind that is absent has no rows, which is not the same as "nothing writes this field".
@@ -62,6 +65,13 @@ metadata type, namespace, lifecycle state.
        for the same reason `impact` does, and says so in `gaps` when it drops hops.
      - `chainsMeta.limitsHit` and `excludedCounts` say what was cut. A row with
        `hydrated: false` failed re-reading and must not be cited.
+     - **Generic-bucket types have no governed dependency lookup at all** — Settings,
+       Letterhead, Group, Network, Certificate, Document, Territory2 and similar label-only
+       types carry no entry profile, so no lookup can return their dependents. A clean result
+       over such a type means nothing was looked up, not that nothing depends on it. Whichever
+       artifact a caller is producing — review finding, fix note, coverage matrix, documentation
+       — every generic-bucket type in scope is named there as an unchecked class; the consuming
+       skill states the exact obligation for its own output.
    - exact artifact: `python scripts/knowledge_search.py search --identity <MetadataType>:<ns|c>:<FullName>`
      (a bare API name that exists in several namespaces returns `AMBIGUOUS` — pass `--namespace`,
      never pick the top score yourself)
@@ -113,13 +123,40 @@ metadata type, namespace, lifecycle state.
    `.ai/knowledge/keyword-taxonomy.md` (approved terms) — candidate terms on entries are
    suggestions awaiting human curation, never evidence.
 4. Report effective facts with their citations: entries by identity + entry path + digests +
-   lifecycle lane; org usage by orgKey + observedAt. Non-effective matches (draft, drifted,
-   revoked, not-effective, org-expired) go in their own section with the reason. An empty
+   lifecycle lane; org usage by orgKey + observedAt. Non-effective matches (draft, revoked,
+   not-effective, org-expired) go in their own section with the reason. An empty
    result is "no governed Knowledge", never license to answer from memory.
+
+   **Two effective lanes.** `approved-current` and `approved-drifted` are both approved, both
+   served by default on all four retrieval surfaces, both citable, and both count toward
+   coverage and can support `SAFE`.
+
+   **`approved-drifted` is effective, with disclosure.** Approval binds the reviewed facts
+   (`reviewedContentDigest`), not the later immutability of the source bytes — so when a source
+   fragment changes, the entry stays approved and `entry-verify-citations` grades it `ok` with a
+   `SOURCE_DRIFT` advisory. Report the fact, name the changed path. Do **not** report it as
+   unusable, do **not** treat re-approval as required repair, and do **not** demand an index
+   rebuild before citing it. A maintainer may choose to refresh it; that is an option surfaced
+   once per release cycle by `entry-coverage --review-cycle-days`, never a per-entry blocker.
+
+   **A missing or unreadable source fragment is not drift.** The evidence behind the approval
+   cannot be produced at all, so the entry is `not-effective` with
+   `SOURCE_FRAGMENT_MISSING` / `SOURCE_FRAGMENT_UNREADABLE`: not citable, and it needs a
+   decision rather than a disclosure.
+
+   **Age is not a lane.** An entry is never less effective for being old, and nothing about its
+   age changes what you may cite.
+
+   **Org usage is a separate axis.** An expired `orgUsage` block means the org NUMBERS are
+   unusable and need a fresh probe; it says nothing about the repository-source Entry, which
+   stays effective. Never merge the two into one verdict.
+
    Cite what the executor gives you, not what the view shows: obtain the citable ref with
    `python scripts/knowledge_store.py entry-status --identity <Identity>`. A search hit, a
    `context` pack and a rendered dossier are never themselves citable — the `citation` block they
    carry is a content digest (`profileDigest`), and an `entryRef` hand-built from it is rejected.
+   Row `lifecycle` labels are index-fresh; the store-fresh `entry-status` receipt is the
+   citation gate.
 
 ## Boundaries
 

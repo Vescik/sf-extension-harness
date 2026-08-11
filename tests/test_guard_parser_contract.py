@@ -190,6 +190,47 @@ class GuardParserContractTests(unittest.TestCase):
             guard.knowledge_store_command_allowed(["entry-check", "--changed-since", "HEAD"], role)
         )
 
+    def test_review_cycle_days_is_allowed_and_consumes_exactly_one_value(self) -> None:
+        """The maintenance window flag, pinned on both sides of the guard/parser contract.
+
+        Arity matters here beyond tidiness: a value-taking flag the guard believes is boolean
+        lets the token after it through unvalidated, which is the fail-open shape that shipped
+        once already (`build --full --rm`). So this asserts the flag is accepted WITH its value,
+        that the value is genuinely consumed, and that the flag has not been added to the
+        valueless set by mistake.
+        """
+
+        role = sorted(guard.KNOWLEDGE_MUTATION_ROLES)[0]
+        self.assertTrue(
+            guard.knowledge_store_command_allowed(
+                ["entry-coverage", "--review-cycle-days", "30"], role
+            )
+        )
+        self.assertTrue(guard.knowledge_store_command_allowed(["entry-coverage"], role))
+        self.assertNotIn("--review-cycle-days", set(guard.KNOWLEDGE_STORE_VALUELESS_FLAGS))
+        # An unknown flag is still refused — the allowlist is the gate, not the value shape.
+        self.assertFalse(
+            guard.knowledge_store_command_allowed(["entry-coverage", "--bogus", "1"], role)
+        )
+        # Consuming the NEXT token as the value is the guard's existing contract for every
+        # value-taking flag (`--changed-since --rm` behaves identically); that is deliberate,
+        # and argparse rejects the malformed value immediately afterwards. Pinned here so a
+        # future reader does not mistake it for a hole this flag opened.
+        self.assertEqual(
+            guard.knowledge_store_command_allowed(["entry-check", "--changed-since", "--rm"], role),
+            guard.knowledge_store_command_allowed(
+                ["entry-coverage", "--review-cycle-days", "--rm"], role
+            ),
+        )
+        # And the parser enforces the range, so an out-of-band window cannot reach the report.
+        parser = knowledge_store.build_parser()
+        parsed = parser.parse_args(["entry-coverage", "--review-cycle-days", "7"])
+        self.assertEqual(7, parsed.review_cycle_days)
+        self.assertEqual(30, parser.parse_args(["entry-coverage"]).review_cycle_days)
+        for bad in ("0", "366", "x"):
+            with self.subTest(value=bad), self.assertRaises(SystemExit):
+                parser.parse_args(["entry-coverage", "--review-cycle-days", bad])
+
     def test_the_store_guard_has_the_branch_its_first_boolean_will_need(self) -> None:
         # knowledge_store declares no boolean yet, so this exercises the loop against a
         # simulated one. Without the branch the guard consumes `--rm` as `--flag`'s value and
