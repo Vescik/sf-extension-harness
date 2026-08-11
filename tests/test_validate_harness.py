@@ -165,6 +165,41 @@ class TestCustomizationsHostileFrontmatter(GithubCopyBase):
         )  # original hooks content still present; the date must not abort serialization
 
 
+class TestInventoryIsDiscoveredNotCountPinned(GithubCopyBase):
+    """D7 (lightweight-validation plan): structural discovery, no exact totals.
+
+    A legitimate new prompt/skill must validate on its own shape; only real defects
+    (duplicate public names, invalid routing) may fail."""
+
+    PROMPT = (
+        "---\n"
+        "name: probe-temp\n"
+        "description: Temporary probe prompt for the count-pin regression test\n"
+        "argument-hint: none\n"
+        "agent: agent\n"
+        "---\n"
+        "Use the [probe skill](../skills/fetch-ado-item/SKILL.md).\n"
+    )
+
+    def test_valid_additional_prompt_changes_no_expectation(self) -> None:
+        before = self.run_audit(validate_harness.check_customizations, root=self.root).errors
+        (self.root / ".github/prompts/probe-temp.prompt.md").write_text(
+            self.PROMPT, encoding="utf-8"
+        )
+        after = self.run_audit(validate_harness.check_customizations, root=self.root).errors
+        self.assertEqual(before, after)
+
+    def test_duplicate_public_command_names_still_fail(self) -> None:
+        # fetch-ado-item exists as both a prompt and an (internal) skill; making the skill
+        # public collides the slash-command namespace and must fail loudly.
+        self.rewrite_frontmatter(
+            ".github/skills/fetch-ado-item/SKILL.md",
+            lambda data: data.update({"user-invocable": True}),
+        )
+        audit = self.run_audit(validate_harness.check_customizations, root=self.root)
+        self.assertIn("public slash-command names collide", audit.errors)
+
+
 class TestPlaceholdersBinaryFile(TempRootBase):
     def test_binary_asset_is_skipped_not_a_crash(self) -> None:
         github = self.root / ".github"

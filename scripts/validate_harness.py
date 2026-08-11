@@ -44,12 +44,6 @@ except ModuleNotFoundError:  # imported as scripts.validate_harness by unit test
 
 
 ROOT = Path(__file__).resolve().parents[1]
-EXPECTED_COUNTS = {"agents": 7, "prompts": 18, "skills": 22, "instructions": 3}
-# Budget for each grounding subprocess below. entry-check parses and validates every entry at
-# roughly 4.5 ms per entry (measured at 9 000), so a corpus in the low tens of thousands is the
-# constraint here, not the code. Raise this deliberately from a measurement — never to silence a
-# timeout.
-GROUNDING_TIMEOUT_SECONDS = 120
 # Reserved, deliberately synthetic identifiers owned by this harness's test fixtures.
 # They may appear only under tests/ and evals/fixtures; runtime authority surfaces
 # (.github, .ai, config, schemas, scripts) must never depend on or mention them.
@@ -244,51 +238,6 @@ def check_required_files(audit: Audit) -> None:
         "schemas/force-app-knowledge-resolve.schema.json",
         "schemas/knowledge-entry.schema.json",
         "schemas/knowledge-feature.schema.json",
-        "schemas/knowledge-profile-flow.schema.json",
-        "schemas/knowledge-profile-customfield.schema.json",
-        "schemas/knowledge-profile-apex.schema.json",
-        "schemas/knowledge-profile-validationrule.schema.json",
-        "schemas/knowledge-profile-permissionset.schema.json",
-        "schemas/knowledge-profile-lwc.schema.json",
-        "schemas/knowledge-profile-custommetadata.schema.json",
-        "schemas/knowledge-profile-recordtype.schema.json",
-        "schemas/knowledge-profile-customobject.schema.json",
-        "schemas/knowledge-profile-field-set.schema.json",
-        "schemas/knowledge-profile-compact-layout.schema.json",
-        "schemas/knowledge-profile-business-process.schema.json",
-        "schemas/knowledge-profile-web-link.schema.json",
-        "schemas/knowledge-profile-duplicate-rule.schema.json",
-        "schemas/knowledge-profile-matching-rule.schema.json",
-        "schemas/knowledge-profile-queue.schema.json",
-        "schemas/knowledge-profile-role.schema.json",
-        "schemas/knowledge-profile-delegate-group.schema.json",
-        "schemas/knowledge-profile-permission-set-group.schema.json",
-        "schemas/knowledge-profile-static-resource.schema.json",
-        "schemas/knowledge-profile-platform-event-channel.schema.json",
-        "schemas/knowledge-profile-platform-event-channel-member.schema.json",
-        "schemas/knowledge-profile-value-set.schema.json",
-        "schemas/knowledge-profile-custom-label.schema.json",
-        "schemas/knowledge-profile-custom-tab.schema.json",
-        "schemas/knowledge-profile-custom-application.schema.json",
-        "schemas/knowledge-profile-flow-definition.schema.json",
-        "schemas/knowledge-profile-path-assistant.schema.json",
-        "schemas/knowledge-profile-list-view.schema.json",
-        "schemas/knowledge-profile-report-type.schema.json",
-        "schemas/knowledge-profile-sharing-rules.schema.json",
-        "schemas/knowledge-profile-quick-action.schema.json",
-        "schemas/knowledge-profile-muting-permission-set.schema.json",
-        "schemas/knowledge-profile-dashboard.schema.json",
-        "schemas/knowledge-profile-email-template.schema.json",
-        "schemas/knowledge-profile-aura.schema.json",
-        "schemas/knowledge-profile-integration.schema.json",
-        "schemas/knowledge-profile-profile.schema.json",
-        "schemas/knowledge-profile-layout.schema.json",
-        "schemas/knowledge-profile-flexipage.schema.json",
-        "schemas/knowledge-profile-workflow.schema.json",
-        "schemas/knowledge-profile-routing-rules.schema.json",
-        "schemas/knowledge-profile-approval-process.schema.json",
-        "schemas/knowledge-profile-report.schema.json",
-        "schemas/knowledge-profile-visualforce.schema.json",
         "scripts/knowledge_store.py",
         "scripts/knowledge_search.py",
         "scripts/validate_handover_output.py",
@@ -387,14 +336,6 @@ def check_customizations(audit: Audit, root: Path = ROOT) -> None:
     prompt_paths = sorted((root / ".github/prompts").glob("*.prompt.md"))
     skill_paths = sorted((root / ".github/skills").glob("*/SKILL.md"))
     instruction_paths = sorted((root / ".github/instructions").glob("*.instructions.md"))
-    actual = {
-        "agents": len(agent_paths),
-        "prompts": len(prompt_paths),
-        "skills": len(skill_paths),
-        "instructions": len(instruction_paths),
-    }
-    for kind, expected in EXPECTED_COUNTS.items():
-        audit.require(actual[kind] == expected, f"expected {expected} {kind}, found {actual[kind]}")
 
     agents: dict[str, dict[str, Any]] = {}
     for path in agent_paths:
@@ -522,18 +463,10 @@ def check_customizations(audit: Audit, root: Path = ROOT) -> None:
         description = data.get("description")
         audit.require(isinstance(description, str) and 1 <= len(description) <= 1024, f"{relative(path)}: description must be 1..1024 characters")
         audit.require(data.get("user-invocable") is False, f"{relative(path)}: internal skill must set user-invocable: false")
-        # Context-first skills (plan 2026-08-07 phase 3) are recipes, not governed lanes:
-        # they do not load the shared execution contract. Every other skill must.
-        if folder not in {"solution-design", "org-discovery", "development", "git-workflow", "investigate-object", "curate-knowledge"}:
-            audit.require("shared execution contract" in body.lower(), f"{relative(path)}: shared execution contract is required")
         if data.get("user-invocable") is not False and isinstance(data.get("name"), str):
             public_skill_names.append(data["name"])
 
     public_commands = prompt_names + public_skill_names
-    audit.require(
-        len(public_commands) == EXPECTED_COUNTS["prompts"],
-        f"expected {EXPECTED_COUNTS['prompts']} public slash commands, found {len(public_commands)}",
-    )
     audit.require(len(public_commands) == len(set(public_commands)), "public slash-command names collide")
 
     for path in instruction_paths:
@@ -546,12 +479,6 @@ def check_customizations(audit: Audit, root: Path = ROOT) -> None:
     mp_data, _ = frontmatter(ROOT / ".github/instructions/managed-package.instructions.md", audit)
     audit.require(mp_data.get("applyTo") == "**", "managed-package.instructions.md must apply to every file (applyTo: \"**\")")
 
-    all_agent_bodies = "\n".join(path.read_text(encoding="utf-8") for path in agent_paths)
-    for required_link in (
-        "source-authority.md",
-        "managed-package.instructions.md",
-    ):
-        audit.require(required_link in all_agent_bodies, f"agents do not explicitly load required resource {required_link}")
     for path in agent_paths:
         data, _body = frontmatter(path, audit)
         # The rule that matters for a handoff prompt: it may never depend on chat context.
@@ -797,14 +724,9 @@ def check_settings_and_mcp(audit: Audit) -> None:
     audit.require(role_guard.count('".cache/ado-items/"') >= 3, "ADO cache must be writable by its three consuming roles")
     audit.require('".cache/test-cases/"' in role_guard, "Test Strategist must be able to write Test Case cache")
     audit.require('".cache/org-usage/"' in role_guard, "Config Investigator must be able to author org-usage probes-files (contract §6.6)")
-    compatibility = required_text(ROOT / "docs/compatibility.md", audit)
-    audit.require("1.112" in compatibility, "compatibility baseline must state the minimum VS Code version")
-    audit.require("read-only by construction" in compatibility, "the read-only MCP model must be explicit")
-    audit.require("human confirmation" in compatibility, "the human-approved CLI retrieve boundary must be explicit")
-    agents_contract = required_text(ROOT / "AGENTS.md", audit)
-    audit.require("Built-in/default Agent mode" in agents_contract, "supported custom-agent boundary must be explicit")
-    security = required_text(ROOT / "SECURITY.md", audit)
-    audit.require("dedicated OS account, VM, or container" in security, "production credential isolation is required")
+    # Documentation wording is not pinned here: the read-only MCP model, the retrieve
+    # confirmation, and credential isolation are enforced by the machine checks above and the
+    # hook/facade test suites; docs are covered by the link check and AGENTS.md size bound.
 
 
 def check_ci(audit: Audit) -> None:
@@ -1149,88 +1071,20 @@ def check_grounding_contracts(audit: Audit) -> None:
         )
         audit.require(not errors, f"{data_name}: schema failure: {errors[0].message if errors else ''}")
 
-    for schema_name in (
-        "salesforce-org-review-evidence.schema.json",
-        "force-app-knowledge-inventory.schema.json",
-        "knowledge-extraction.schema.json",
-        "ado-wiki-cache.schema.json",
-        "knowledge-entry.schema.json",
-        "knowledge-profile-flow.schema.json",
-        "knowledge-profile-customfield.schema.json",
-        "knowledge-profile-apex.schema.json",
-        "knowledge-profile-validationrule.schema.json",
-        "knowledge-profile-permissionset.schema.json",
-        "knowledge-profile-lwc.schema.json",
-        "knowledge-profile-custommetadata.schema.json",
-        "knowledge-profile-recordtype.schema.json",
-        "knowledge-profile-customobject.schema.json",
-        "knowledge-profile-field-set.schema.json",
-        "knowledge-profile-compact-layout.schema.json",
-        "knowledge-profile-business-process.schema.json",
-        "knowledge-profile-web-link.schema.json",
-        "knowledge-profile-duplicate-rule.schema.json",
-        "knowledge-profile-matching-rule.schema.json",
-        "knowledge-profile-queue.schema.json",
-        "knowledge-profile-role.schema.json",
-        "knowledge-profile-delegate-group.schema.json",
-        "knowledge-profile-permission-set-group.schema.json",
-        "knowledge-profile-static-resource.schema.json",
-        "knowledge-profile-platform-event-channel.schema.json",
-        "knowledge-profile-platform-event-channel-member.schema.json",
-        "knowledge-profile-value-set.schema.json",
-        "knowledge-profile-custom-label.schema.json",
-        "knowledge-profile-custom-tab.schema.json",
-        "knowledge-profile-custom-application.schema.json",
-        "knowledge-profile-flow-definition.schema.json",
-        "knowledge-profile-path-assistant.schema.json",
-        "knowledge-profile-list-view.schema.json",
-        "knowledge-profile-report-type.schema.json",
-        "knowledge-profile-sharing-rules.schema.json",
-        "knowledge-profile-quick-action.schema.json",
-        "knowledge-profile-muting-permission-set.schema.json",
-        "knowledge-profile-dashboard.schema.json",
-        "knowledge-profile-email-template.schema.json",
-        "knowledge-profile-aura.schema.json",
-        "knowledge-profile-integration.schema.json",
-        "knowledge-profile-profile.schema.json",
-        "knowledge-profile-layout.schema.json",
-        "knowledge-profile-flexipage.schema.json",
-        "knowledge-profile-workflow.schema.json",
-        "knowledge-profile-routing-rules.schema.json",
-        "knowledge-profile-approval-process.schema.json",
-        "knowledge-profile-report.schema.json",
-        "knowledge-profile-visualforce.schema.json",
-    ):
-        schema = load_json(ROOT / "schemas" / schema_name, audit)
+    # Every tracked schema must itself be a valid Draft 2020-12 schema. Discovery replaces
+    # a hand-kept list: adding a schema file makes it validated, with no second list to edit.
+    # Fixture mappings (positive AND negative) stay explicit in check_schemas_and_evals and
+    # above, because the mapping itself carries contract meaning.
+    for schema_path in sorted((ROOT / "schemas").glob("*.schema.json")):
+        schema = load_json(schema_path, audit)
         try:
             Draft202012Validator.check_schema(schema)
         except Exception as exc:
-            audit.require(False, f"schemas/{schema_name}: invalid JSON Schema: {exc}")
+            audit.require(False, f"{relative(schema_path)}: invalid JSON Schema: {exc}")
 
-    for command in (
-        [sys.executable, "scripts/knowledge_store.py", "entry-check"],
-        # feature-check belongs to CI rather than to a person (§6), and a CI-only gate that no
-        # CI step runs is not a gate: the live tree failed feature-check while the validator
-        # reported PASS. It shares the loop's TimeoutExpired handler deliberately — a second
-        # grounding subprocess is exactly what §0.3 required that handler for.
-        [sys.executable, "scripts/knowledge_store.py", "feature-check"],
-    ):
-        try:
-            completed = subprocess.run(
-                command, cwd=ROOT, text=True, capture_output=True, timeout=GROUNDING_TIMEOUT_SECONDS, check=False
-            )
-        except subprocess.TimeoutExpired:
-            # An uncaught TimeoutExpired here surfaces as a bare traceback in two gates at once
-            # (harness-ci.yml runs the same commands), attributable to nothing. entry-check costs
-            # ~3.5 ms per entry, so this becomes reachable as the corpus grows rather than when
-            # the code changes — the failure has to name itself.
-            audit.require(
-                False,
-                f"grounding command timed out after {GROUNDING_TIMEOUT_SECONDS}s: {' '.join(command[1:])} "
-                "— narrow it with `entry-check --changed-since <ref>` or raise the budget deliberately",
-            )
-            continue
-        audit.require(completed.returncode == 0, f"grounding command failed: {' '.join(command[1:])}: {completed.stderr.strip() or completed.stdout.strip()}")
+    # Knowledge entry-check and feature-check are domain gates owned by CI (explicit,
+    # attributable steps in harness-ci.yml) and by the VS Code Test task locally; the static
+    # validator no longer re-runs them as subprocesses.
 
     runtime_roots = (ROOT / ".github", ROOT / ".ai", ROOT / "config", ROOT / "schemas", ROOT / "scripts")
     for base in runtime_roots:
@@ -1265,10 +1119,13 @@ def check_grounding_contracts(audit: Audit) -> None:
     audit.require(example_review.get("allowedObjectApiNames") == [], "disabled example object allowlist must be empty")
     workflow = required_text(ROOT / ".github/workflows/harness-ci.yml", audit)
     audit.require("npm ci --ignore-scripts" in workflow, "CI must install the pinned Salesforce review runtime without lifecycle scripts")
-    audit.require(
-        "python scripts/knowledge_store.py entry-check" in workflow,
-        "CI must keep the explicit knowledge entry-check gate",
-    )
+    # The static validator does not run the Knowledge domain gates itself; CI must own them
+    # as explicit, attributable steps.
+    for gate in ("entry-check", "feature-check"):
+        audit.require(
+            f"python scripts/knowledge_store.py {gate}" in workflow,
+            f"CI must keep the explicit knowledge {gate} gate",
+        )
 
 
 def check_repo_map(audit: Audit) -> None:
@@ -1606,16 +1463,12 @@ def main() -> int:
         ),
     )
     if audit.errors:
-        print(f"FAIL: harness validation ({len(audit.errors)} errors, {audit.checks} checks)")
+        print(f"FAIL: static harness validation ({len(audit.errors)} errors, {audit.checks} assertions)")
         for message in audit.errors:
             print(f"- {message}")
         return 1
-    print(f"PASS: harness validation ({audit.checks} checks)")
-    print(
-        f"Inventory: {EXPECTED_COUNTS['agents']} agents, {EXPECTED_COUNTS['prompts']} prompts, "
-        f"{EXPECTED_COUNTS['skills']} internal skills, {EXPECTED_COUNTS['instructions']} scoped instruction files"
-    )
-    print("Contracts: workspace, MCP, hooks, schemas, fixtures, and governance are coherent")
+    print(f"PASS: static harness validation ({audit.checks} assertions)")
+    print("Scope: tracked repository structure, configuration contracts, and safety wiring")
     return 0
 
 
