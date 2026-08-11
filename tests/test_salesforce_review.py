@@ -649,6 +649,77 @@ class ObjectContractAndDiagnostics(FacadeHarness):
         self.assertEqual(rest["indexed"], True)
         self.assertEqual(by_name["OwnerId"]["referenceTo"], ["User"])
 
+    @staticmethod
+    def large_account_describe(target_bytes: int) -> dict:
+        """A realistic oversized describe, generated in memory (never a committed fixture).
+
+        The bulk mirrors the live regression: a giant picklistValues collection that
+        normalization intentionally ignores. Field traits stay describe-shaped so the
+        normal merge path runs once the payload is accepted."""
+        describe = {
+            "name": "Account",
+            "fields": [
+                {"name": "Name", "type": "string", "nillable": False, "calculated": False, "relationshipName": None, "referenceTo": [], "length": 255, "precision": None, "scale": None, "unique": False, "externalId": False, "createable": True, "updateable": True},
+                {
+                    "name": "Load__c",
+                    "type": "picklist",
+                    "nillable": True,
+                    "calculated": False,
+                    "relationshipName": None,
+                    "referenceTo": [],
+                    "length": 255,
+                    "precision": None,
+                    "scale": None,
+                    "unique": False,
+                    "externalId": False,
+                    "createable": True,
+                    "updateable": True,
+                    "picklistValues": [],
+                },
+            ],
+        }
+        value = {"active": True, "defaultValue": False, "label": "Harness Load Value %07d", "value": "harness_load_value_%07d"}
+        overhead = len(json.dumps(value).encode()) + 10
+        count = max(1, (target_bytes - len(json.dumps(describe).encode())) // overhead)
+        describe["fields"][1]["picklistValues"] = [
+            {"active": True, "defaultValue": False, "label": f"Harness Load Value {i:07d}", "value": f"harness_load_value_{i:07d}"}
+            for i in range(count)
+        ]
+        return describe
+
+    def seed_two_field_tooling(self) -> None:
+        MockSalesforce.state["entity_records"] = [{"QualifiedApiName": "Account"}]
+        MockSalesforce.state["field_records"] = [
+            {"QualifiedApiName": "Name", "DataType": "Text(255)", "IsNillable": False, "IsCalculated": False, "RelationshipName": None, "ReferenceTo": None, "Length": 255, "Precision": None, "Scale": None, "IsIndexed": True},
+            {"QualifiedApiName": "Load__c", "DataType": "Picklist", "IsNillable": True, "IsCalculated": False, "RelationshipName": None, "ReferenceTo": None, "Length": 255, "Precision": None, "Scale": None, "IsIndexed": False},
+        ]
+
+    def test_large_valid_describe_above_generic_cap_is_accepted(self) -> None:
+        # Live regression pin (2026-08-11): Account describe of 2,102,565 bytes returned
+        # HTTP 200 yet the generic 1 MiB vendor cap rejected it as REST_SCHEMA_MISMATCH
+        # with empty facts. The describe supplement owns a larger fixed bound; the
+        # normalized contract must come back VERIFIED with describe-only traits intact.
+        self.seed_two_field_tooling()
+        describe = self.large_account_describe(1_300_000)
+        self.assertGreater(len(json.dumps(describe).encode()), 1_048_576)
+        MockSalesforce.state["describe"] = describe
+        responses, _ = self.roundtrip(
+            [self.initialize_message(), self.call(2, "review_object_contract", {"objectApiName": "Account"})]
+        )
+        envelope = self.envelope_of(responses, 2)
+        validate_salesforce_review_envelope(ROOT, envelope)
+        self.assertEqual(envelope["status"], "VERIFIED")
+        self.assertEqual(envelope["warnings"], [])
+        obj = envelope["facts"]["object"]
+        self.assertTrue(obj["exists"])
+        by_name = {field["name"]: field for field in obj["fields"]}
+        self.assertEqual(len(by_name), 2)
+        rest = by_name["Load__c"]["sourceExclusive"]["rest"]
+        self.assertEqual(rest["unique"], False)
+        self.assertEqual(rest["externalId"], False)
+        self.assertEqual(rest["createable"], True)
+        self.assertEqual(rest["updateable"], True)
+
     def test_object_contract_respects_allowlist(self) -> None:
         self.write_config(allowed_objects=["Account"])
         responses, _ = self.roundtrip(
@@ -697,6 +768,137 @@ class ObjectContractAndDiagnostics(FacadeHarness):
         envelope = self.envelope_of(responses, 2)
         validate_salesforce_review_envelope(ROOT, envelope)
         self.assertEqual(envelope["facts"]["orgs"], [{"alias": ALIAS, "environment": "development"}])
+
+
+class LargeDescribePayloadBounds(FacadeHarness):
+    """The 8 MiB bound belongs to the object-describe supplement alone (2026-08-11).
+
+    Every other REST call keeps the generic maxVendorPayloadBytes policy cap, and an
+    oversized response is a payload-size failure (REST_PAYLOAD_TOO_LARGE), never the
+    false REST_SCHEMA_MISMATCH diagnosis the live Account regression produced."""
+
+    def test_generic_rest_call_does_not_inherit_the_describe_bound(self) -> None:
+        # The Tooling FieldDefinition query is a non-describe REST call inside the same
+        # tool: above 1 MiB it must fail with the corrected payload classification.
+        MockSalesforce.state["entity_records"] = [{"QualifiedApiName": "Account"}]
+        filler = "x" * 2048
+        MockSalesforce.state["field_records"] = [
+            {"QualifiedApiName": f"F{i}__c", "DataType": f"Text(255){filler}", "IsNillable": True}
+            for i in range(600)
+        ]
+        self.assertGreater(len(json.dumps({"done": True, "records": MockSalesforce.state["field_records"]}).encode()), 1_048_576)
+        responses, _ = self.roundtrip(
+            [self.initialize_message(), self.call(2, "review_object_contract", {"objectApiName": "Account"})]
+        )
+        envelope = self.envelope_of(responses, 2)
+        validate_salesforce_review_envelope(ROOT, envelope)
+        self.assertEqual(envelope["status"], "INCOMPLETE")
+        self.assertEqual(envelope["warnings"], ["REST_PAYLOAD_TOO_LARGE"])
+        self.assertNotIn("object", envelope.get("facts") or {})
+
+    def test_transport_enforces_explicit_and_default_bounds(self) -> None:
+        # Direct transport boundary (no 8 MiB fixture): the keyword-only override is
+        # authoritative when supplied, the policy cap applies otherwise, and the
+        # stderr diagnostic stays sanitized (operation label + byte counts only).
+        import io
+        from unittest.mock import patch
+        from scripts import salesforce_review_server as srv
+
+        client = srv.RestClient.__new__(srv.RestClient)
+        client.runtime = {"policy": {"maxVendorPayloadBytes": 1_048_576}}
+        client.fail_closed = False
+        client.token = "t"
+        client._session = None
+        client._session_lock = threading.Lock()
+
+        class FakeResponse:
+            def __init__(self, content: bytes, status_code: int = 200):
+                self.content = content
+                self.status_code = status_code
+
+            def json(self):
+                return json.loads(self.content)
+
+        big = json.dumps({"pad": "y" * 2000}).encode()
+        with patch.object(srv.RestClient, "_get", return_value=FakeResponse(big)):
+            captured = io.StringIO()
+            with patch.object(srv.sys, "stderr", captured):
+                with self.assertRaises(srv.ReviewError) as ctx:
+                    client.get_json("/x", max_payload_bytes=1000, operation="object-describe")
+            self.assertEqual(ctx.exception.code, "REST_PAYLOAD_TOO_LARGE")
+            self.assertEqual(ctx.exception.status, "INCOMPLETE")
+            diagnostic = captured.getvalue()
+            self.assertIn("operation=object-describe", diagnostic)
+            self.assertIn("limit=1000", diagnostic)
+            self.assertNotIn("Bearer", diagnostic)
+            self.assertNotIn("/x", diagnostic)
+            # Same payload passes when the explicit bound allows it.
+            self.assertEqual(client.get_json("/x", max_payload_bytes=10_000)["pad"], "y" * 2000)
+        oversized_default = json.dumps({"pad": "z" * 1_100_000}).encode()
+        with patch.object(srv.RestClient, "_get", return_value=FakeResponse(oversized_default)):
+            with self.assertRaises(srv.ReviewError) as ctx:
+                client.get_json("/x")
+            self.assertEqual(ctx.exception.code, "REST_PAYLOAD_TOO_LARGE")
+
+    def test_http_errors_under_the_bound_keep_their_classification(self) -> None:
+        from unittest.mock import patch
+        from scripts import salesforce_review_server as srv
+
+        client = srv.RestClient.__new__(srv.RestClient)
+        client.runtime = {"policy": {"maxVendorPayloadBytes": 1_048_576}}
+        client.fail_closed = False
+        client.token = "t"
+        client._session = None
+        client._session_lock = threading.Lock()
+
+        class FakeResponse:
+            def __init__(self, content: bytes, status_code: int):
+                self.content = content
+                self.status_code = status_code
+
+            def json(self):
+                return json.loads(self.content)
+
+        body = json.dumps([{"errorCode": "UNKNOWN_EXCEPTION"}]).encode()
+        with patch.object(srv.RestClient, "_get", return_value=FakeResponse(body, 500)):
+            with self.assertRaises(srv.ReviewError) as ctx:
+                client.get_json("/x", max_payload_bytes=8 * 1024 * 1024)
+            self.assertEqual(ctx.exception.code, "REST_SCHEMA_MISMATCH")
+        with patch.object(srv.RestClient, "_get", return_value=FakeResponse(body, 404)):
+            with self.assertRaises(srv.ReviewError) as ctx:
+                client.get_json("/x", max_payload_bytes=8 * 1024 * 1024)
+            self.assertEqual(ctx.exception.code, "REST_NOT_FOUND")
+
+    def test_payload_warning_is_incomplete_class_never_blocking(self) -> None:
+        from scripts import salesforce_review_server as srv
+
+        self.assertNotIn("REST_PAYLOAD_TOO_LARGE", srv.BLOCKING_WARNINGS)
+        schema = json.loads(
+            (ROOT / "schemas" / "salesforce-org-review-evidence.schema.json").read_text(encoding="utf-8")
+        )
+        defs = schema["$defs"]
+        self.assertIn("REST_PAYLOAD_TOO_LARGE", defs["warning"]["enum"])
+        self.assertIn("REST_PAYLOAD_TOO_LARGE", defs["incompleteWarning"]["enum"])
+        self.assertNotIn("REST_PAYLOAD_TOO_LARGE", defs["blockingWarning"]["enum"])
+
+    def test_result_cap_is_independent_and_unchanged(self) -> None:
+        # D7: an inbound payload accepted under its bound may still overflow the
+        # normalized 480,000-byte result cap and must keep CLI_OUTPUT_TOO_LARGE.
+        MockSalesforce.state["records"] = [
+            {"Name": f"row-{i:05d}", "Payload__c": "v" * 700} for i in range(1000)
+        ]
+        raw = len(json.dumps({"done": True, "records": MockSalesforce.state["records"]}).encode())
+        self.assertLess(raw, 1_048_576, "inbound stays under the generic cap on purpose")
+        self.assertGreater(raw, 480_000)
+        responses, _ = self.roundtrip(
+            [
+                self.initialize_message(),
+                self.call(2, "review_soql_query", {"query": "SELECT Name, Payload__c FROM Account"}),
+            ]
+        )
+        envelope = self.envelope_of(responses, 2)
+        self.assertEqual(envelope["status"], "INCOMPLETE")
+        self.assertEqual(envelope["warnings"], ["CLI_OUTPUT_TOO_LARGE"])
 
 
 if __name__ == "__main__":

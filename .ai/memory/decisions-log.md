@@ -1531,3 +1531,26 @@ Gate: 690 unit tests OK in ~87 s, 43 safety evals PASS, validate_harness coheren
   the fetch skill and `work-items/README.md`, enforced by review and behavioral scenarios.
 - Approved by: owner (frozen decisions D1–D12, 2026-08-11,
   MASTER-PLAN-WORK-ITEM-ADO-CONTEXT.md)
+
+## 2026-08-11 — object describe gets an endpoint-specific 8 MiB inbound bound
+
+- Decision: `RestClient.get_json` accepts a keyword-only per-call payload bound; the only
+  call site using it is the full sObject describe supplement in `review_object_contract`,
+  with a code-owned `MAX_DESCRIBE_PAYLOAD_BYTES = 8 MiB`. Every other REST call keeps the
+  generic `maxVendorPayloadBytes` policy cap (1,048,576, schema maximum unchanged). A
+  response exceeding its applicable bound now reports `REST_PAYLOAD_TOO_LARGE`
+  (INCOMPLETE-class, never blocking) instead of the false `REST_SCHEMA_MISMATCH`; stderr
+  logs only a fixed operation label, byte count, limit, and HTTP status.
+- Why: live regression on the authorized `devmp` fixture — Account describe returned
+  HTTP 200 with 2,102,565 bytes (1,053,989 above the generic cap) and the facade answered
+  `INCOMPLETE / REST_SCHEMA_MISMATCH / empty facts` in ~5 s. A diagnostic run with a larger
+  in-memory bound returned `VERIFIED`, 96 normalized fields, and a 33,148-byte envelope —
+  the defect was the inbound describe bound, not the output bound or normalization.
+- Deliberately not added: no config key (transport implementation bound, not local policy),
+  no schema-version change, no partial-contract lane, no streaming parser, alternate API,
+  cache, or retry. A future legitimate describe above 8 MiB returns `INCOMPLETE` with
+  `REST_PAYLOAD_TOO_LARGE` and can justify a separate decision. `MAX_RESULT_BYTES` 480,000
+  and `MAX_OUTER_MESSAGE_BYTES` stay independent and unchanged (a giant accepted describe
+  may still yield `CLI_OUTPUT_TOO_LARGE`).
+- Approved by: owner (frozen decisions D1–D7, 2026-08-11,
+  MASTER-PLAN-FIX-LARGE-OBJECT-CONTRACT-DESCRIBE.md)

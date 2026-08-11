@@ -93,6 +93,12 @@ MAX_OUTER_MESSAGE_BYTES = 1_048_576
 # Below half the outer cap: an envelope is embedded twice in a tools/call response
 # (content[0].text and structuredContent) and must fit twice plus framing.
 MAX_RESULT_BYTES = 480_000
+# Endpoint-specific inbound bound for the full sObject describe supplement only (owner
+# decision 2026-08-11): a real Account describe measured 2,102,565 bytes while its
+# normalized contract was 33 KiB, so the generic maxVendorPayloadBytes policy cap stays
+# authoritative for every other REST call. Code-owned on purpose — not a config key.
+# Worst-case raw buffer exposure is THREAD_POOL_SIZE * this value before parse overhead.
+MAX_DESCRIBE_PAYLOAD_BYTES = 8 * 1024 * 1024
 CONNECT_TIMEOUT_SECONDS = 10
 READ_TIMEOUT_SECONDS = 30
 CLI_TIMEOUT_SECONDS = 60
@@ -427,7 +433,15 @@ class RestClient:
             timeout=(CONNECT_TIMEOUT_SECONDS, read_timeout),
         )
 
-    def get_json(self, path: str, params: "dict | None" = None, read_timeout: int = READ_TIMEOUT_SECONDS) -> dict:
+    def get_json(
+        self,
+        path: str,
+        params: "dict | None" = None,
+        read_timeout: int = READ_TIMEOUT_SECONDS,
+        *,
+        max_payload_bytes: "int | None" = None,
+        operation: str = "generic",
+    ) -> dict:
         if self.fail_closed:
             raise ReviewError("IDENTITY_ORG_ID_MISMATCH")
         attempt = 0
@@ -462,8 +476,15 @@ class RestClient:
                     raise ReviewError("REST_UNAVAILABLE", "INCOMPLETE")
                 self._refresh_token_and_reprove(token_used)
                 continue
-            if len(response.content) > self.runtime["policy"]["maxVendorPayloadBytes"]:
-                raise ReviewError("REST_SCHEMA_MISMATCH", "INCOMPLETE")
+            limit = max_payload_bytes or self.runtime["policy"]["maxVendorPayloadBytes"]
+            if len(response.content) > limit:
+                # Sanitized on purpose: fixed operation label and byte counts only —
+                # never headers, bodies, URLs, org ids, or tokens.
+                log(
+                    f"rest payload too large: operation={operation} "
+                    f"bytes={len(response.content)} limit={limit} http={response.status_code}"
+                )
+                raise ReviewError("REST_PAYLOAD_TOO_LARGE", "INCOMPLETE")
             if response.status_code == 404:
                 raise ReviewError("REST_NOT_FOUND", "INCOMPLETE")
             if response.status_code >= 400:
@@ -904,7 +925,9 @@ def review_object_contract(server: "Server", tool_input: dict) -> dict:
         # only exist in the describe, and losing them broke deterministic seeding once.
         try:
             describe = server.rest.get_json(
-                f"/services/data/v{runtime['review']['apiVersion']}/sobjects/{requested}/describe/"
+                f"/services/data/v{runtime['review']['apiVersion']}/sobjects/{requested}/describe/",
+                max_payload_bytes=MAX_DESCRIBE_PAYLOAD_BYTES,
+                operation="object-describe",
             )
             describe_fields = {f.get("name"): f for f in describe.get("fields") or [] if isinstance(f, dict)}
         except ReviewError as err:
