@@ -3,8 +3,8 @@ const eslintJs = require("@eslint/js");
 const globals = require("globals");
 
 module.exports = defineConfig([
-  // The three guarded MCP server entry points are the only JavaScript this repo tracks
-  // (force-app/ stays an empty skeleton; org metadata is never versioned here).
+  // This root ESLint gate covers only the guarded MCP server entry points under scripts/.
+  // Salesforce source under force-app/ is versioned but not linted here.
   {
     files: ["scripts/**/*.mjs"],
     languageOptions: {

@@ -1430,3 +1430,30 @@ Gate: 690 unit tests OK in ~87 s, 43 safety evals PASS, validate_harness coheren
 - Approved by: owner (D1-D12, 2026-08-11, MASTER-PLAN-PHASE-2-SEMANTIC-DRIFT.md)
 - Related: docs/knowledge-one-file-contract.md §2.1/§5.5/§5.5a/§14.1/§15.3,
   .github/skills/curate-knowledge/SKILL.md, .github/skills/search-knowledge/SKILL.md
+
+## 2026-08-11 — force-app/** is versioned source; broad metadata ignore removed (policy only)
+
+- Decision: `force-app/**` is versioned Salesforce source, matching the single-repository model
+  README and docs/workspace-topology.md already describe (source, manifests, and governance share
+  one branch/PR/history). The broad `.gitignore` rule `force-app/main/default/**` (plus its
+  `.gitkeep` re-inclusions) contradicted that model and was removed. Local/generated Salesforce
+  tooling state keeps its separate narrow ignores unchanged (`**/lwc/jsconfig.json`, `.sf/`,
+  `.sfdx/`, `.localdevserver/`, coverage, caches, logs).
+- Scope: policy and its regression controls only. No Salesforce metadata was retrieved, added,
+  modified, or deleted; all 13 `.gitkeep` placeholders remain tracked (`.forceignore` already
+  excludes them from Salesforce operations). Two-sided canaries were pinned in
+  `scripts/validate_harness.py`, `tests/test_validate_harness.py`, and the existing CI
+  ignored-state step: `force-app/main/default/classes/TrackedCanary.cls` must NOT be ignored
+  (git check-ignore exit 1, with >1 treated as a git error, never as trackability) and
+  `force-app/main/default/lwc/jsconfig.json` must stay ignored (exit 0). Stale
+  `eslint.config.js` comment corrected (no lint-scope change); CONTRIBUTING.md warns against
+  broad `git add` after a retrieve.
+- Non-goals, deliberately deferred: the initial source import happens as a separate, one-time
+  human-reviewed PR in the target repository (source authority, inventory, secret/size scan,
+  optional `.gitkeep` cleanup, baseline tag decided there); diff-aware Salesforce CI lanes and
+  ruleset work stay in their own plans; no `.forceignore`, sfdx-project.json, manifest,
+  dependency, CODEOWNERS, ruleset, or MCP/hook/schema change.
+- Verification: trackable canary check-ignore rc=1, jsconfig canary rc=0; full validator, unit
+  suite, evals, prettier, eslint, npm audit, and repo-map check green on the implementation
+  branch (see PR).
+- Approved by: owner (D1–D11, 2026-08-11, MASTER-PLAN-TRACK-FORCE-APP-SOURCE.md)

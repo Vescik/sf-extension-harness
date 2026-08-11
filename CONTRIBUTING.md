@@ -18,6 +18,9 @@ traceable to a work item or recorded decision.
 - Keep production aliases, production URLs, credentials, tokens, customer data, and local browser
   profiles out of the repository.
 - Do not commit `config/harness.local.json`, `.cache/**`, or `output/**` artifacts.
+- Salesforce source under `force-app/` is versioned. After a retrieve, inspect `git status`/
+  `git diff` and stage only the exact intended metadata paths; never use a broad `git add` in a
+  mixed workspace.
 - Any new public slash command needs an owner, stable name, pinned agent, input contract, and
   deterministic failure behavior.
 - Any new custom agent needs a bounded role, current tool IDs, correction handoffs, and safety tests.

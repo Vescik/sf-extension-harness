@@ -101,3 +101,11 @@ jobs:
             deploy-options.json; do
             git check-ignore -q "$path" || { echo "NOT IGNORED: $path"; exit 1; }
           done
+          # Inverse canary: versioned Salesforce source must NOT be ignored. Exit code 1 is the
+          # only acceptable answer (0 = ignored, >1 = git error).
+          rc=0
+          git check-ignore -q force-app/main/default/classes/TrackedCanary.cls || rc=$?
+          if [ "$rc" -ne 1 ]; then
+            echo "Salesforce source path is unexpectedly ignored (or git check-ignore failed, rc=$rc): force-app/main/default/classes/TrackedCanary.cls"
+            exit 1
+          fi

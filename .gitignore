@@ -22,13 +22,10 @@ output/**
 !output/**/
 !output/**/.gitkeep
 
-# ── Salesforce metadata content ──
-# Org metadata is retrieved and deployed by humans (sf project retrieve / deploy) and kept local
-# only; it is not versioned here. Commit just the directory skeleton so the SFDX project, CI, and
-# harness validation still resolve (same keep-the-folders pattern as .cache/ and output/).
-force-app/main/default/**
-!force-app/main/default/**/
-!force-app/main/default/**/.gitkeep
+# ── Salesforce source ──
+# Salesforce source under force-app/ is versioned with the workspace (single-repository model:
+# source, manifests, and governance share one branch/PR/history). Ignore only local/generated
+# Salesforce tooling state via the narrow rules under "Salesforce local tooling state" below.
 
 # ── OS noise ──
 .DS_Store

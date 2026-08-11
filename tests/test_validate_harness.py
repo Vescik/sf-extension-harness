@@ -263,5 +263,39 @@ class TestDependencyAdmission(unittest.TestCase):
             self.assertEqual(path.name, f"{record['safeSlug']}--{record['nameDigest12']}.json")
 
 
+class TestForceAppGitPolicy(unittest.TestCase):
+    """Two-sided force-app ignore contract (owner decision 2026-08-11).
+
+    Salesforce source under force-app/ is versioned; only local/generated tooling
+    state stays ignored. Both sides are pinned so the broad force-app ignore cannot
+    silently return, and a git failure can never masquerade as trackability."""
+
+    def test_normal_salesforce_source_is_trackable(self) -> None:
+        self.assertEqual(
+            validate_harness.git_check_ignore("force-app/main/default/classes/TrackedCanary.cls"),
+            1,
+        )
+
+    def test_generated_lwc_jsconfig_stays_ignored(self) -> None:
+        self.assertEqual(
+            validate_harness.git_check_ignore("force-app/main/default/lwc/jsconfig.json"),
+            0,
+        )
+
+    def test_git_error_is_not_read_as_trackable(self) -> None:
+        original = validate_harness.git_check_ignore
+        validate_harness.git_check_ignore = lambda path: 128
+        try:
+            audit = validate_harness.Audit()
+            validate_harness.check_ci(audit)
+        finally:
+            validate_harness.git_check_ignore = original
+        self.assertIn(
+            "Salesforce source path is unexpectedly ignored: "
+            "force-app/main/default/classes/TrackedCanary.cls",
+            audit.errors,
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
