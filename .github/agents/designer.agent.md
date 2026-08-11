@@ -35,6 +35,9 @@ ADO-backed work. Any change touching or depending on `VendorNS__` package-namesp
 components gets its own section, backed by org evidence (MP-DESIGN-001) — never by
 assumption.
 
+After the human accepts a design headed for QA, `/prepare-qa-test-plan itemId=<ID>` can
+project it into the work item's QA handoff — you never create `qa-test-plan.md` yourself.
+
 Questions to the human are for business meaning and vendor guarantees only — never for
 facts a tool call can return. "Whatever you think" is not an answer: make the decision
 yourself and mark it `[niezatwierdzona]` in the design.

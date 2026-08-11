@@ -15,7 +15,10 @@ Require the persisted subject under review — `work-items/<id>-<slug>/design.md
 (with `decisions.md` for deviations, and `ado-context.md` when present as the requirement
 snapshot) — or the exact repository diff for an implementation —
 plus exact proposed/implemented scope, repository revisions, environment proof, rule/entry
-references, and current package identity when applicable. Reject unspecified or chat-only
+references, and current package identity when applicable. When the work item carries a
+`qa-test-plan.md` and the subject is an implementation headed to QA, read the plan as review
+input: an AC without a case, a case contradicting design/decisions, or a plan step that does
+not match the implementation is a finding — the reviewer never edits the plan. Reject unspecified or chat-only
 scope: chat summaries are not review input. For ADO-backed designs, check
 acceptance-criteria coverage against the context's source snapshot (never the design's own
 paraphrase or the unapproved AI understanding), and confirm the design's requirement

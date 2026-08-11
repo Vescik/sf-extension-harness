@@ -723,6 +723,13 @@ def check_settings_and_mcp(audit: Audit) -> None:
     role_guard = required_text(ROOT / "scripts/copilot_role_guard.py", audit)
     audit.require(role_guard.count('".cache/ado-items/"') >= 3, "ADO cache must be writable by its three consuming roles")
     audit.require('".cache/test-cases/"' not in role_guard, "the Test Case cache write permission retired with the QA sync lane and must not return")
+    audit.require("QA_TEST_PLAN_PATTERN" in role_guard, "Test Strategist needs the exact-path QA test-plan write rule (D18)")
+    strategist_prefixes = re.search(r'"test-strategist":\s*\(([^)]*)\)', role_guard)
+    audit.require(
+        strategist_prefixes is not None and '"work-items/"' not in strategist_prefixes.group(1),
+        "Test Strategist must not gain the broad work-items/ prefix; the QA plan write is the "
+        "exact-path QA_TEST_PLAN_PATTERN rule only (D18)",
+    )
     audit.require('".cache/org-usage/"' in role_guard, "Config Investigator must be able to author org-usage probes-files (contract §6.6)")
     # Documentation wording is not pinned here: the read-only MCP model, the retrieve
     # confirmation, and credential isolation are enforced by the machine checks above and the

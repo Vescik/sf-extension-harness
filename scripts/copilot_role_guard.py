@@ -232,6 +232,16 @@ def knowledge_store_command_allowed(parts: list[str], role: str) -> bool:
             return False
     return True
 
+# Interactive QA test-plan handoff (owner plan 2026-08-11, D18): the Test Strategist's only
+# tracked work-item write is the exact per-item QA plan file. A `work-items/` prefix grant
+# would hand the role the sibling authorities (ado-context.md, design.md, tasks.md,
+# decisions.md), so this is an exact-path predicate, not a prefix — positive item id,
+# non-empty slug, exact filename, nothing deeper. Case variants and traversal fail closed:
+# normalize_path resolves `..` before matching, and a spelling variant simply doesn't match.
+QA_TEST_PLAN_PATTERN = re.compile(r"work-items/[1-9][0-9]*-[^/]+/qa-test-plan\.md")
+QA_TEST_PLAN_ROLES = frozenset({"test-strategist"})
+
+
 PATH_KEYS = {
     "path",
     "filepath",
@@ -604,6 +614,8 @@ def allowed(relative_path: str, prefixes: tuple[str, ...]) -> bool:
 
 
 def role_path_allowed(relative_path: str, role: str) -> bool:
+    if role in QA_TEST_PLAN_ROLES and QA_TEST_PLAN_PATTERN.fullmatch(relative_path):
+        return True
     return allowed(relative_path, ALLOWED_PREFIXES[role])
 
 

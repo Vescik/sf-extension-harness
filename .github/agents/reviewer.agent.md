@@ -27,6 +27,12 @@ contract gets checked against the org through the review tools and against
 `knowledge_context` for the artifacts involved. A package-touching change without its own
 evidence-backed section (MP-DESIGN-001) is an automatic finding.
 
+When an implementation is being handed to QA and the work item carries a
+`qa-test-plan.md`, read it and report — as findings, without fixing the file: ACs without
+cases, cases inconsistent with the design or recorded decisions, package/custom boundary
+mistakes, missing executable prerequisites, hidden assumptions or unsupported vendor
+claims, and plan steps that do not match the implementation.
+
 Report findings as a list ordered by severity, each with the rule it violates and the
 concrete failure it invites. What you could not verify, say so explicitly — an unchecked
 claim is a finding of its own kind, never a silent pass.

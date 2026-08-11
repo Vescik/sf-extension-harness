@@ -62,6 +62,15 @@ persisting `work-items/<id>-<slug>/ado-context.md` (requirement intake), then th
 `solution-design` prompt and skill writing prose into `work-items/<id>-<slug>/design.md`,
 each reviewed by a human on the pull request.
 
+QA test-plan authoring (`/prepare-qa-test-plan`, 2026-08-11) introduces **no new
+capability**: the Test Strategist authors `work-items/<id>-<slug>/qa-test-plan.md` with its
+existing grants — Knowledge tools, read-only ADO work-item tools (including relation and
+linked-Test-Case Work Item reads), org identity, installed-package review, object-contract
+review, and interactive questions. It deliberately has **no** `review_soql_query`: when
+test-data shape would need a record read, the workflow asks the maintainer for a safe
+test-data recipe or records a visible gap. Widening the strategist to composed SOQL reaches
+unredacted non-production rows and is a separate owner decision.
+
 Policy (owner decision 2026-07-30, widened 2026-08-04): composed read-only SOQL is permitted —
 and recommended whenever a task depends on record data structure — through the governed facade's
 `review_soql_query` tool only, for the designer, reviewer, knowledge-curator, developer,

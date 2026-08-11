@@ -63,6 +63,14 @@ a form to fill.
 Record a `no-entry` observation about knowledge coverage only after actually calling the
 knowledge tools — never from prediction.
 
+## QA handoff (after acceptance)
+
+The design's "Verification and rollback" stays the canonical verification strategy. After a
+design is accepted, `/prepare-qa-test-plan itemId=<ID>` may project it into a per-item
+`qa-test-plan.md` QA draft — Solution Design never creates that file itself, and the QA plan
+never repairs a stale requirement/design baseline: a newer `ado-context.md` revision routes
+back here first.
+
 ## When to ask the human
 
 Business meaning and vendor guarantees only — never facts a tool call can return, and
