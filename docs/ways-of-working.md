@@ -79,8 +79,14 @@ From a written requirement:
 
 ### What the agent will do
 
-1. The designer gathers work-item, Knowledge, repository, and allowed org evidence.
-2. The design is persisted in `work-items/<id>-<slug>/design.md`.
+1. From an ADO item, `/fetch-ado-item` first persists the requirement snapshot in
+   `work-items/<id>-<slug>/ado-context.md` — source-faithful ADO text kept separate from an
+   explicitly unapproved AI understanding — and stops with the next command
+   (`/solution-design itemId=<ID>`). Intake and design are deliberately separate steps.
+2. On `/solution-design`, the designer reads the persisted context (or your written
+   requirement), gathers Knowledge, repository, and allowed org evidence, and persists the
+   design in `work-items/<id>-<slug>/design.md`, naming its requirement baseline (context
+   path + ADO revision) for ADO-backed work.
 3. You resolve business questions, vendor guarantees, and unapproved choices it surfaces.
 4. A reviewer can challenge the persisted design with `/check-against-principles`.
 5. After you accept the design, the developer implements against it and keeps `tasks.md` and
@@ -100,6 +106,8 @@ From a written requirement:
 
 ### Expected artifacts
 
+- `work-items/<id>-<slug>/ado-context.md` — the ADO requirement snapshot (ADO-backed work
+  only; absent for a written requirement);
 - `work-items/<id>-<slug>/design.md` — the accepted intent;
 - `work-items/<id>-<slug>/tasks.md` — the execution checklist;
 - `work-items/<id>-<slug>/decisions.md` — deviations recorded during implementation;
@@ -345,6 +353,7 @@ reviewing impact across a curated feature boundary. For the governing detail, se
 
 | Artifact | Human meaning |
 |---|---|
+| `work-items/<id>-<slug>/ado-context.md` | Source-faithful ADO requirement snapshot plus clearly unapproved AI understanding (ADO-backed work) |
 | `work-items/<id>-<slug>/design.md` | Accepted intent, scope, trade-offs, verification, and rollback |
 | `work-items/<id>-<slug>/tasks.md` | Current execution checklist |
 | `work-items/<id>-<slug>/decisions.md` | Append-only deviations and rulings |
@@ -371,7 +380,7 @@ action — supply it, or stop the work.
 
 | Need | Entry point |
 |---|---|
-| Start from an ADO item | `/fetch-ado-item itemId=<ID>` |
+| Start from an ADO item | `/fetch-ado-item itemId=<ID>` (persists the requirement context), then `/solution-design itemId=<ID>` |
 | Start from a written requirement | `/solution-design <requirement>` |
 | Review a persisted design or implementation | `/check-against-principles itemId=<ID> scope=design` (or `scope=implementation`) |
 | Apply a small diagnosed fix | `/adhoc-fix component=<Type:Name> org=<alias>` plus the diagnosis |

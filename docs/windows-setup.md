@@ -160,8 +160,9 @@ There is no separate readiness command: Salesforce is proven live when the revie
 with your chosen alias, and ADO scope is checked on every tool call. Optional single-org
 diagnostic: `.\.venv\Scripts\python.exe scripts\verify_salesforce_org.py --org <alias>`.
 
-Then in Copilot Chat: run `/fetch-ado-item <id>` and a Salesforce review. ADO calls should no
-longer be blocked, and the read facade should return results.
+Then in Copilot Chat: run `/fetch-ado-item itemId=<id>` and a Salesforce review. ADO calls
+should no longer be blocked, and the read facade should return results (the fetch persists
+`work-items/<id>-<slug>/ado-context.md` and stops).
 
 ---
 

@@ -253,8 +253,9 @@ owner decision of 2026-07-14.)
   confirmation click (recorded as `copilot-chat-entry-confirmation` with the
   `knowledge.chatReviewer` name from local config). Raw cache and unreviewed `output/` remain
   ignored.
-- Durable scope lives in `work-items/<id>-<slug>/`: `design.md` for intent and scope, `tasks.md`
-  for the execution plan, `decisions.md` for deviations. Human review happens on the pull request
+- Durable scope lives in `work-items/<id>-<slug>/`: `ado-context.md` for the ADO requirement
+  snapshot (ADO-backed work, written by `/fetch-ado-item`), `design.md` for intent and scope,
+  `tasks.md` for the execution plan, `decisions.md` for deviations. Human review happens on the pull request
   that carries those files next to the metadata; Knowledge approvals keep their own digest-pinned
   chat confirmation.
 

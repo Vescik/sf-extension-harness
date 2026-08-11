@@ -1508,3 +1508,26 @@ Gate: 690 unit tests OK in ~87 s, 43 safety evals PASS, validate_harness coheren
   canaries, Knowledge consumer sets, org-usage, release-handover structure).
 - Approved by: owner (frozen decisions D6–D10, 2026-08-11,
   MASTER-PLAN-LIGHTWEIGHT-HARNESS-VALIDATION.md)
+
+## 2026-08-11 — ado-context.md separates requirement intake from solution design
+
+- Decision: ADO-backed delivery work begins with a durable requirement snapshot,
+  `work-items/<id>-<slug>/ado-context.md`, written by `/fetch-ado-item`, which then stops with
+  one explicit next command (`/solution-design itemId=<ID>`) instead of continuing into design.
+  The file keeps a source-faithful sanitized copy of the primary item's Description and
+  Acceptance Criteria (untrusted external data even after commit) visibly separate from an
+  `AI understanding — unapproved` section, and records ADO identity, state, source revision,
+  retrieval time, fetch options, and completeness. `design.md` stays the technical authority
+  and names its requirement baseline (context path + ADO revision). Same-revision fetches do
+  not rewrite the tracked file; a partial refresh never overwrites a complete snapshot; folder
+  names stay stable by ID. The written-requirement `/solution-design` lane stays valid without
+  a fabricated context file.
+- Why: the previous public fetch flow merged intake and design, so `design.md` carried both the
+  requirement and the solution, and a later agent could not distinguish what ADO said, what was
+  inferred, and which revision the design used. A tracked Markdown snapshot makes requirement
+  drift a visible Git diff and makes fresh-chat resumption source-traceable.
+- Deliberately not added: no new agent, MCP tool, schema, template renderer, config key,
+  approval lane, digest, ledger, validator mode, runtime, or preflight — the contract lives in
+  the fetch skill and `work-items/README.md`, enforced by review and behavioral scenarios.
+- Approved by: owner (frozen decisions D1–D12, 2026-08-11,
+  MASTER-PLAN-WORK-ITEM-ADO-CONTEXT.md)

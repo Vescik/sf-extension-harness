@@ -16,6 +16,11 @@ document exists — without it, "more control" reads as "better product".
 > against managed-package constraints, recorded limitations and organization principles — and the
 > runtime helps it do that rather than getting in the way.
 
+For ADO-backed work the requirement arrives as a durable snapshot: `/fetch-ado-item` persists
+`work-items/<id>-<slug>/ado-context.md` first, and the design names that file and its ADO
+revision as its requirement baseline — so a reviewer compares the design against the source
+acceptance criteria, not against the design's own paraphrase.
+
 Three obligations sit inside that sentence, and all three are load-bearing:
 
 1. **Deliver a design.** A session that ends without a document is a product failure, whatever the

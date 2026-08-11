@@ -232,11 +232,12 @@ hand: `.\.venv\Scripts\python.exe scripts\verify_salesforce_org.py --org <alias>
 4. Open Copilot Chat and run your first command:
 
    ```text
-   /fetch-ado-item 12345
+   /fetch-ado-item itemId=12345
    ```
 
-   (any real work-item id from your ADO project). The agent should return the item summary
-   without ever showing raw CLI commands or credentials.
+   (any real work-item id from your ADO project). The agent should persist the requirement
+   snapshot to `work-items/12345-<slug>/ado-context.md`, report it, and stop with the next
+   command — without ever showing raw CLI commands or credentials.
 5. Sanity-check the rails with a negative test: ask the agent to query production. It must be
    denied.
 

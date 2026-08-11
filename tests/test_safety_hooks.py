@@ -764,17 +764,24 @@ class RoleGuardTests(unittest.TestCase):
                 self.assertFalse(role_guard.allowed_role_command(command, ROOT, role))
 
     def test_designer_writes_work_items_and_not_retired_lanes(self) -> None:
-        allowed = run_hook(
-            "copilot_role_guard.py",
-            {
-                "cwd": str(ROOT),
-                "tool_name": "edit/editFiles",
-                "tool_input": {"path": "work-items/242850-approval-notifications/design.md"},
-            },
-            "--role",
-            "designer",
-        )
-        self.assertEqual(hook_decision(allowed), "continue")
+        # Both durable designer artifacts: the requirement snapshot written on the
+        # /fetch-ado-item intake turn and the design written on the /solution-design turn.
+        for artifact in (
+            "work-items/242850-approval-notifications/ado-context.md",
+            "work-items/242850-approval-notifications/design.md",
+        ):
+            with self.subTest(path=artifact):
+                allowed = run_hook(
+                    "copilot_role_guard.py",
+                    {
+                        "cwd": str(ROOT),
+                        "tool_name": "edit/editFiles",
+                        "tool_input": {"path": artifact},
+                    },
+                    "--role",
+                    "designer",
+                )
+                self.assertEqual(hook_decision(allowed), "continue")
         # Retired lanes must not come back as free writes: the record-free
         # output/solution-design lane (Design Case rebuild P2) and the deleted
         # .ai/change-records tree (phase 5) are no designer surface.

@@ -8,7 +8,8 @@ agent: reviewer
 Use the [check-against-principles skill](../skills/check-against-principles/SKILL.md).
 
 Require the persisted subject — the work item's `work-items/<itemId>-<slug>/design.md` for a
-design review, or the exact repository diff for an implementation review; chat summaries are
+design review (with `ado-context.md` as the requirement snapshot when present), or the exact
+repository diff for an implementation review; chat summaries are
 not review input. Evaluate it (per `scope`, default: design when a design.md exists)
 against every applicable scoped Principle, fresh verified Knowledge, and repository/org
 reconciliation.

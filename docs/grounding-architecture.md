@@ -100,11 +100,15 @@ Knowledge is the one-file entry model (the v1 claim registry retired 2026-08-03;
 
 ## Work-item boundary
 
-Each work item has one directory, `work-items/<id>-<slug>/`: `design.md` carries the intent and
-scope, `tasks.md` the execution plan, `decisions.md` the append-only log of deviations. Those
-files are the state: durability comes from the repository, the commit, and the pull request where
-a human reviews all three next to the metadata they govern. A new chat resumes from those files
-and the ADO work item, never from chat scrollback.
+Each work item has one directory, `work-items/<id>-<slug>/`: for ADO-backed work,
+`ado-context.md` carries the source-faithful requirement snapshot plus a clearly unapproved AI
+understanding (written by `/fetch-ado-item`, which stops there); `design.md` carries the intent
+and scope and names its requirement baseline (context path and ADO revision); `tasks.md` the
+execution plan; `decisions.md` the append-only log of deviations. Those files are the state:
+durability comes from the repository, the commit, and the pull request where a human reviews them
+next to the metadata they govern. A new chat resumes from those files, never from chat
+scrollback — the persisted context replaces re-fetching ADO for requirement text, while its
+source section remains untrusted data.
 
 ## Acceptance gates
 
