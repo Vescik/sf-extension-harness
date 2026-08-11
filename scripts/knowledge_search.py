@@ -906,6 +906,46 @@ PROFILE_PROJECTORS = {
 }
 
 
+def entry_advisories(identity: str, lane: dict[str, Any]) -> list[dict[str, Any]]:
+    """The store's advisories for one entry, each carrying the identity they are about.
+
+    `compute_lane` emits `{"code": "SOURCE_DRIFT", "paths": [...]}` — enough for a receipt about
+    ONE entry, and not enough for a row inside an answer about many: a consumer reading a
+    `SOURCE_DRIFT` beside a context row could not tell which entry had moved. The identity is
+    added here, in the projection, rather than in the store: the store receipt keeps its shape
+    (phase 1 pinned it), and a row that names its subject is what makes a per-row advisory
+    actionable. Duplicates are collapsed — the same advisory twice reads as two findings."""
+
+    rows: list[dict[str, Any]] = []
+    for advisory in lane.get("advisories") or []:
+        row = {"identity": identity, **advisory}
+        if row not in rows:
+            rows.append(row)
+    return rows
+
+
+def row_disclosure(document: dict[str, Any] | None) -> dict[str, Any]:
+    """The three fields every lane-labelled row carries: lifecycle, effective, advisories.
+
+    Phase 1 split approval effectiveness from source freshness and gave `compute_lane` and the
+    citation receipts an `effective` flag plus advisories — but retrieval rows kept only the
+    `lifecycle` label they had before. A consumer therefore had to re-derive effectiveness from a
+    lane string (the exact re-decision `is_effective_entry_lane` exists to prevent) and had no way
+    at all to see WHICH served row was the drifted one. These fields are index-fresh like the
+    label they accompany (`lifecycleBasis.rows`); nothing here re-hashes source on the query path.
+
+    `document is None` is an unresolved node — a name no entry in this generation projects. It is
+    not effective and it carries no advisories, because there is no entry to advise about."""
+
+    if document is None:
+        return {"lifecycle": None, "effective": False, "advisories": []}
+    return {
+        "lifecycle": document["lane"],
+        "effective": bool(document.get("effective", False)),
+        "advisories": list(document.get("advisories") or []),
+    }
+
+
 def project_entry(path: Path, lane: dict[str, Any]) -> dict[str, Any]:
     """Compact, index-ready projection of one canonical entry. Never the authority."""
     front, body = store.split_entry(path.read_text(encoding="utf-8"))
@@ -1011,6 +1051,11 @@ def project_entry(path: Path, lane: dict[str, Any]) -> dict[str, Any]:
         "identity": identity,
         "path": lane["path"],
         "lane": lane["lane"],
+        # Effectiveness is DERIVED by the store, never re-decided here from the lane string, and
+        # the advisories travel with it so every row this projection feeds can disclose which
+        # entry drifted and which files moved (phase 2 commit 0).
+        "effective": bool(lane.get("effective", False)),
+        "advisories": entry_advisories(identity, lane),
         "orgUsage": org_usage_meta,
         "assurance": front.get("assurance", {}),
         "coverage": front.get("extractionCoverage", {}),
@@ -1813,7 +1858,7 @@ def hit_of(document: dict[str, Any], score: float, matched: list[dict[str, Any]]
         "matchedOn": matched[:8],
         "snippet": purpose_snippet(document, matched),
         "snippetBasis": SNIPPET_BASIS,
-        "lifecycle": document["lane"],
+        **row_disclosure(document),
         "assurance": document["assurance"],
         "scope": {
             "namespace": document["facets"]["namespace"],
@@ -2512,7 +2557,7 @@ def run_explain(args: argparse.Namespace) -> dict[str, Any]:
                 excluded["lifecycle"] += 1
                 continue
             source = documents.get(edge["source"])
-            rows.append({**edge, "lifecycle": source["lane"] if source else None})
+            rows.append({**edge, **row_disclosure(source)})
     rows.sort(key=lambda item: (item["source"], item["kind"], item["assurance"]))
     current, non_current = effectiveness_split(rows)
     # Each lane is capped on its own: sharing one budget lets a burst of revoked rows push the
@@ -2548,7 +2593,8 @@ def run_explain(args: argparse.Namespace) -> dict[str, Any]:
     # `parts` went through none of this: not lane-filtered, not capped. It served revoked
     # entries as parts of an approved object with no marker at all.
     parts_all = [
-        row for row in documents.incoming_edges(
+        {**row, **row_disclosure(documents.get(row["source"]))}
+        for row in documents.incoming_edges(
             document["facets"].get("fullName") or document["identity"],
             kinds={CONTAINMENT_KIND}, include_heuristic=include_heuristic,
         )
@@ -2574,7 +2620,9 @@ def run_explain(args: argparse.Namespace) -> dict[str, Any]:
         "assurance": document["assurance"],
         "coverage": document["coverage"],
         "limitations": document["limitations"],
-        "outgoing": document["edges"],
+        # An outgoing edge is DECLARED BY the anchor, so the anchor is its authority: the row
+        # wears the anchor's lane, effectiveness and advisories, not a lane of its target.
+        "outgoing": [{**edge, **row_disclosure(document)} for edge in document["edges"]],
         "incoming": current,
         "incomingNonCurrent": non_current,
         "parts": parts,
@@ -2703,15 +2751,14 @@ def traverse(
                     excluded["heuristicEdge"] += 1
                     continue
                 reached = documents.get(node)
-                if reached is None:
-                    # Forward hop into something with no entry: kept, labelled, never dropped.
-                    lifecycle = None
-                elif node not in allowed:
+                if reached is not None and node not in allowed:
                     excluded["lifecycle"] += 1
                     excluded_identities.add(node)
                     continue
-                else:
-                    lifecycle = reached["lane"]
+                # `reached is None` is a forward hop into something with no entry: kept,
+                # labelled `lifecycle: None` / `effective: false`, never dropped and never
+                # dressed up as approved knowledge.
+                disclosure = row_disclosure(reached)
                 if node in visited:
                     continue
                 weakest = (
@@ -2727,7 +2774,7 @@ def traverse(
                     # "is a member's part" and the membership reason inverts.
                     step["ownerWard"] = True
                 chains.append({
-                    "node": node, "hop": level + 1, "lifecycle": lifecycle,
+                    "node": node, "hop": level + 1, **disclosure,
                     "resolved": reached is not None,
                     "path": item["path"] + [step],
                     "minAssurance": weakest,
@@ -2997,7 +3044,7 @@ def run_context(args: argparse.Namespace) -> dict[str, Any]:
                 excluded["lifecycle"] += 1
                 continue
             source = documents.get(edge["source"])
-            incoming.append({**edge, "lifecycle": source["lane"] if source else None})
+            incoming.append({**edge, **row_disclosure(source)})
 
     def bucket(rows: list[dict[str, Any]], kinds: set[str] | None, invert: bool = False):
         """One section, split into its lanes — never merged, per the rule `search` states.
@@ -3036,7 +3083,8 @@ def run_context(args: argparse.Namespace) -> dict[str, Any]:
         if edge["assurance"] != relation_kinds.SOURCE_EXACT and not include_heuristic:
             excluded["heuristicEdge"] += 1
             continue
-        outgoing_rows.append(dict(edge))
+        # Authority for an outgoing edge is the entry that declares it — the anchor.
+        outgoing_rows.append({**edge, **row_disclosure(document)})
     outgoing_rows.sort(key=lambda row: (row["kind"], row["target"]))
     excluded["cap"] += max(0, len(outgoing_rows) - top)
     outgoing_rows = outgoing_rows[:top]
