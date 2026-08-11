@@ -2904,9 +2904,17 @@ class FactAnalysisTests(KnowledgeStoreFixture):
     # --- D1/D12: the whole point is that it writes nothing ------------------------------
 
     def snapshot(self) -> dict[str, bytes]:
-        """Every byte in the workspace except git internals and the derived inventory cache."""
+        """Every byte in the workspace except git internals and the derived inventory cache.
+
+        Keys are POSIX, never `str(Path)`: the team runs Windows, where the native form is
+        `.ai\\knowledge\\…` and every path assertion below silently stops matching. The bytes
+        comparison would still have worked — but only by luck, because both snapshots would key
+        the same way, so the test would have kept passing while its explicit
+        "the ledger is in here" precondition quietly asserted nothing (caught by CI on
+        windows-latest, 2026-08-11)."""
+
         return {
-            str(path.relative_to(self.temp)): path.read_bytes()
+            path.relative_to(self.temp).as_posix(): path.read_bytes()
             for path in sorted(self.temp.rglob("*"))
             if path.is_file()
             and ".git/" not in path.relative_to(self.temp).as_posix() + "/"
