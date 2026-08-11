@@ -14,7 +14,11 @@ deliberately not on the role-guard allowlist. It:
      ``Organization.IsSandbox`` value must match what the hostname implies (true for a
      sandbox or scratch org, false for a Developer Edition), which is the proof
      (mirrors SAFE-ENV-001);
-  6. runs preflight / validate to confirm the setup.
+  6. runs the static repository validator and reports local-config status.
+
+External capabilities are proven at the point of use, not here: the Salesforce review
+MCP proves the selected org's non-production identity when it starts, and ADO scope is
+checked on every tool call.
 
 Salesforce MCP is review (read-only) mode only; org changes are human-only
 (owner decision 2026-08-04 — the development/write lane was retired).
@@ -234,7 +238,7 @@ def authorize_sandboxes(sf_path: str, pending: dict[str, object]) -> None:
     for env_name in ("development", "qa", "uat"):
         answer = prompt(f"Authorize the '{env_name}' sandbox now? [y/N]").lower()
         if answer not in {"y", "yes"}:
-            warn(f"skipped '{env_name}' (placeholders remain; preflight stays fail-closed for it)")
+            warn(f"skipped '{env_name}' (placeholders remain; workflows that need it fail closed)")
             continue
 
         alias = prompt(f"Alias to use for '{env_name}'")
@@ -334,17 +338,71 @@ def apply_config(pending: dict[str, object]) -> None:
     ok("config/harness.local.json saved")
 
 
-def verify() -> tuple[bool, bool]:
+PLACEHOLDER = re.compile(r"<[^>]+>")
+SCHEMA_PATH = REPO_ROOT / "schemas" / "harness-config.schema.json"
+
+
+def placeholder_paths(node: object, prefix: str = "") -> list[str]:
+    """Dotted paths of every string value still holding an unresolved <PLACEHOLDER>."""
+    paths: list[str] = []
+    if isinstance(node, dict):
+        for key, value in node.items():
+            paths.extend(placeholder_paths(value, f"{prefix}.{key}" if prefix else str(key)))
+    elif isinstance(node, list):
+        for index, value in enumerate(node):
+            paths.extend(placeholder_paths(value, f"{prefix}[{index}]"))
+    elif isinstance(node, str) and PLACEHOLDER.search(node):
+        paths.append(prefix or "<root>")
+    return paths
+
+
+def local_config_findings(config_text: str, schema_text: "str | None") -> list[str]:
+    """Pure setup-level diagnostics for config/harness.local.json.
+
+    Returns human-readable findings; an empty list means the file parses, matches the
+    schema (when one is supplied and jsonschema is importable), and holds no
+    unresolved placeholders. This reports configuration shape only — whether
+    Salesforce or ADO actually work is proven by their own runtimes at the point of
+    use.
+    """
+    try:
+        config = json.loads(config_text)
+    except json.JSONDecodeError as exc:
+        return [f"config/harness.local.json is invalid JSON: {exc}"]
+    findings = [
+        f"unresolved placeholder at {path}" for path in placeholder_paths(config)
+    ]
+    if schema_text is not None:
+        try:
+            from jsonschema import Draft202012Validator  # deferred: pre-install python may lack it
+
+            schema = json.loads(schema_text)
+            for error in sorted(
+                Draft202012Validator(schema).iter_errors(config),
+                key=lambda item: list(item.path),
+            ):
+                location = ".".join(str(part) for part in error.path) or "<root>"
+                findings.append(f"config schema validation failed at {location}: {error.message}")
+        except ModuleNotFoundError:
+            findings.append(
+                "config schema check skipped: jsonschema is not importable by this "
+                "interpreter (install dependencies, then re-run)"
+            )
+    return findings
+
+
+def verify() -> "tuple[bool, list[str] | None]":
     step("Verifying the harness")
     py = venv_python()
     runner = str(py) if py.exists() else sys.executable
     validate = run([runner, str(REPO_ROOT / "scripts" / "validate_harness.py")], cwd=REPO_ROOT)
-    print("\n    preflight (fails closed until every placeholder is filled):")
-    preflight = run(
-        [runner, str(REPO_ROOT / "scripts" / "preflight.py"), "--capability", "salesforce-review"],
-        cwd=REPO_ROOT,
+    if not CONFIG_PATH.exists():
+        return validate.returncode == 0, None
+    schema_text = SCHEMA_PATH.read_text(encoding="utf-8") if SCHEMA_PATH.exists() else None
+    findings = local_config_findings(
+        CONFIG_PATH.read_text(encoding="utf-8"), schema_text
     )
-    return validate.returncode == 0, preflight.returncode == 0
+    return validate.returncode == 0, findings
 
 
 def main() -> None:
@@ -385,27 +443,35 @@ def main() -> None:
     if pending:
         apply_config(pending)
 
-    validate_ok, preflight_ok = verify()
+    validate_ok, config_findings = verify()
 
     step("Summary")
     if validate_ok:
-        ok("harness structure valid")
+        ok("static repository validation passed")
     else:
         warn("validate_harness reported issues (see above)")
-    if preflight_ok:
-        ok("preflight passed - the harness is ready")
+    if config_findings is None:
+        warn("config/harness.local.json does not exist yet; re-run this script to create it")
+    elif config_findings:
+        warn("local configuration needs setup follow-up:")
+        for finding in config_findings:
+            warn(f"  - {finding}")
+        warn("Workflows that need these values will fail closed until they are filled in.")
     else:
-        warn(
-            "preflight is fail-closed: fill any remaining <PLACEHOLDER> values in "
-            "config/harness.local.json (ADO and/or a sandbox) and re-run this script."
-        )
+        ok("config/harness.local.json parses, matches the schema, and has no placeholders")
+    print(
+        "\n    Salesforce and ADO are validated when their tools run: the Salesforce "
+        "review MCP proves\n    the selected org's non-production identity at startup, "
+        "and ADO scope is checked on every\n    tool call. Optional org diagnostic: "
+        "python scripts/verify_salesforce_org.py --org <alias>."
+    )
     print(_c("36", "\nNext steps:"))
     print("  - In VS Code, select the .venv interpreter (Python: Select Interpreter).")
     print(
         "  - Start the Salesforce MCP; when prompted for \"sf_read_org\", enter an "
         "authorized alias."
     )
-    print("  - Only review (read-only) mode works on Windows; development/write mode requires macOS/Linux.")
+    print("  - The Salesforce MCP is review (read-only) on every OS; org changes are human-only.")
     print("  - config/harness.local.json is gitignored and never leaves this machine.")
 
 

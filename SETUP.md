@@ -86,7 +86,7 @@ automated wildcard gate retired with the write capability, 2026-08-04).
 
 **Migration note (2026-08-05).** The config schema is fail-closed: retired keys are rejected,
 not tolerated. If your existing `config/harness.local.json` predates 2026-08-05, delete these
-keys wherever they appear, or preflight exits 2 with a schema error: per-org
+keys wherever they appear, or the config schema check in `first_launch.py` reports errors: per-org
 `allowAgentRead`/`allowAgentWrite`/`allowAgentReview`, `review.allowAnyNonProduction`,
 `review.maxObjectsPerCall`, `safety.browserSessionApproval`, `safety.batchDevToolApproval`,
 `cache.adoItemMaxAgeMinutes`, `cache.testCaseMaxAgeMinutes`, `workspace.promotedTestsPath`,
@@ -103,8 +103,8 @@ Developer Edition. What the gates require is the receipt's `nonProduction` verdi
 launcher is denied.
 
 Set `ADO_ORGANIZATION` to the exact non-secret organization slug in local configuration before
-opening VS Code. The MCP URL uses this environment variable, preflight requires equality, and the
-global hook also requires every ADO tool call to carry the configured project:
+opening VS Code. The MCP URL uses this environment variable, and the global hook requires every
+ADO tool call to match the configured organization and carry the configured project:
 
 ```bash
 # macOS/Linux
@@ -152,20 +152,19 @@ npm ci --ignore-scripts
 python scripts/validate_harness.py
 python -m unittest discover -s tests -v
 python scripts/run_evals.py
-python scripts/preflight.py
 npm run prettier:verify
 npm run lint
 ```
 
 Use `python` on Windows (the python.org installer puts `python` on PATH; this repo does not rely on
 the `py` launcher or `python3`). The same
-commands are available through `Terminal: Run Task` as Harness: Validate, Harness: Test, Harness:
-Evals, and Harness: Preflight.
+commands are available through `Terminal: Run Task` as Harness: Validate, Harness: Test, and
+Harness: Evals.
 
-Preflight caches a PASS per capability for 30 minutes (keyed to the exact local config and
-`ADO_ORGANIZATION`), so agents re-checking at the start of every workflow do not re-run live org
-proofs on each prompt. Any config change invalidates the receipt immediately; failures are never
-cached; `--force` re-runs everything (use it after re-authorizing an alias).
+There is no separate readiness step before a workflow: the Salesforce review MCP proves the
+selected org's non-production identity when it starts, and ADO scope is checked on every tool
+call. To diagnose one org by hand, run
+`python scripts/verify_salesforce_org.py --org <alias>`.
 
 ## 5. Verify Copilot customizations
 
@@ -184,7 +183,7 @@ cached; `--force` re-runs everything (use it after re-authorizing an alias).
 The workspace pre-approves its own guarded scripts so agents run them without a confirmation
 click, via `chat.tools.terminal.autoApprove` in `.vscode/settings.json`:
 
-- Auto-approved: `preflight.py`, `knowledge_store.py`
+- Auto-approved: `knowledge_store.py`
   (except `entry-approve`/`feature-approve`/`entry-revoke`/`feature-revoke` — those stay on the
   chat-confirmation lane), `knowledge_search.py` (read-only), and `force_app_knowledge.py`. The
   regexes are anchored and reject shell metacharacters, so chained or redirected commands never
@@ -278,7 +277,8 @@ owner decision of 2026-07-14.)
 - Salesforce project missing: restore root `sfdx-project.json`, `force-app/`, `manifest/`, and
   `tests/e2e/` from this repository; do not fall back to a subfolder, parent/sibling directory, or
   second checkout.
-- Preflight failure: fix the reported dependency/configuration; do not ask the model to bypass it.
+- Tool startup or call failure (Salesforce MCP refusing to start, ADO scope denied): fix the
+  reported dependency/configuration; do not ask the model to bypass it.
 
 ## 9. Human-owned rollout blockers
 

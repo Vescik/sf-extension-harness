@@ -78,7 +78,7 @@ class RetrieveAutoApproveTests(unittest.TestCase):
 
     def test_clean_tree_auto_approves_without_receipt_or_toggle(self) -> None:
         # Owner decision 2026-08-07: retrieve against a configured non-production alias
-        # flows without a click — no preflight receipt, no config toggle.
+        # flows without a click — no readiness receipt, no config toggle.
         with patch.object(safety, "force_app_is_clean", lambda: True):
             result, _ = run_hook("execute/runInTerminal", self.RETRIEVE, base_config())
         self.assertEqual("continue", result)

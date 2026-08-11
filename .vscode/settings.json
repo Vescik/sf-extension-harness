@@ -25,10 +25,6 @@
   // trust the `salesforce-readonly` and `ado-readonly` servers once via "Chat: Manage Tool
   // Approval" (workspace scope). See SETUP.md.
   "chat.tools.terminal.autoApprove": {
-    "/^(?:\\S*[\\\\/])?(?:python3?|py)(?:\\.exe)?(?:\\s+-3)?\\s+(?:\\S*[\\\\/])?scripts[\\\\/]preflight\\.py(?:\\s+[^\\n\\r;&|<>`$()]*)?$/": {
-      "approve": true,
-      "matchCommandLine": true
-    },
     "/^(?:\\S*[\\\\/])?(?:python3?|py)(?:\\.exe)?(?:\\s+-3)?\\s+(?:\\S*[\\\\/])?scripts[\\\\/]knowledge_store\\.py\\s+(?!(?:entry|feature)-(?:approve|revoke)\\b)[^\\n\\r;&|<>`$()]*$/": {
       "approve": true,
       "matchCommandLine": true

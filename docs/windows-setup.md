@@ -110,7 +110,7 @@ file directly only if you skip the script. For a fully manual, zero-assumptions 
 [setup-zero-to-first-prompt.md](setup-zero-to-first-prompt.md).
 
 **Upgrading an existing machine?** Configs written before 2026-08-05 may carry retired keys the
-schema now rejects (preflight exits 2 until they are deleted): per-org `allowAgent*`,
+schema now rejects (`first_launch.py` reports schema errors until they are deleted): per-org `allowAgent*`,
 `review.allowAnyNonProduction`, `review.maxObjectsPerCall`, `safety.browserSessionApproval`,
 `safety.batchDevToolApproval`, `cache.adoItemMaxAgeMinutes`, `cache.testCaseMaxAgeMinutes`,
 `workspace.promotedTestsPath`, and the `browser` section — see the migration note in SETUP.md §3.
@@ -154,9 +154,11 @@ the `sf_read_org` input, enter your authorized sandbox alias (e.g. `mpsa_dev_sbx
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\validate_harness.py          # structure OK
-.\.venv\Scripts\python.exe scripts\preflight.py --capability ado             # PASS once env var == config
-.\.venv\Scripts\python.exe scripts\preflight.py --capability salesforce-review   # PASS once sandbox authorized + config filled
 ```
+
+There is no separate readiness command: Salesforce is proven live when the review MCP starts
+with your chosen alias, and ADO scope is checked on every tool call. Optional single-org
+diagnostic: `.\.venv\Scripts\python.exe scripts\verify_salesforce_org.py --org <alias>`.
 
 Then in Copilot Chat: run `/fetch-ado-item <id>` and a Salesforce review. ADO calls should no
 longer be blocked, and the read facade should return results.
@@ -177,7 +179,7 @@ Get-Content .cache\denials.log -Tail 20
 |---|---|---|
 | `Blocked by Pre-Tool Use hook` on ADO calls | `ADO_ORGANIZATION` env var unset or ≠ `ado.organization` | Step 4: set the env var to the exact slug, **fully restart** VS Code |
 | `Organization name is required. Provide it as a parameter…` | ADO MCP URL is org-less because the env var is unset | Step 4 |
-| `preflight --capability ado` fails: "ADO_ORGANIZATION must exactly match…" | env var missing or mismatched | Step 4 (exact match, no trailing spaces) |
+| ADO tool call denied: "ADO runtime organization does not match local policy" | env var missing or mismatched | Step 4 (exact match, no trailing spaces) |
 | `Salesforce MCP startup blocked: development mode is disabled on Windows` / `exit code 2` | Stale MCP config — the `salesforce-development` server was removed 2026-07-14 | Pull the latest `main` and reload VS Code; only `salesforce-readonly` and `ado-readonly` should be listed |
 | A review tool answers `BLOCKED` with `IDENTITY_HOST_MISMATCH` / `NOT_SANDBOX` / `ORG_ID_DENIED` | the org is production, the host signature and live `IsSandbox` disagree, the pins point at a different org, or the org ID is on `deniedOrganizationIds`. A Developer Edition reporting `IsSandbox=false` is **not** the fault — that is expected | Step 5/6: authorize a non-production org; fix or remove the pins; check the denylist. Sanity-check with `python scripts/verify_salesforce_org.py --org <alias>` |
 | `webidl.util.markAsUncloneable is not a function` | Node < 22 | Install Node 22+ (Step 1) |

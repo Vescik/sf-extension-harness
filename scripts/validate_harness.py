@@ -656,7 +656,7 @@ def check_settings_and_mcp(audit: Audit) -> None:
             "search",
         ],
         "ADO MCP args must resolve the lockfile-installed entrypoint, take the organization "
-        "from the preflight-checked environment, and bound the domains to "
+        "from the environment (checked per-call by the safety hook), and bound the domains to "
         "work-items/wiki/test-plans/search",
     )
     audit.require(
@@ -790,25 +790,13 @@ def check_settings_and_mcp(audit: Audit) -> None:
     audit.require("--role developer" in json.dumps(development_frontmatter.get("hooks", {}), default=str), "developer role guard is required")
     doc_prompt, _ = frontmatter(ROOT / ".github/prompts/document-metadata-change.prompt.md", audit)
     audit.require("salesforce-development/*" not in doc_prompt.get("tools", []), "Documentation prompt must not inherit Salesforce write tools")
-    audit.require("execute/runInTerminal" in doc_prompt.get("tools", []), "Documentation prompt needs guarded metadata/ADO preflight execution")
+    audit.require("execute/runInTerminal" in doc_prompt.get("tools", []), "Documentation prompt needs guarded terminal execution (read-only orientation)")
     release_prompt, _ = frontmatter(ROOT / ".github/prompts/release-handover.prompt.md", audit)
-    audit.require("execute/runInTerminal" in release_prompt.get("tools", []), "Release prompt needs guarded release/ADO preflight execution")
+    audit.require("execute/runInTerminal" in release_prompt.get("tools", []), "Release prompt needs guarded terminal execution (handover render check, citation verify)")
     role_guard = required_text(ROOT / "scripts/copilot_role_guard.py", audit)
     audit.require(role_guard.count('".cache/ado-items/"') >= 3, "ADO cache must be writable by its three consuming roles")
     audit.require('".cache/test-cases/"' in role_guard, "Test Strategist must be able to write Test Case cache")
     audit.require('".cache/org-usage/"' in role_guard, "Config Investigator must be able to author org-usage probes-files (contract §6.6)")
-    preflight_capabilities = re.search(
-        r"PREFLIGHT_CAPABILITIES = frozenset\(\s*\{(.*?)\}", role_guard, re.DOTALL
-    )
-    audit.require(
-        preflight_capabilities is not None
-        and all(
-            f'"{capability}"' in preflight_capabilities.group(1)
-            for capability in ("ado", "metadata", "salesforce-review")
-        ),
-        "preflight capabilities must stay universally runnable diagnostics",
-    )
-
     compatibility = required_text(ROOT / "docs/compatibility.md", audit)
     audit.require("1.112" in compatibility, "compatibility baseline must state the minimum VS Code version")
     audit.require("read-only by construction" in compatibility, "the read-only MCP model must be explicit")
@@ -965,7 +953,7 @@ def check_skill_commands(audit: Audit) -> None:
     first command. Fail closed here so the skill text and the guard can never drift apart again.
     """
 
-    guarded = "preflight|force_app_knowledge|validate_handover_output"
+    guarded = "force_app_knowledge|validate_handover_output"
     bare = re.compile(r"`\s*scripts/(?:" + guarded + r")\.py(?:\s|`)")
     backslash = re.compile(r"`[^`]*(?:scripts\\|\.venv\\)")
     for skill in sorted((ROOT / ".github/skills").glob("*/SKILL.md")):

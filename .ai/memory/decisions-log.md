@@ -1457,3 +1457,33 @@ Gate: 690 unit tests OK in ~87 s, 43 safety evals PASS, validate_harness coheren
   suite, evals, prettier, eslint, npm audit, and repo-map check green on the implementation
   branch (see PR).
 - Approved by: owner (D1–D11, 2026-08-11, MASTER-PLAN-TRACK-FORCE-APP-SOURCE.md)
+
+## 2026-08-11 — Mandatory preflight retired: readiness moved to the point of use
+
+- Decision: `scripts/preflight.py` (five capability modes, 30-minute PASS receipts under
+  `.cache/preflight/`) is deleted, together with `tests/test_preflight.py`, its role-guard
+  parser surface, VS Code task, terminal auto-approval patterns, first-launch invocation,
+  validator pins, and every skill/contract instruction to run it. Agents now validate task
+  inputs and call the scoped tool directly.
+- Why: every check preflight ran has a stronger owner at the exact point where the capability
+  is used — the Salesforce launcher/facade proves dependencies, CLI version, alias policy,
+  host, org ID, denylist, and live `Organization.IsSandbox` before serving tools (and fails
+  closed on refresh drift); the ADO safety hook checks organization/project/URL scope on every
+  call; the static validator owns repository structure; `generate-release-handover` fail-fasts
+  on `releaseQueryId`; `first_launch.py` reports config/schema/placeholder status at setup.
+  Keeping preflight added an agent step without adding a boundary, and its cached PASS could
+  be stale relative to filesystem, authorization, or live org state.
+- Deliberately not preserved: PASS receipts (point-of-use checks evaluate current state, so a
+  cache re-introduces staleness for no boundary), the loop proving every configured org (the
+  MCP session proves the selected alias; an unrelated stale alias must not block a valid
+  session), and global uniqueness of pinned hosts/org IDs across different aliases (different
+  aliases may legitimately resolve to the same non-production org; no runtime evidence made
+  that ceremony a safety requirement). One preflight-only invariant was transferred instead of
+  dropped: the facade now rejects a config in which the selected alias appears more than once
+  (ambiguous pins) — `CONFIG_INVALID` before any CLI contact.
+- Scope: no Salesforce/ADO safety wall weakened; no tool grant widened; `sf project retrieve`
+  confirmation, read-only MCP construction, and role/safety hooks unchanged.
+  `verify_salesforce_org.py --org <alias>` remains the optional human diagnostic. Ignored
+  local `.cache/preflight/` files are left on disk.
+- Approved by: owner (frozen decisions D1–D5, 2026-08-11,
+  MASTER-PLAN-LIGHTWEIGHT-HARNESS-VALIDATION.md)

@@ -2,17 +2,6 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "Harness: Preflight",
-      "type": "process",
-      "command": "${workspaceFolder}/.venv/bin/python",
-      "windows": {
-        "command": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
-        "args": ["scripts/preflight.py"]
-      },
-      "args": ["scripts/preflight.py"],
-      "problemMatcher": []
-    },
-    {
       "label": "Harness: Validate",
       "type": "process",
       "command": "${workspaceFolder}/.venv/bin/python",

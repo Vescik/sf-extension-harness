@@ -131,16 +131,12 @@ Do not run `npm audit fix --force`.
 .\.venv\Scripts\python.exe scripts\validate_harness.py
 ```
 
-Expected: `PASS: harness validation (…N checks)`. If this fails, your clone or install is
+Expected: `PASS`. If this fails, your clone or install is
 incomplete — fix that before continuing.
 
-```powershell
-.\.venv\Scripts\python.exe scripts\preflight.py
-```
-
-Expected **at this stage**: `ERROR: config/harness.local.json still contains <PLACEHOLDER>
-values` (or that the file is missing). That is correct — the harness fails closed until Part 6
-is done. Any other error means a real problem.
+At this stage `config/harness.local.json` still contains `<PLACEHOLDER>` values (or does not
+exist yet). That is correct — workflows that need those values fail closed until Part 6 is
+done; `first_launch.py` lists every unresolved placeholder by path.
 
 ---
 
@@ -216,13 +212,14 @@ unlisted alias is also readable, but only configured entries can anchor Knowledg
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\validate_harness.py                            # structure
-.\.venv\Scripts\python.exe scripts\preflight.py --capability ado                  # ADO wiring
-.\.venv\Scripts\python.exe scripts\preflight.py --capability salesforce-review    # sandbox wiring
 .\.venv\Scripts\python.exe -m unittest discover -s tests                          # optional, ~20s
 ```
 
-All should PASS now. If `--capability ado` fails on "ADO_ORGANIZATION must exactly match",
-re-check Part 7.1 (exact slug, no trailing spaces, VS Code fully restarted).
+Both should PASS now. There is no separate readiness command: the Salesforce review MCP proves
+the selected org's non-production identity when it starts, and ADO scope is checked on every
+tool call. If an ADO call fails on the organization not matching local policy, re-check
+Part 7.1 (exact slug, no trailing spaces, VS Code fully restarted). To diagnose one org by
+hand: `.\.venv\Scripts\python.exe scripts\verify_salesforce_org.py --org <alias>`.
 
 ## Part 9 — First Copilot prompt
 

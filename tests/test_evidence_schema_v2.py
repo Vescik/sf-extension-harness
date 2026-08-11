@@ -113,7 +113,7 @@ class RetiredRequireDualSourceFlag(unittest.TestCase):
     """The hook's trust condition is review.enabled alone. The retired flag was
     removed everywhere in F-4; the with-flag case below stays as a robustness pin -
     the hook must never crash or change verdict over an unknown legacy key (a team
-    machine mid-migration may still carry it until preflight tells them to delete it)."""
+    machine mid-migration may still carry it in a stale local config)."""
 
     def config(self, review: dict) -> dict:
         return {"salesforce": {"review": review}}

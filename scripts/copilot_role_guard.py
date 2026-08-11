@@ -55,20 +55,6 @@ ALLOWED_PREFIXES = {
 HARNESS_ROOT = Path(__file__).resolve().parents[1]
 METADATA_ROOT = HARNESS_ROOT
 METADATA_EDIT_PREFIXES = ("force-app/", "manifest/", "tests/e2e/")
-# Preflight is a read-only, fail-closed diagnostic; restricting which CAPABILITY a role may
-# even ASK about only produced live agent flailing (denied 5-8 commands in a row before giving
-# up — 2026-07-14 usability fix). Every role may run every preflight check, including the bare
-# no-argument form; the mutating boundaries stay where they belong (hook + write guards).
-PREFLIGHT_CAPABILITIES = frozenset(
-    {
-        "base",
-        "ado",
-        "release",
-        "metadata",
-        "salesforce-review",
-    }
-)
-
 # Knowledge maintenance does not require the org-facing investigator surface.
 KNOWLEDGE_MUTATION_ROLES = frozenset({"config-investigator", "knowledge-curator"})
 # Roles allowed to run force_app_knowledge.py at all (extraction/drafting authority).
@@ -525,7 +511,6 @@ def allowed_role_command(command: str, root: Path, role: str) -> bool:
     if not script.is_absolute():
         script = root / script
     script = script.resolve(strict=False)
-    preflight = (root / "scripts/preflight.py").resolve()
     force_app_knowledge = (root / "scripts/force_app_knowledge.py").resolve()
     validate_harness = (root / "scripts/validate_harness.py").resolve()
     run_evals = (root / "scripts/run_evals.py").resolve()
@@ -535,35 +520,6 @@ def allowed_role_command(command: str, root: Path, role: str) -> bool:
     # work (2026-07-14 usability fix — these were denied and caused live flailing).
     if script in (validate_harness, run_evals):
         return not remainder
-    if script == preflight:
-        index2 = 0
-        while index2 < len(remainder):
-            token = remainder[index2]
-            if token == "--force":
-                index2 += 1
-                continue
-            if token == "--capability" and index2 + 1 < len(remainder):
-                if remainder[index2 + 1] not in PREFLIGHT_CAPABILITIES:
-                    return False
-                index2 += 2
-                continue
-            if token == "--max-age-minutes" and index2 + 1 < len(remainder):
-                if not remainder[index2 + 1].isdigit():
-                    return False
-                index2 += 2
-                continue
-            if token.startswith("--capability="):
-                if token.split("=", 1)[1] not in PREFLIGHT_CAPABILITIES:
-                    return False
-                index2 += 1
-                continue
-            if token.startswith("--max-age-minutes="):
-                if not token.split("=", 1)[1].isdigit():
-                    return False
-                index2 += 1
-                continue
-            return False
-        return True
     if script == (root / "scripts/knowledge_store.py").resolve():
         return knowledge_store_command_allowed(remainder, role)
     if script == (root / "scripts/knowledge_search.py").resolve():
@@ -710,8 +666,8 @@ def main() -> int:
                     response(
                         "deny",
                         f"{args.role}: this exact command is outside the terminal allowlist. "
-                        "Allowed families: guarded harness scripts (scripts/preflight.py, "
-                        "validate_harness.py, run_evals.py, "
+                        "Allowed families: guarded harness scripts ("
+                        "scripts/validate_harness.py, run_evals.py, "
                         "force_app_knowledge.py, "
                         "validate_handover_output.py), "
                         "read-only git (status/diff/log/show/ls-files), file reads "

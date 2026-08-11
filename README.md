@@ -73,14 +73,20 @@ the pinned Node runtime, then run:
 python -m pip install -r requirements-dev.lock
 npm ci --ignore-scripts
 python scripts/validate_harness.py
-python scripts/preflight.py
 python -m unittest discover -s tests -v
 npm run prettier:verify
 npm run lint
 ```
 
-The repository intentionally fails closed until `config/harness.local.json` contains real,
-non-production, human-owned environment/process values and the package/component review scope.
+`validate_harness.py` validates static repository integrity; `first_launch.py` validates
+installation and local-config shape. External capabilities are proven at the point of use: the
+Salesforce review MCP proves the selected org's non-production identity live at startup, and ADO
+scope is checked on every tool call. `python scripts/verify_salesforce_org.py --org <alias>` is
+an optional human diagnostic for one org.
+
+The workflows that need `config/harness.local.json` intentionally fail closed until it contains
+real, non-production, human-owned environment/process values and the package/component review
+scope.
 Empty Knowledge produces explicit unknowns, not fabricated package facts.
 
 `manifest/package.xml` is a generic starter manifest, not an approved deployment scope. Before an
