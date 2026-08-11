@@ -1487,3 +1487,24 @@ Gate: 690 unit tests OK in ~87 s, 43 safety evals PASS, validate_harness coheren
   local `.cache/preflight/` files are left on disk.
 - Approved by: owner (frozen decisions D1–D5, 2026-08-11,
   MASTER-PLAN-LIGHTWEIGHT-HARNESS-VALIDATION.md)
+
+## 2026-08-11 — validate_harness.py is a static repository validator, not an umbrella gate
+
+- Decision: the validator keeps its entry point and exit-code contract but sheds three
+  responsibilities: exact inventory counts (agents/prompts/skills/instructions and the
+  public-command total) are replaced by structural discovery with uniqueness/routing/grant
+  checks; incidental prose pins (exact phrases in compatibility/SECURITY/AGENTS docs, the
+  "shared execution contract" substring with its exception set, agent-bodies filename
+  mentions) are removed in favor of the machine checks and behavioral tests that actually
+  protect those outcomes; and the knowledge entry-check/feature-check subprocesses move to
+  explicit, attributable CI steps (the validator pins that the workflow keeps them). Schema
+  validity is discovered from tracked `schemas/*.schema.json`; explicit fixture mappings and
+  negative fixtures stay. Success output now claims exactly what ran: static structure,
+  configuration contracts, and safety wiring.
+- Why: adding a legitimate prompt/skill/schema required touching unrelated integers and
+  duplicated lists, and validator PASS text implied live/governance coherence it never
+  measured. Machine boundaries stay exact (MCP server set and read-only mode, hooks, grants,
+  CI permissions and SHA pins, dependency admissions, secrets, SFDX structure, ignore
+  canaries, Knowledge consumer sets, org-usage, release-handover structure).
+- Approved by: owner (frozen decisions D6–D10, 2026-08-11,
+  MASTER-PLAN-LIGHTWEIGHT-HARNESS-VALIDATION.md)
