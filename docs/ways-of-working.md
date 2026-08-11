@@ -92,7 +92,15 @@ From a written requirement:
 5. After you accept the design, the developer implements against it and keeps `tasks.md` and
    `decisions.md` current.
 6. Verification follows the design; the test-strategist agent is the entry point when a QA
-   coverage decision is needed.
+   coverage decision is needed. When the item is being handed to a QA engineer,
+   `/prepare-qa-test-plan itemId=<ID>` writes `work-items/<id>-<slug>/qa-test-plan.md` — a
+   human-executable handoff (feature orientation plus Test Cases with expected results) that
+   works the same for custom, managed-package, and mixed changes. It can draft before
+   implementation and refresh against the finished code; it asks you only the few facts the
+   evidence cannot establish (entry points, personas, vendor guarantees, safe test data).
+   Skip it for work no tester picks up — Knowledge maintenance, investigations, harness-only
+   changes; nothing creates it automatically, and QA execution results (PASS/FAIL, runs,
+   screenshots) stay in Azure Test Plans, never in the repository.
 7. The git-agent can prepare routine branch, commit, and PR work; push, merge, release, and
    deployment remain yours under the repository's current rules.
 
@@ -111,6 +119,8 @@ From a written requirement:
 - `work-items/<id>-<slug>/design.md` — the accepted intent;
 - `work-items/<id>-<slug>/tasks.md` — the execution checklist;
 - `work-items/<id>-<slug>/decisions.md` — deviations recorded during implementation;
+- `work-items/<id>-<slug>/qa-test-plan.md` — the QA handoff, only when the item goes to a
+  tester;
 - scoped repository changes with verification evidence;
 - a PR prepared for your review, when you ask for one.
 

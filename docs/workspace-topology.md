@@ -27,7 +27,7 @@ Opening the repository directory directly is also valid. Runtime configuration u
 sessions.
 
 The root owns `sfdx-project.json`, `force-app/`, `manifest/`, `tests/e2e/`, instructions, agents,
-skills, Knowledge, Memory, QA indexes, cache, and generated drafts. Skills must resolve
+skills, Knowledge, Memory, cache, and generated drafts. Skills must resolve
 `brain-core` as the one SFDX root and must reject a missing or ambiguous project rather than
 searching a subfolder, parent directory, sibling directory, or other checkout.
 

@@ -7,6 +7,11 @@
 - [ ] No changes touching the `VendorNS__` namespace
 - [ ] Called out in `design.md` with org evidence (object contract / installed packages)
 
+## QA handoff (only when this PR hands work to QA)
+
+- QA plan: `work-items/<id>-<slug>/qa-test-plan.md` / not applicable
+- Readiness: READY FOR QA / DRAFT / GAPS / not applicable
+
 ## Checklist
 
 - [ ] `decisions.md` updated with deviations from the design (or states there were none)

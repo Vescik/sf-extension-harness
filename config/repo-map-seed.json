@@ -4,7 +4,7 @@
   "directories": [
     {
       "path": ".ai",
-      "purpose": "Governed agent state: contracts, knowledge, memory, QA"
+      "purpose": "Governed agent state: contracts, knowledge, memory"
     },
     {
       "path": ".ai/contracts",
@@ -17,10 +17,6 @@
     {
       "path": ".ai/memory",
       "purpose": "Human-curated decisions-log.md"
-    },
-    {
-      "path": ".ai/qa",
-      "purpose": "QA test-case index synced from Azure Test Plans"
     },
     {
       "path": ".ai/templates",
@@ -92,14 +88,14 @@
     },
     {
       "path": "work-items",
-      "purpose": "Current work: one folder per work item \u2014 ado-context.md (ADO requirement snapshot, ADO-backed work), design.md (intent), tasks.md (progress), decisions.md (append-only deviations)"
+      "purpose": "Current work: one folder per work item \u2014 ado-context.md (ADO requirement snapshot, ADO-backed work), design.md (intent), tasks.md (progress), decisions.md (append-only deviations), qa-test-plan.md (optional QA handoff)"
     }
   ],
   "resumeHere": [
     "Knowledge coverage: `python scripts/force_app_knowledge.py inventory` then `entry-readiness` (derived, cannot drift).",
-    "Decisions: `.ai/memory/decisions-log.md`; QA test-case index: `.ai/qa/test-cases/`.",
+    "Decisions: `.ai/memory/decisions-log.md`.",
     "Search Knowledge first: the `knowledge_context` / `knowledge_search` MCP tools over the entry index (`knowledge_resolve` maps names/paths to identities); terminal fallback lives in the search-knowledge skill's command menu.",
     "Deep tree: `docs/workspace-topology.md`; setup: `docs/setup-zero-to-first-prompt.md`.",
-    "Resume work from work-items/<id>-<slug>/: ado-context.md is the ADO requirement (when ADO-backed), design.md the intent, tasks.md the state, decisions.md the deviations \u2014 chat is never workflow truth"
+    "Resume work from work-items/<id>-<slug>/: ado-context.md is the ADO requirement (when ADO-backed), design.md the intent, tasks.md the state, decisions.md the deviations, qa-test-plan.md the QA handoff when one exists \u2014 chat is never workflow truth"
   ]
 }

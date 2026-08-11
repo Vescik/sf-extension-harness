@@ -17,6 +17,14 @@ Files appear by lifecycle stage — nothing creates empty placeholders for later
 - `tasks.md`     — progress checklist; the checkboxes are the entire state
 - `decisions.md` — APPEND-ONLY log of deviations and rulings made during development;
   never edit backwards, always append
+- `qa-test-plan.md` — OPTIONAL human-executable QA handoff, created or refreshed only by
+  `/prepare-qa-test-plan itemId=<ID>` (Test Strategist) for delivery work being handed to
+  QA. It explains the feature to a tester and carries the executable Test Cases with
+  expected results. It is a projection, never an authority: `ado-context.md` keeps the
+  requirement, `design.md` the solution and verification strategy, `decisions.md` the
+  deviations — on conflict the plan is what gets corrected. QA execution results
+  (PASS/FAIL, testers, dates, runs, screenshots) stay in the external test system, never
+  in this file. Most work items never need one; nothing creates it automatically.
 
 Requirement intake and solution design are separate steps: `/fetch-ado-item`
 persists `ado-context.md` and stops; `/solution-design` reads it and writes

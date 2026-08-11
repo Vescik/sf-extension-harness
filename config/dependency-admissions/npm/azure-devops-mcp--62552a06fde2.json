@@ -8,7 +8,7 @@
   "importNames": [
     "@azure-devops/mcp"
   ],
-  "purpose": "The read-only Azure DevOps MCP server that supplies requirement, hierarchy, acceptance-criteria and linked Test Case context. Admitting it as a locally installed, lockfile-resolved dependency replaces the previous runtime `npx -y` acquisition, which resolved and executed a package from the network at every session start.",
+  "purpose": "The read-only Azure DevOps MCP server that supplies requirement, hierarchy, acceptance-criteria and linked Test Case context (a formally linked Test Case is read as a Work Item through the work-items domain; the Test Plans domain retired with the QA sync lane on 2026-08-11). Admitting it as a locally installed, lockfile-resolved dependency replaces the previous runtime `npx -y` acquisition, which resolved and executed a package from the network at every session start.",
   "rejectedAlternatives": [
     {
       "alternative": "keep `npx -y @azure-devops/mcp@2.8.1` at runtime",
@@ -16,7 +16,7 @@
     },
     {
       "alternative": "a hand-written Azure DevOps REST client using Node built-ins",
-      "whyInsufficient": "The workspace consumes work items, hierarchies, wiki pages, test plans and project-scoped search across four domains. Reimplementing that surface — with its auth, paging and revision semantics — would be a larger, less reviewed attack surface than the vendor server, and it would drift from the tool schemas the agent-facing contracts pin."
+      "whyInsufficient": "The workspace consumes work items, hierarchies, wiki pages and project-scoped search across three domains. Reimplementing that surface — with its auth, paging and revision semantics — would be a larger, less reviewed attack surface than the vendor server, and it would drift from the tool schemas the agent-facing contracts pin."
     }
   ],
   "integrity": {

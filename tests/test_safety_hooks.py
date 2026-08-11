@@ -888,8 +888,29 @@ class RoleGuardTests(unittest.TestCase):
         )
         self.assertEqual(hook_decision(output), "deny")
 
-    def test_strategist_can_write_bounded_caches(self) -> None:
-        for path in (".cache/ado-items/1201.json", ".cache/test-cases/701.json"):
+    def test_strategist_qa_test_plan_write_boundary_is_exact(self) -> None:
+        # D18 (2026-08-11): the only tracked work-item write for test-strategist is the
+        # exact per-item qa-test-plan.md. Everything else in and around the work item —
+        # the sibling authorities, arbitrary files, invalid folders, traversal — stays
+        # denied, and no other role inherits the grant.
+        cases = (
+            ("work-items/242850-approval-notifications/qa-test-plan.md", "continue"),
+            ("work-items/7-x/qa-test-plan.md", "continue"),
+            ("work-items/242850-approval-notifications/ado-context.md", "deny"),
+            ("work-items/242850-approval-notifications/design.md", "deny"),
+            ("work-items/242850-approval-notifications/tasks.md", "deny"),
+            ("work-items/242850-approval-notifications/decisions.md", "deny"),
+            ("work-items/242850-approval-notifications/notes.md", "deny"),
+            ("work-items/242850-approval-notifications/sub/qa-test-plan.md", "deny"),
+            ("work-items/qa-test-plan.md", "deny"),
+            ("work-items/0-zero/qa-test-plan.md", "deny"),
+            ("work-items/242850-/qa-test-plan.md", "deny"),
+            ("work-items/README.md", "deny"),
+            ("qa-test-plan.md", "deny"),
+            ("output/qa-test-plan.md", "deny"),
+            ("work-items/242850-approval-notifications/../../.github/copilot-instructions.md", "deny"),
+        )
+        for path, expected in cases:
             with self.subTest(path=path):
                 output = run_hook(
                     "copilot_role_guard.py",
@@ -901,7 +922,44 @@ class RoleGuardTests(unittest.TestCase):
                     "--role",
                     "test-strategist",
                 )
-                self.assertEqual(hook_decision(output), "continue")
+                self.assertEqual(hook_decision(output), expected)
+
+    def test_qa_test_plan_grant_is_strategist_only(self) -> None:
+        # The developer keeps its existing broad work-items authority; the exact-path QA
+        # rule itself must not leak to roles without a work-items grant.
+        output = run_hook(
+            "copilot_role_guard.py",
+            {
+                "cwd": str(ROOT),
+                "tool_name": "edit/editFiles",
+                "tool_input": {"path": "work-items/242850-approval-notifications/qa-test-plan.md"},
+            },
+            "--role",
+            "knowledge-curator",
+        )
+        self.assertEqual(hook_decision(output), "deny")
+
+    def test_strategist_can_write_bounded_caches(self) -> None:
+        # The Test Case cache lane retired 2026-08-11: only the ADO caches remain writable,
+        # and the old .cache/test-cases/ grant must stay a deny.
+        for path, expected in (
+            (".cache/ado-items/1201.json", "continue"),
+            (".cache/ado-wiki/wiki-page.json", "continue"),
+            (".cache/test-cases/701.json", "deny"),
+            (".ai/qa/test-cases/1-suite.md", "deny"),
+        ):
+            with self.subTest(path=path):
+                output = run_hook(
+                    "copilot_role_guard.py",
+                    {
+                        "cwd": str(ROOT),
+                        "tool_name": "edit/editFiles",
+                        "tool_input": {"path": path},
+                    },
+                    "--role",
+                    "test-strategist",
+                )
+                self.assertEqual(hook_decision(output), expected)
 
     def test_developer_metadata_edit_is_allowed(self) -> None:
         output = run_hook(

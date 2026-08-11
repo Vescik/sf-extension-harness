@@ -579,12 +579,12 @@ def check_settings_and_mcp(audit: Audit) -> None:
             "-d",
             "work-items",
             "wiki",
-            "test-plans",
             "search",
         ],
         "ADO MCP args must resolve the lockfile-installed entrypoint, take the organization "
         "from the environment (checked per-call by the safety hook), and bound the domains to "
-        "work-items/wiki/test-plans/search",
+        "work-items/wiki/search (the Test Plans domain retired with the QA sync lane; linked "
+        "Test Cases are read as Work Items)",
     )
     audit.require(
         "@azure-devops/mcp" in json.dumps(load_json(ROOT / "package.json", audit) or {}),
@@ -722,7 +722,14 @@ def check_settings_and_mcp(audit: Audit) -> None:
     audit.require("execute/runInTerminal" in release_prompt.get("tools", []), "Release prompt needs guarded terminal execution (handover render check, citation verify)")
     role_guard = required_text(ROOT / "scripts/copilot_role_guard.py", audit)
     audit.require(role_guard.count('".cache/ado-items/"') >= 3, "ADO cache must be writable by its three consuming roles")
-    audit.require('".cache/test-cases/"' in role_guard, "Test Strategist must be able to write Test Case cache")
+    audit.require('".cache/test-cases/"' not in role_guard, "the Test Case cache write permission retired with the QA sync lane and must not return")
+    audit.require("QA_TEST_PLAN_PATTERN" in role_guard, "Test Strategist needs the exact-path QA test-plan write rule (D18)")
+    strategist_prefixes = re.search(r'"test-strategist":\s*\(([^)]*)\)', role_guard)
+    audit.require(
+        strategist_prefixes is not None and '"work-items/"' not in strategist_prefixes.group(1),
+        "Test Strategist must not gain the broad work-items/ prefix; the QA plan write is the "
+        "exact-path QA_TEST_PLAN_PATTERN rule only (D18)",
+    )
     audit.require('".cache/org-usage/"' in role_guard, "Config Investigator must be able to author org-usage probes-files (contract §6.6)")
     # Documentation wording is not pinned here: the read-only MCP model, the retrieve
     # confirmation, and credential isolation are enforced by the machine checks above and the
@@ -964,7 +971,6 @@ def check_schemas_and_evals(audit: Audit) -> None:
     mappings = {
         "ado-item-cache.schema.json": ("ado-item.complete.json", "ado-item.partial.json"),
         "ado-wiki-cache.schema.json": ("ado-wiki.complete.json", "ado-wiki.partial.json"),
-        "test-case-cache.schema.json": ("test-cases.complete.json", "test-cases.partial.json"),
         "output-envelope.schema.json": (
             "output.incomplete.json",
             "output.release-handover.valid.json",

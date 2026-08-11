@@ -28,6 +28,12 @@ Track progress in `tasks.md` (checkboxes are the whole state). Before relying on
 artifact, run `knowledge_context` for it and read the recorded limitations (re-read any
 `hydrated: false` row from its entry file before relying on it).
 
+When the work item carries a `qa-test-plan.md`, read it before implementing or resuming:
+its cases are QA-facing verification intent under requirement/design authority. Never
+weaken or rewrite its expected outcomes to fit the code — record the deviation in
+`decisions.md` and report that the plan needs a `/prepare-qa-test-plan` refresh; QA
+execution results never go into that file.
+
 When implementation has to deviate from the design — a field that already exists, an
 extension point that behaves differently, a constraint discovered live — append the
 deviation and its reason to `decisions.md`. Never edit that file backwards and never
