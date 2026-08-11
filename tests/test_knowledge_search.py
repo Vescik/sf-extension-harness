@@ -1,7 +1,7 @@
 """Golden-query suite for the one-file Knowledge Entry search (T08b).
 
-Categories map to docs/knowledge-one-file-review-package.md §4 (golden queries) and the
-review-driven R-evals: exact identity, typed facets, relation precision, lifecycle-lane
+Categories cover the golden queries and review-driven R-evals from the 2026-07-24
+adversarial review: exact identity, typed facets, relation precision, lifecycle-lane
 separation, intentional-error retrieval with strict abstention, Unicode/Salesforce symbol
 handling, prompt-injection safety, and fail-closed index freshness.
 """

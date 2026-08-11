@@ -1,9 +1,9 @@
 """Pins for evidence schema v2 and the retired requireDualSource trust flag (F-1).
 
-The REST facade rewrite (docs/plan-2026-08-09-salesforce-mcp-rest-rewrite.md, D-2)
+The REST facade rewrite (decision D-2, .ai/memory/decisions-log.md 2026-08-09)
 revises the envelope's `sources` to single-transport {cli, rest} under schemaVersion 2
-while v1 {cli, mcp} envelopes must keep validating until the .mjs server is deleted in
-F-4 (rollback provision, plan §6a). These tests pin both directions plus the refusals
+while v1 {cli, mcp} envelopes must keep validating until the .mjs server is deleted
+(rollback provision). These tests pin both directions plus the refusals
 that keep the contract honest: no franken-envelope carrying both transports, no
 transport-less envelope, no complete REST source without a real API version.
 """

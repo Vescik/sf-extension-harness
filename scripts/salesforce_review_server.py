@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Read-only, non-production-only Salesforce review facade (single REST transport).
 
-Python rewrite of the retired dual-transport .mjs facade per
-docs/plan-2026-08-09-salesforce-mcp-rest-rewrite.md. The model never receives a
+Python rewrite of the retired dual-transport .mjs facade (owner-approved rewrite,
+decisions D-1..D-7 recorded 2026-08-09 in .ai/memory/decisions-log.md). The model never receives a
 command string, an org alias it did not configure, a raw token, or an unbounded
 vendor response. One allowlisted non-production alias is bound at startup: the
 Salesforce CLI is invoked a fixed number of times ONCE per server session (version

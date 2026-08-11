@@ -1,7 +1,7 @@
 # CONTENT-TODO — pliki do uzupełnienia przez ownera (faza 2)
 
-Ten plik to cała pozostała robota fazy 2 (plan-2026-08-07-context-first-architecture.md
-§3.3–§3.6). Cztery pliki poniżej **nie istnieją** — tworzysz je i wypełniasz treścią,
+Ten plik to cała pozostała robota fazy 2 planu context-first z 2026-08-07 (§3.3–§3.6;
+plan zarchiwizowany — tag docs-history-2026-08-11). Cztery pliki poniżej **nie istnieją** — tworzysz je i wypełniasz treścią,
 której nie da się wygenerować: wiedzą o pakiecie VendorPkg z Twojej głowy i oparzeń
 zespołu. Po uzupełnieniu wszystkich czterech **usuń ten plik**.
 

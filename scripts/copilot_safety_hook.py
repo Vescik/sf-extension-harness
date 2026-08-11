@@ -22,8 +22,7 @@ DESTRUCTIVE_PATTERNS = (
     re.compile(r"\bgit\s+clean\s+-[^\n]*f", re.IGNORECASE),
     # Force-push rewrites remote history. --force-with-lease is denied deliberately:
     # safer for humans, but for an agent it is still a remote-history rewrite — when a
-    # lease push is genuinely needed, a human runs it by hand (owner decision 2026-08-07,
-    # plan-2026-08-07-lightweight-additions.md §7.2).
+    # lease push is genuinely needed, a human runs it by hand (owner decision 2026-08-07).
     re.compile(r"\bgit\s+push\b[^\n]*(?:\s--force(?:-with-lease)?\b|\s-f\b)", re.IGNORECASE),
     re.compile(r"\bsf\s+org\s+delete\b", re.IGNORECASE),
     re.compile(r"\bDROP\s+(TABLE|DATABASE)\b", re.IGNORECASE),

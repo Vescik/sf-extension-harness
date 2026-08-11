@@ -1,7 +1,7 @@
 """Knowledge Entry search (T08b): typed retrieval over one-file Knowledge Entries.
 
-Implements the retrieval design frozen in docs/knowledge-one-file-contract.md and
-docs/evidence-to-analyse.md §25: scope and trust are applied BEFORE ranking, results are
+Implements the retrieval design frozen in docs/knowledge-one-file-contract.md:
+scope and trust are applied BEFORE ranking, results are
 compact projections that always explain themselves, and the generated index is a
 disposable cache — never a second source of truth.
 
@@ -51,7 +51,7 @@ except ModuleNotFoundError:  # invoked as `python scripts/knowledge_search.py`
 INDEX_SCHEMA_VERSION = 2
 POLICY_VERSION = "1.0.0"
 
-# BM25F field weights (docs/evidence-to-analyse.md §25.8.3). Values are a starting point to
+# BM25F field weights. Values are a starting point to
 # be tuned on the golden set; identity and intentional-error text outrank everything else.
 FIELD_WEIGHTS = {
     "identity": 6.0,

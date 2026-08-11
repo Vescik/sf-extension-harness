@@ -14,18 +14,15 @@ Amendment v1.2:         adds §2.3 (orgUsage), §3 receipt-cache encoding, §4 o
                         of it. v1.1 text below is unchanged unless a section says v1.2.
 Status (v1.1):          CONTRACT v1.1 — adversarial review findings applied
 Review outcome:         3 independent reviewers, unanimous ACCEPT WITH REQUIRED CHANGES
-                        (2026-07-24); all 34 required changes incorporated below and
-                        recorded in docs/knowledge-one-file-review-package.md §6
+                        (2026-07-24); all 34 required changes incorporated below. The
+                        review record is archived (tag docs-history-2026-08-11).
 Owner decision D1:      2026-07-24 — one-file model supersedes "stay on v1, pilot first"
 Canonical format:       Markdown + YAML frontmatter (owner decision 2026-07-24)
-Implementation:         SHIPPED. P0-P6 are merged on knowledge-relations-p0-p6; this
-                        contract is normative for the code, not a proposal ahead of it.
-                        Current status of the work lives in exactly one place:
-                        docs/knowledge-completion-audit-2026-07-25.md § Disposition.
-                        [status line corrected 2026-07-25, wave 3 - it still read
-                        "P1 authorized AFTER this v1.1 is accepted"]
-Companion documents:    docs/knowledge-one-file-impact-map.md (dependency wiring)
-                        docs/knowledge-one-file-review-package.md (review record + evals)
+Implementation:         SHIPPED. P0-P6 are merged; this contract is normative for the
+                        code, not a proposal ahead of it.
+Companion documents:    the planning-era companions (impact map, review package,
+                        completion audit) are archived outside the working tree
+                        (tag docs-history-2026-08-11); this contract is self-contained.
 Schemas:                schemas/knowledge-entry.schema.json, knowledge-feature-entry
                         .schema.json and 45 profile schemas covering the 58 profiled
                         types - WIRED: knowledge_store.PROFILES validates every draft
@@ -33,9 +30,9 @@ Schemas:                schemas/knowledge-entry.schema.json, knowledge-feature-e
                         GlobalValueSet/StandardValueSet, the three routing-rule types, the
                         nine integration types, ApexPage/ApexComponent)
                         [was "9 schemas / 10 types"; all-type expansion 2026-08-04]
-Prior architecture docs: docs/knowledge-facts-overlay-architecture.md = SHELVED fallback;
-                        the v1 pilot description (force-app-knowledge-architecture.md) was
-                        archived outside the repository on 2026-08-05.
+Prior architecture docs: the shelved facts-overlay design (owner decision 2026-07-24)
+                        and the v1 pilot description were archived outside the
+                        repository (2026-08-05 and tag docs-history-2026-08-11).
 ```
 
 ## 1. Scope of supersession and claim-type home assignment
@@ -384,7 +381,7 @@ opposite:
   change must land before the affected entries are approved, because afterwards nothing moves a
   lane on its own. The detector in §5.5a is deliberately not automatic — it is a report someone
   runs — so it complements the ordering rule and does not replace it. The
-  ordering being relied on is **owner decision D1** (`docs/knowledge-master-plan-2026-07-25.md` §9):
+  ordering being relied on is **owner decision D1** (2026-07-25, retired knowledge master plan §9):
   *"P0 + P1, one release, before any entry approval."* D1 is named here because it is the control,
   not because it is context — an implementer who reads this row and then reopens the digest window
   has removed the only thing standing between the store and a permanent silent divergence. There is
