@@ -322,6 +322,16 @@ def target_entry_index(target_root: Path) -> dict[str, dict]:
     return index
 
 
+def refresh_target_inventory(target_root: Path) -> None:
+    """Refresh the collector's own ignored derived inventory (.cache/knowledge-proposals/).
+
+    resolve requires it; it is a local derived cache, never target Knowledge or a ledger, so
+    plan mode may refresh it. Failure is tolerated — every resolve then reports
+    RESOLVE_COMMAND_FAILED instead of guessing.
+    """
+    run_process([PYTHON, "scripts/force_app_knowledge.py", "inventory"], target_root)
+
+
 def resolve_against_target(record: dict, target_root: Path) -> dict:
     """Read-only identity resolution through the target collector's resolve command."""
     subject = record["subject"]
@@ -396,6 +406,8 @@ def build_plan(legacy_root: Path, target_root: Path) -> dict:
     ledger_state = latest_ledger_state(layout["artifactLedger"])
     org_identities = org_usage_identities(layout["orgLedger"])
     target_index = target_entry_index(target_root)
+    if layout["artifactEntryPaths"]:
+        refresh_target_inventory(target_root)
 
     records = []
     for path in layout["artifactEntryPaths"]:
