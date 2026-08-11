@@ -1967,25 +1967,162 @@ def _render_review_chunk(
     }
 
 
+MAINTENANCE_LIST_CAP = 50
+
+
+def review_cycle_days(raw: str) -> int:
+    """argparse type for --review-cycle-days: an integer release window, 1..365."""
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(f"--review-cycle-days must be an integer, got {raw!r}") from exc
+    if not 1 <= value <= 365:
+        raise argparse.ArgumentTypeError(f"--review-cycle-days must be between 1 and 365, got {value}")
+    return value
+
+
+def maintenance_summary(
+    rows: list[dict[str, Any]], cycle_days: int, now: datetime
+) -> dict[str, Any]:
+    """One batch queue per release cycle — read-only, and deliberately not a list of questions.
+
+    The classification encodes owner decision D4: age never expires an approval. An
+    `approved-current` entry is `currentNoAction` whether it was approved yesterday or two
+    years ago; if it is older than the cycle it is COUNTED (so the shape of the corpus is
+    visible) but never listed, because a list is an implicit ask and there is nothing to ask
+    about. Only two things reach a list:
+
+    - `optionalRefresh` — drifted and older than the cycle. Still effective, still citable.
+      A maintainer may choose to refresh it; nothing here says they must.
+    - `requiresDecision` — the entry is not effective (missing/unreadable source, integrity
+      failure). This is the only bucket that describes actual breakage, and age is irrelevant
+      to it.
+
+    `now` is injected rather than read: a report whose output depends on the wall clock cannot
+    be tested without either freezing time globally or sleeping, and both were on offer here.
+    """
+
+    counts = {
+        "currentNoAction": 0,
+        "olderCurrentNoAction": 0,
+        "driftedDisclosureOnly": 0,
+        "optionalRefresh": 0,
+        "requiresDecision": 0,
+    }
+    optional_refresh: list[dict[str, Any]] = []
+    requires_decision: list[dict[str, Any]] = []
+    for row in rows:
+        lane = row["lane"]
+        age_days = row.get("ageDays")
+        old = age_days is not None and age_days >= cycle_days
+        if lane == "approved-current":
+            counts["currentNoAction"] += 1
+            if old:
+                counts["olderCurrentNoAction"] += 1
+        elif lane == "approved-drifted":
+            if old:
+                counts["optionalRefresh"] += 1
+                optional_refresh.append({
+                    "identity": row["identity"],
+                    "reviewedAt": row.get("reviewedAt"),
+                    "ageDays": age_days,
+                    "lane": lane,
+                    "changedPaths": row.get("changedPaths", []),
+                })
+            else:
+                counts["driftedDisclosureOnly"] += 1
+        elif lane == "not-effective":
+            counts["requiresDecision"] += 1
+            requires_decision.append({
+                "identity": row["identity"],
+                "problemCodes": row.get("problemCodes", []),
+                "paths": row.get("problemPaths", []),
+            })
+    optional_refresh.sort(key=lambda item: (-(item["ageDays"] or 0), item["identity"]))
+    requires_decision.sort(key=lambda item: item["identity"])
+    summary: dict[str, Any] = {
+        "asOf": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "reviewCycleDays": cycle_days,
+        "policy": "age never expires approval",
+        "counts": counts,
+        "optionalRefresh": optional_refresh[:MAINTENANCE_LIST_CAP],
+        "requiresDecision": requires_decision[:MAINTENANCE_LIST_CAP],
+    }
+    # Counts always describe the whole population; a truncated list that does not say it is
+    # truncated reads as "that is all of them", which is how a maintenance queue silently
+    # loses its tail.
+    truncated = {
+        key: len(values)
+        for key, values in (("optionalRefresh", optional_refresh), ("requiresDecision", requires_decision))
+        if len(values) > MAINTENANCE_LIST_CAP
+    }
+    if truncated:
+        summary["listTruncation"] = {
+            "cap": MAINTENANCE_LIST_CAP,
+            "fullCounts": truncated,
+            "note": "counts describe the full population; the lists above are capped",
+        }
+    return summary
+
+
+def _entry_age_days(reviewed_at: str | None, now: datetime) -> int | None:
+    if not reviewed_at:
+        return None
+    try:
+        stamp = datetime.strptime(reviewed_at, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
+    return max(0, (now - stamp).days)
+
+
 def command_entry_coverage(args: argparse.Namespace) -> dict[str, Any]:
     """Per-metadata-type coverage of the entry store against force-app source.
 
     This is the entry-layer answer to the collector's `coverage` report: which profiled
     artifacts have an entry, which lane those entries are in, and which source components
     still have none. Types without a profile are reported separately so their absence reads
-    as "no entry home yet", never as a coverage gap."""
+    as "no entry home yet", never as a coverage gap.
+
+    It also carries the release-cycle maintenance summary (`--review-cycle-days`), because the
+    corpus sweep it already performs is exactly the sweep that summary needs. A second command
+    would have doubled the cost to answer half the question. Read-only throughout: nothing here
+    writes an entry, a source pin or a ledger record."""
 
     from scripts.force_app_knowledge import ForceAppKnowledge
 
     latest = ledger_latest(read_ledger())
+    now = datetime.now(timezone.utc)
+    cycle_days = int(getattr(args, "review_cycle_days", None) or 30)
     lanes: dict[str, dict[str, int]] = {}
     entry_names: dict[str, set[str]] = {}
+    maintenance_rows: list[dict[str, Any]] = []
     for path in all_entry_paths():
         lane = compute_lane(path, latest)
         metadata_type, _namespace, full_name = lane["identity"].split(":", 2)
         lanes.setdefault(metadata_type, {})
         lanes[metadata_type][lane["lane"]] = lanes[metadata_type].get(lane["lane"], 0) + 1
         entry_names.setdefault(metadata_type, set()).add(full_name)
+        ledger_record = latest.get(lane["identity"]) or {}
+        reviewed_at = ledger_record.get("reviewedAt")
+        maintenance_rows.append({
+            "identity": lane["identity"],
+            "lane": lane["lane"],
+            "reviewedAt": reviewed_at,
+            "ageDays": _entry_age_days(reviewed_at, now),
+            "changedPaths": [
+                path_item
+                for advisory in lane.get("advisories", [])
+                if advisory.get("code") == "SOURCE_DRIFT"
+                for path_item in advisory.get("paths", [])
+            ],
+            "problemCodes": [code.get("code") for code in lane.get("problemCodes", [])],
+            "problemPaths": [
+                path_item
+                for code in lane.get("problemCodes", [])
+                for path_item in code.get("paths", [])
+            ],
+        })
+    maintenance = maintenance_summary(maintenance_rows, cycle_days, now)
 
     source_counts: dict[str, int] = {}
     gaps: dict[str, list[str]] = {}
@@ -1997,6 +2134,7 @@ def command_entry_coverage(args: argparse.Namespace) -> dict[str, Any]:
             "lanes": lanes,
             "sourceComparison": f"unavailable: {error}",
             "profiledTypes": sorted(PROFILES),
+            "maintenance": maintenance,
         }
     for component in inventory.get("components", []):
         metadata_type = component["metadataType"]
@@ -2011,6 +2149,7 @@ def command_entry_coverage(args: argparse.Namespace) -> dict[str, Any]:
         "missingEntries": {key: sorted(value)[:50] for key, value in sorted(gaps.items())},
         "missingEntryCounts": {key: len(value) for key, value in sorted(gaps.items())},
         "unprofiledTypes": sorted(set(source_counts) - set(PROFILES)),
+        "maintenance": maintenance,
         "note": (
             "Unprofiled types are the deliberate generic-bucket remainder (label-only "
             "extraction) and stay inventory-only; that is disclosed scope, not a coverage "
@@ -3116,6 +3255,15 @@ def build_parser() -> argparse.ArgumentParser:
 
     coverage = commands.add_parser(
         "entry-coverage", help="entry coverage per metadata type against force-app source"
+    )
+    coverage.add_argument(
+        "--review-cycle-days",
+        type=review_cycle_days,
+        default=30,
+        help=(
+            "release-cycle window in days (1-365, default 30) for the read-only maintenance "
+            "summary; age never expires an approval"
+        ),
     )
     coverage.set_defaults(func=command_entry_coverage)
 

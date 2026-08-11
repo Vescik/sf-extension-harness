@@ -19,8 +19,8 @@ stay terminal because they are store-side surfaces, not retrieval.
 `python scripts/force_app_knowledge.py inventory`, then
 `python scripts/force_app_knowledge.py entry-readiness` and
 `python scripts/knowledge_store.py entry-coverage`, plus the `knowledge_edge_health`
-tool. Report the counts and worklists, drifted entries, and a prioritized maintenance
-recommendation. Read-only — change nothing.
+tool. Report the counts and worklists, the `maintenance` block (see Release-cycle
+maintenance below), and a prioritized recommendation. Read-only — change nothing.
 
 ## Entries (coverage check)
 `entry-coverage` — per-type lanes, entries missing for profiled source components, and
@@ -73,11 +73,26 @@ failures. Hand the described set to `/approve-drafts-knowledge`.
 `REVIEW_READY_CHUNKED` rounds); hand each digest-pinned command to
 `/approve-drafts-knowledge`. Never approve from this skill.
 
-## Drift (decay maintenance)
-`entry-coverage` plus `entry-status`; entries whose source moved sit in
-`approved-drifted`. Re-draft and re-describe, route through
-`/approve-drafts-knowledge` — no refresh wave, only per-entry re-approval of what
-actually changed.
+## Release-cycle maintenance (one batch, not a queue of questions)
+`entry-coverage --review-cycle-days <1-365>` (default 30) adds a read-only `maintenance`
+block. It writes nothing — no source pin, no entry, no ledger record. Report it as ONE
+batch summary per release cycle:
+
+- `currentNoAction` / `olderCurrentNoAction` — counts only. Age never expires an approval,
+  so an old `approved-current` entry raises **no question at all**. Do not list these and
+  do not ask about them.
+- `driftedDisclosureOnly` — count only. Still effective, still citable; the drift is
+  disclosed at the point of use, not queued here.
+- `optionalRefresh` — drifted and older than the cycle. Present it as an **option for the
+  maintainer**, never a blocker and never "must re-approve". These entries remain
+  effective; refreshing is a choice about how current the evidence should be.
+- `requiresDecision` — the only bucket that needs action: the approved source fragment is
+  missing or unreadable, so the entry is `not-effective`. Report the identity and the
+  problem code.
+
+If a maintainer chooses to refresh an `optionalRefresh` entry: re-draft, re-describe and
+route through `/approve-drafts-knowledge` — per-entry, for what actually changed, never a
+refresh wave. Source drift on its own is not a reason to redraft.
 
 ## Feature lifecycle (surrounding commands; authoring itself is /author-feature)
 `feature-status` (lanes), `feature-context` (approved architecture, never a citation

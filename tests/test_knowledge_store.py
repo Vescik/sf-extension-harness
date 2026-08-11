@@ -2176,3 +2176,110 @@ class PathDerivedIdentityTests(KnowledgeStoreFixture):
     def test_a_path_outside_the_artifact_corpus_refuses_to_answer(self) -> None:
         self.assertIsNone(store.identity_from_entry_path(store.FEATURES_ROOT / "scheduling.md"))
         self.assertIsNone(store.identity_from_entry_path(store.ARTIFACTS_ROOT / "Flow" / "loose.md"))
+
+
+class ReleaseCycleMaintenanceTests(KnowledgeStoreFixture):
+    """One batch queue per release cycle, and a clock that never expires an approval.
+
+    The failure mode this guards against is a maintenance report that behaves like a nag: a
+    list of entries "due for review" because they are old. Under owner decision D4 age is a
+    reporting dimension and nothing else — an approval does not decay, so an old
+    `approved-current` entry generates no question at all, and an old drifted one generates an
+    OPTION, not a task.
+    """
+
+    def rows(self, *specs) -> list[dict]:
+        return [
+            {
+                "identity": identity,
+                "lane": lane,
+                "reviewedAt": "2026-01-01T00:00:00Z",
+                "ageDays": age,
+                "changedPaths": ["force-app/x.flow-meta.xml"] if lane == "approved-drifted" else [],
+                "problemCodes": ["SOURCE_FRAGMENT_MISSING"] if lane == "not-effective" else [],
+                "problemPaths": ["force-app/gone.flow-meta.xml"] if lane == "not-effective" else [],
+            }
+            for identity, lane, age in specs
+        ]
+
+    @property
+    def now(self):
+        return store.datetime(2026, 8, 11, tzinfo=store.timezone.utc)
+
+    def test_age_alone_never_produces_a_question(self) -> None:
+        summary = store.maintenance_summary(
+            self.rows(
+                ("Flow:c:Fresh", "approved-current", 3),
+                ("Flow:c:Ancient", "approved-current", 900),
+            ),
+            30,
+            self.now,
+        )
+        counts = summary["counts"]
+        self.assertEqual(2, counts["currentNoAction"])
+        # The old one is COUNTED so the shape of the corpus is visible...
+        self.assertEqual(1, counts["olderCurrentNoAction"])
+        # ...and listed NOWHERE, because a list is an implicit ask.
+        self.assertEqual([], summary["optionalRefresh"])
+        self.assertEqual([], summary["requiresDecision"])
+        self.assertEqual("age never expires approval", summary["policy"])
+
+    def test_drifted_splits_on_the_cycle_into_disclosure_and_option(self) -> None:
+        summary = store.maintenance_summary(
+            self.rows(
+                ("Flow:c:RecentDrift", "approved-drifted", 5),
+                ("Flow:c:OldDrift", "approved-drifted", 45),
+            ),
+            30,
+            self.now,
+        )
+        self.assertEqual(1, summary["counts"]["driftedDisclosureOnly"])
+        self.assertEqual(1, summary["counts"]["optionalRefresh"])
+        self.assertEqual(
+            ["Flow:c:OldDrift"], [item["identity"] for item in summary["optionalRefresh"]]
+        )
+        # It carries what a maintainer needs to decide — and no instruction to re-approve.
+        entry = summary["optionalRefresh"][0]
+        self.assertEqual(["force-app/x.flow-meta.xml"], entry["changedPaths"])
+        self.assertEqual("approved-drifted", entry["lane"])
+        self.assertEqual(45, entry["ageDays"])
+        # Old drift is an option, never a blocker: it stays out of requiresDecision entirely.
+        self.assertEqual([], summary["requiresDecision"])
+
+    def test_broken_evidence_requires_a_decision_regardless_of_age(self) -> None:
+        summary = store.maintenance_summary(
+            self.rows(("Flow:c:Gone", "not-effective", 1)), 30, self.now
+        )
+        self.assertEqual(1, summary["counts"]["requiresDecision"])
+        decision = summary["requiresDecision"][0]
+        self.assertEqual(["SOURCE_FRAGMENT_MISSING"], decision["problemCodes"])
+        self.assertEqual(["force-app/gone.flow-meta.xml"], decision["paths"])
+
+    def test_lists_are_capped_and_say_so_while_counts_stay_complete(self) -> None:
+        many = self.rows(*[(f"Flow:c:Drift{index:03d}", "approved-drifted", 100) for index in range(60)])
+        summary = store.maintenance_summary(many, 30, self.now)
+        self.assertEqual(60, summary["counts"]["optionalRefresh"])
+        self.assertEqual(store.MAINTENANCE_LIST_CAP, len(summary["optionalRefresh"]))
+        # A truncated list that does not say it is truncated reads as "that is all of them".
+        self.assertEqual(60, summary["listTruncation"]["fullCounts"]["optionalRefresh"])
+
+    def test_the_report_is_deterministic_and_takes_its_clock_as_input(self) -> None:
+        rows = self.rows(("Flow:c:B", "approved-drifted", 60), ("Flow:c:A", "approved-drifted", 60))
+        first = store.maintenance_summary(rows, 30, self.now)
+        second = store.maintenance_summary(rows, 30, self.now)
+        self.assertEqual(first, second)
+        self.assertEqual("2026-08-11T00:00:00Z", first["asOf"])
+        # Ties break on identity, so the queue does not reshuffle between runs.
+        self.assertEqual(["Flow:c:A", "Flow:c:B"], [item["identity"] for item in first["optionalRefresh"]])
+
+    def test_entry_coverage_carries_the_summary_and_writes_nothing(self) -> None:
+        drafted = self.draft()
+        self.approve([f"{drafted['identity']}:{drafted['reviewedContentDigest']}"])
+        ledger_before = store.LEDGER_PATH.read_bytes()
+        entry_before = (self.temp / drafted["path"]).read_bytes()
+        result = store.command_entry_coverage(argparse.Namespace(review_cycle_days=30))
+        self.assertEqual(30, result["maintenance"]["reviewCycleDays"])
+        self.assertEqual(1, result["maintenance"]["counts"]["currentNoAction"])
+        # D5: the maintenance pass is read-only. Nothing is refreshed, re-pinned or recorded.
+        self.assertEqual(ledger_before, store.LEDGER_PATH.read_bytes())
+        self.assertEqual(entry_before, (self.temp / drafted["path"]).read_bytes())
