@@ -57,11 +57,41 @@ class RepoMapRenderTests(unittest.TestCase):
         self.assertEqual(md, (ROOT / ".ai/repo-map.md").read_text(encoding="utf-8"))
         committed = json.loads((ROOT / ".ai/repo-map.json").read_text(encoding="utf-8"))
         self.assertEqual(committed["wordCount"], word_count(md))
-        # Coverage: every agent, skill, prompt, instruction, and contract is indexed.
-        self.assertEqual(8, len(first["agents"]))
-        self.assertEqual(22, len(first["skills"]))
-        self.assertEqual(18, len(first["prompts"]))
-        self.assertEqual(3, len(first["contracts"]))
+    # Coverage is discovered, never count-pinned (corrective plan 2026-08-12 P3):
+    # the model must name exactly the source surfaces present on disk, so adding the
+    # next prompt/skill needs no test edit, while an omitted or phantom surface
+    # fails BY PATH.
+    SECTION_GLOBS = {
+        "agents": (".github/agents", "*.agent.md"),
+        "skills": (".github/skills", "*/SKILL.md"),
+        "prompts": (".github/prompts", "*.prompt.md"),
+        "instructions": (".github/instructions", "*.instructions.md"),
+        "contracts": (".ai/contracts", "*.md"),
+    }
+
+    def test_model_sections_cover_exactly_the_discovered_source_paths(self) -> None:
+        model = build_model()
+        for section, (directory, pattern) in self.SECTION_GLOBS.items():
+            with self.subTest(section=section):
+                discovered = {
+                    path.relative_to(ROOT).as_posix()
+                    for path in (ROOT / directory).glob(pattern)
+                }
+                modeled = {entry["path"] for entry in model[section]}
+                self.assertEqual(
+                    discovered, modeled, f"{section}: model paths != source paths"
+                )
+
+    def test_prepare_delivery_feature_is_modeled_as_prompt_and_skill(self) -> None:
+        model = build_model()
+        self.assertIn(
+            ".github/prompts/prepare-delivery-feature.prompt.md",
+            {entry["path"] for entry in model["prompts"]},
+        )
+        self.assertIn(
+            ".github/skills/prepare-delivery-feature/SKILL.md",
+            {entry["path"] for entry in model["skills"]},
+        )
 
     def test_word_budget_is_enforced(self) -> None:
         with mock.patch.object(render_repo_map, "WORD_BUDGET", 50):

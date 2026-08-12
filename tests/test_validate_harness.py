@@ -506,6 +506,81 @@ class TestFeatureHealthStaysDecoupled(unittest.TestCase):
         self.assertIn("never invokes `/feature-health`", self.prepare_skill)
 
 
+class TestPreparedFeatureScopeNormalization(unittest.TestCase):
+    """Corrective plan 2026-08-12 P1: direct-children is the canonical prepared-Feature
+    projection, same revision does not imply equivalent scope, and the one-time
+    normalization needs complete fresh direct-child evidence."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.fetch_skill = (ROOT / ".github/skills/fetch-ado-item/SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        cls.prepare_skill = (
+            ROOT / ".github/skills/prepare-delivery-feature/SKILL.md"
+        ).read_text(encoding="utf-8")
+
+    def test_projection_scope_participates_in_same_revision_equivalence(self) -> None:
+        self.assertIn("Projection scope is part of that equivalence", self.fetch_skill)
+        self.assertIn("not automatically equivalent", self.fetch_skill)
+
+    def test_prepare_owns_one_time_normalization_to_direct_children(self) -> None:
+        self.assertIn("canonical scope normalization", self.prepare_skill)
+        self.assertIn("even at the same revision", self.prepare_skill)
+        self.assertIn(
+            "`updated` for this first normalization and `unchanged` on the next identical",
+            self.prepare_skill,
+        )
+
+    def test_normalization_requires_complete_fresh_evidence(self) -> None:
+        self.assertIn("On complete fresh direct-child evidence", self.prepare_skill)
+        self.assertIn(
+            "complete, fresh direct-child enumeration", self.fetch_skill
+        )
+
+    def test_partial_evidence_never_narrows_tracked_context(self) -> None:
+        self.assertIn("Partial or stale direct-child evidence never triggers", self.fetch_skill)
+        self.assertIn("On partial evidence, no normalization happens at all", self.prepare_skill)
+        self.assertIn(
+            "must not claim canonical reprojection completed", self.prepare_skill
+        )
+
+
+class TestSolutionDesignRoutingPrecedesDiscovery(unittest.TestCase):
+    """Corrective plan 2026-08-12 P2: local type/map routing happens before package
+    docs and any Knowledge/Salesforce discovery."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.skill = (ROOT / ".github/skills/solution-design/SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        cls.prompt = (ROOT / ".github/prompts/solution-design.prompt.md").read_text(
+            encoding="utf-8"
+        )
+
+    def test_skill_defines_local_routing_stage_before_discovery_stage(self) -> None:
+        stage1 = self.skill.index("Stage 1 — local routing")
+        stage2 = self.skill.index("Stage 2 — design discovery")
+        self.assertLess(stage1, stage2)
+        # Package docs are read in Stage 2, after routing — not before it.
+        self.assertLess(stage2, self.skill.index("docs/package-concept.md"))
+
+    def test_no_remote_call_decides_type_or_membership(self) -> None:
+        self.assertIn("Knowledge, Salesforce, or Feature Health call", self.skill)
+        self.assertIn("stop before any design context is loaded", self.skill)
+
+    def test_prompt_pins_routing_before_docs_and_remote_discovery(self) -> None:
+        self.assertIn(
+            "before reading the package design documents or making any Knowledge or\n"
+            "Salesforce call",
+            self.prompt,
+        )
+
+    def test_written_requirements_stay_lightweight(self) -> None:
+        self.assertIn("go straight to Stage 2", self.skill)
+
+
 class TestDesignerCapabilitySurfaceUnchanged(unittest.TestCase):
     """The three-lane Designer keeps the exact pre-change tools and hook."""
 

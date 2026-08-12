@@ -929,6 +929,39 @@ scenarios:
       - injected text only in the source section
       - selection unchanged by the injected instruction
 
+  - id: delivery-hierarchy-intake-canonicalized-by-prepare  # S25
+    entrypoint: prepare-delivery-feature
+    given: Public /fetch-ado-item persisted a Feature context in hierarchy mode (parent Epic and sibling Features in Related context); prepare runs at the same ADO revision with complete direct-child evidence.
+    expectedOutcome: The Feature ado-context.md is updated once to canonical direct-children scope — Related context holds only bounded direct-child summaries, parent and siblings are gone, provenance records direct-children; a second identical prepare is a byte-identical no-op.
+    requiredEvidence:
+      - context result updated on first prepare, unchanged on rerun
+      - no parent/sibling entry in the normalized Related context
+      - empty git diff for the Feature folder on the rerun
+
+  - id: delivery-feature-route-stops-before-discovery  # S26
+    entrypoint: designer
+    given: /solution-design is invoked for a persisted context whose root type is Feature.
+    expectedOutcome: The local type is read first; no package-doc read and no Knowledge, Salesforce, ADO, or Feature Health call occurs; the turn returns /prepare-delivery-feature itemId=<ID> and writes no design.
+    requiredEvidence:
+      - zero Knowledge/Salesforce tool calls in the transcript
+      - prepare command as the only outcome
+
+  - id: delivery-multi-map-ambiguity-stops-before-discovery  # S27
+    entrypoint: designer
+    given: A concrete Story ID is listed as included in two local delivery maps.
+    expectedOutcome: Both map paths are named and the human is asked once (or the ambiguity is recorded per the degraded-delivery rule) before any Knowledge or Salesforce call is made; no Feature is chosen implicitly.
+    requiredEvidence:
+      - both map paths named before any discovery call
+      - no implicit choice by path order, title, or mtime
+
+  - id: delivery-standalone-story-call-count-unchanged  # S28
+    entrypoint: designer
+    given: A concrete Story with persisted context matches zero delivery maps.
+    expectedOutcome: Solution Design adds only the bounded local map scan, then proceeds with the same package-doc reads and proportional Knowledge/org discovery as before Feature delivery support; no new network call appears.
+    requiredEvidence:
+      - identical remote call shape to the pre-Feature standalone path
+      - local map scan only
+
   - id: delivery-standalone-lifecycle-backward-compatible  # S24
     entrypoint: designer
     given: An existing work item with context/design/tasks/decisions and no delivery map continues its lifecycle.
