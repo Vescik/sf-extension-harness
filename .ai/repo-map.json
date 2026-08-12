@@ -510,7 +510,7 @@
   "sourceDigests": {
     ".ai/contracts/execution-contract.md": "sha256:e2d33fd5859f35b0156e782359ec56eaa0f1adb2b3407a8572bda3ae6722ef3b",
     ".ai/contracts/source-authority.md": "sha256:21f45190131347752c36ced221855635b5a60126c11c67fe29b564de446d1af3",
-    ".ai/contracts/tool-capabilities.md": "sha256:026cea29616050a9c0b3abce1f3736c1444e7c40593f2ef11caad8cfa8857d43",
+    ".ai/contracts/tool-capabilities.md": "sha256:1b13cbc79fabc79bca9ce2d07cfc619bd460a8719d4ccc42f241269bc3e0da32",
     ".github/agents/config-investigator.agent.md": "sha256:8b73e53fc5d13f4516caa1991cab385da273942647029cb88ee570e8ee554358",
     ".github/agents/designer.agent.md": "sha256:3acaf91775f1ee83e7f4b0bfa55e78c4c12e51b4b7918d37fd98fa87598d89ce",
     ".github/agents/developer.agent.md": "sha256:56cfa1dde15e233f5343bd576006b2cb96c1effd45b935b88173f3cdabd4c8ff",
@@ -528,7 +528,7 @@
     ".github/prompts/check-against-principles.prompt.md": "sha256:ebc0ea21a116f7a2993f8908a64eaf13ea543a5e61f9e4477cd519777f53c1a2",
     ".github/prompts/curate-knowledge.prompt.md": "sha256:818076a6aefcff40a5620d74b946ebe72d3def5f0ae52302768346b870132fed",
     ".github/prompts/document-metadata-change.prompt.md": "sha256:3b1053dd1b43285a040fea875b88759cadc4c6c309180fbd5f64fec7054791a8",
-    ".github/prompts/feature-health.prompt.md": "sha256:908ec77718be0e7b6fdc578cba0430c968e4e0d20b9a4c1218e54dae51144305",
+    ".github/prompts/feature-health.prompt.md": "sha256:93e40f4ae62ecf4f68d2d1be4ce035a1d5c42de4088fd9be5b37974c3dcf7186",
     ".github/prompts/fetch-ado-item.prompt.md": "sha256:2fe067213d917faee3c0f9cdcf6db0176e6827f76c852d8901c20c325fe92931",
     ".github/prompts/inventory-force-app.prompt.md": "sha256:6ced25c44d8b41fd537e0d72884e72c223ad4a0b566ef6bf217b9818c555a9ee",
     ".github/prompts/investigate-config-records.prompt.md": "sha256:7b0b01aa9fc67a0b1341262ded2b7697b58b23da943b77aa27f5ebda64f51c7f",

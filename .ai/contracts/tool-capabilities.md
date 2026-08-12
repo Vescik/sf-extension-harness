@@ -5,7 +5,7 @@ upgrade.
 
 | Logical capability | Configured implementation | Consumers |
 |---|---|---|
-| ADO work-item/query/wiki reads + project-scoped text search (includes reading a formally linked Test Case as a Work Item) | `ado-readonly/*` local stdio MCP (`@azure-devops/mcp`, version-pinned, domains bounded to work-items/wiki/search) | intake, feature health, QA test-plan authoring, handover, search-ado |
+| ADO work-item/query/wiki reads + project-scoped text search (includes reading a formally linked Test Case as a Work Item) | `ado-readonly/*` local stdio MCP (`@azure-devops/mcp`, version-pinned, domains bounded to work-items/wiki/search) | intake, Feature delivery preparation, feature health, QA test-plan authoring, handover, search-ado |
 | Reconciled Salesforce org identity | `salesforce-readonly/review_org_identity` | investigator, design, review |
 | Reconciled installed package inventory | `salesforce-readonly/review_installed_packages` | investigator, design, review |
 | Reconciled allowlisted object contract | `salesforce-readonly/review_object_contract` | investigator, design, review, QA |
@@ -61,6 +61,13 @@ Design work has no MCP runtime and no machine state: it is the `fetch-ado-item` 
 persisting `work-items/<id>-<slug>/ado-context.md` (requirement intake), then the
 `solution-design` prompt and skill writing prose into `work-items/<id>-<slug>/design.md`,
 each reviewed by a human on the pull request.
+
+Feature delivery preparation (`/prepare-delivery-feature`, 2026-08-12) introduces **no new
+capability or MCP surface**: it is another consumer of the existing `ado-readonly` work-item
+read through the shared `fetch-ado-item` skill (internal `direct-children` mode — the root
+Feature plus direct-child summaries only), writing the Feature's `ado-context.md` and
+`delivery-map.md` with the Designer's existing `work-items/**` grant. Solution Design's
+delivery-map lookup is a bounded local file search, not a remote call.
 
 QA test-plan authoring (`/prepare-qa-test-plan`, 2026-08-11) introduces **no new
 capability**: the Test Strategist authors `work-items/<id>-<slug>/qa-test-plan.md` with its

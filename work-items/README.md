@@ -25,6 +25,17 @@ Files appear by lifecycle stage — nothing creates empty placeholders for later
   deviations — on conflict the plan is what gets corrected. QA execution results
   (PASS/FAIL, testers, dates, runs, screenshots) stay in the external test system, never
   in this file. Most work items never need one; nothing creates it automatically.
+- `delivery-map.md` — OPTIONAL, and only ever in an ADO **Feature's** folder: the membership
+  manifest written by `/prepare-delivery-feature itemId=<Feature ID>` when a human explicitly
+  prepares that Feature as delivery context for its direct child Work Items. Repository-wide
+  it is optional; for an *active* prepared Feature scope it is required — the map is the only
+  thing that activates Feature context, and only for the exact child IDs it lists as
+  `included`. An ADO parent relation alone activates nothing. The map owns membership,
+  delivery order, deferred/unsupported children, and reconciliation warnings — never
+  requirements, status, design, tasks, or QA content. Preparing a Feature never creates or
+  edits child folders, and the other lifecycle files above remain per concrete Work Item:
+  there is no Feature-level `design.md`, `tasks.md`, `decisions.md`, or `qa-test-plan.md`,
+  and no nested folders — the layout stays flat, one sibling directory per Work Item.
 
 Requirement intake and solution design are separate steps: `/fetch-ado-item`
 persists `ado-context.md` and stops; `/solution-design` reads it and writes
