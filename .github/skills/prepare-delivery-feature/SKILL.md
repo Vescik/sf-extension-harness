@@ -85,6 +85,21 @@ understanding, direct children as bounded summaries under Related context, no fu
 no comments or attachment content, no technical solution, same-revision no-rewrite, and a
 complete tracked snapshot never overwritten by a partial fetch.
 
+**Prepare owns canonical scope normalization.** `direct-children` is the canonical projection
+for a prepared Feature; a context persisted earlier by public intake (`hierarchy` or `single`)
+is an intake shape, not the prepared projection, and the same ADO revision does not make the
+two scopes equivalent. Inspect the existing Feature context's recorded fetch/projection mode
+and its Related-context membership; any non-equivalent projection is a material normalization
+need. On complete fresh direct-child evidence, compute the proposed normalized context (and the
+map) before editing, then persist the canonical direct-child context even at the same revision:
+Related context becomes bounded direct-child summaries only, parent/sibling/grandchild/Test
+Case entries are removed, provenance records `direct-children`, and the source snapshot and AI
+understanding are otherwise left alone — no wording, timestamp, or formatting churn. Report the
+context as `updated` for this first normalization and `unchanged` on the next identical
+prepare. On partial evidence, no normalization happens at all: the existing
+partial-preservation rules above apply unchanged, the prior context and any active map are
+preserved, and the return must not claim canonical reprojection completed.
+
 ## The delivery map
 
 `delivery-map.md` lives next to the Feature context and is coordination only — a membership

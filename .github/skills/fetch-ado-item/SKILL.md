@@ -106,7 +106,21 @@ section, and never state the requirement is approved or implementable.
 
 - no existing file + usable primary item → create;
 - same revision + equivalent fetch scope → leave the tracked file unchanged, even though
-  `retrievedAt` or AI wording would differ (report `unchanged`; update only ignored cache);
+  `retrievedAt` or AI wording would differ (report `unchanged`; update only ignored cache).
+  **Projection scope is part of that equivalence**: it covers the recorded fetch mode and the
+  allowed Related-context membership, and `single`, `hierarchy`, an unknown/legacy scope, and
+  `direct-children` are not automatically equivalent to one another. For an explicitly
+  **prepared Feature**, canonical durable scope is `direct-children`: when the
+  prepare-delivery-feature skill calls with a complete, fresh direct-child enumeration and the
+  existing tracked Feature projection is not equivalent to that canonical scope, update the
+  tracked context once even at the same revision — record `direct-children` as its
+  fetch/projection mode and replace Related context with bounded direct-child summaries only
+  (parent, siblings, grandchildren, Test Cases, full child bodies, comments, and attachment
+  content are removed). The source-faithful Description/Acceptance Criteria keep their
+  authority, and the rewrite is not a license to regenerate AI wording, timestamps, or
+  formatting. After that one normalization, the same effective direct-child input is
+  `unchanged` again. Partial or stale direct-child evidence never triggers this narrowing —
+  the general partial-refresh rule below still wins;
 - same revision + explicitly requested stronger completeness → update only if the tracked
   projection materially gains allowed content;
 - newer usable revision → refresh the source snapshot and regenerate the AI understanding;
