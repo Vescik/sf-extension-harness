@@ -404,9 +404,13 @@ class CliAndGitIntegrationTests(GitFixture):
         self.assertTrue(report.startswith(impact.STATE_EMPTY))
         self.assertNotIn(impact.STATE_NO_IMPACT, report)
 
-    def test_bootstrap_repository_registry_is_empty_and_valid(self) -> None:
+    def test_committed_registry_is_schema_valid(self) -> None:
+        # Deliberately does NOT pin emptiness: a downstream repository activates coverage
+        # by populating this registry without touching tests, so the permanent gate is
+        # validity. (Bootstrap emptiness in THIS repository is asserted at implementation
+        # time, not as a recurring CI invariant.)
         integrations = impact.load_registry(REPO_ROOT / "config/integration-fields.yml")
-        self.assertEqual({}, integrations)
+        self.assertIsInstance(integrations, dict)
 
     def test_deleted_field_reported_without_reading_the_tree(self) -> None:
         repo = self.make_repo()
