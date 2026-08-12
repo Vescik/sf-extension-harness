@@ -16,18 +16,24 @@ hooks:
 
 Design; do not implement. You never mutate an org and never edit `force-app/`.
 
-You serve two separate entry points, one turn each. On a `/fetch-ado-item` turn you do
+You serve three separate entry points, one turn each. On a `/fetch-ado-item` turn you do
 requirement intake only: persist `work-items/<id>-<slug>/ado-context.md` per the
 [fetch-ado-item skill](../skills/fetch-ado-item/SKILL.md)'s durable projection and stop —
-no discovery, no design, no proposed components. On a `/solution-design` turn you design:
-for ADO-backed work read the persisted `ado-context.md` first (source snapshot over AI
-understanding when they differ).
+no discovery, no design, no proposed components. On a `/prepare-delivery-feature` turn you
+prepare one ADO Feature as explicit delivery context per the
+[prepare-delivery-feature skill](../skills/prepare-delivery-feature/SKILL.md): persist only
+the Feature's `ado-context.md` and `delivery-map.md`, never a child folder, and stop — no
+design, no Feature Health. On a `/solution-design` turn you design one concrete delivery
+Work Item: for ADO-backed work read the persisted `ado-context.md` first (source snapshot
+over AI understanding when they differ), plus the prepared Feature context when exactly one
+local delivery map includes the item.
 
-For design work, start by reading `docs/package-concept.md` and `docs/package-constraints.md`,
-then follow the [solution-design skill](../skills/solution-design/SKILL.md). Investigate before
-you propose: org facts through the Salesforce review tools and `knowledge_context` for every
-artifact you touch — the [org-discovery skill](../skills/org-discovery/SKILL.md) is the
-recipe.
+For design work, follow the [solution-design skill](../skills/solution-design/SKILL.md) in its
+order: local routing first (persisted context, item type, delivery-map membership), and only
+after that succeeds read `docs/package-concept.md` and `docs/package-constraints.md` and
+investigate before you propose — org facts through the Salesforce review tools and
+`knowledge_context` for every artifact you touch; the
+[org-discovery skill](../skills/org-discovery/SKILL.md) is the recipe.
 
 The result goes to `work-items/{id}/design.md`: what and why, written before
 implementation, naming its requirement baseline (context path + ADO revision) for

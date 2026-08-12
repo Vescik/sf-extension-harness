@@ -359,5 +359,254 @@ class TestFetchPromptIntakeBoundary(unittest.TestCase):
         self.assertNotIn("design.md first", self.text)
 
 
+class TestPrepareDeliveryFeatureBoundaries(unittest.TestCase):
+    """Multi-Story Feature delivery is strictly opt-in (plan 2026-08-12).
+
+    Pins the safety-critical contract facts of /prepare-delivery-feature without
+    pinning whole prose documents: the type gate, the narrow direct-child
+    retrieval, the two-file write boundary, and the no-child-write /
+    no-Feature-Health rules."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.prompt = (
+            ROOT / ".github/prompts/prepare-delivery-feature.prompt.md"
+        ).read_text(encoding="utf-8")
+        cls.skill = (
+            ROOT / ".github/skills/prepare-delivery-feature/SKILL.md"
+        ).read_text(encoding="utf-8")
+        cls.fetch_skill = (ROOT / ".github/skills/fetch-ado-item/SKILL.md").read_text(
+            encoding="utf-8"
+        )
+
+    def test_prompt_frontmatter_names_and_targets(self) -> None:
+        self.assertIn("name: prepare-delivery-feature", self.prompt)
+        self.assertIn("agent: designer", self.prompt)
+
+    def test_prompt_exposes_only_itemid_and_include(self) -> None:
+        hint_line = next(
+            line for line in self.prompt.splitlines() if line.startswith("argument-hint:")
+        )
+        self.assertEqual(
+            'argument-hint: "itemId=<Feature ID> [include=all|<ID,ID,...>]"', hint_line
+        )
+        for hidden_option in ("mode=", "depth=", "childDetail=", "health=", "onStale="):
+            self.assertNotIn(hidden_option, hint_line)
+
+    def test_skill_is_internal_and_reuses_the_fetch_skill(self) -> None:
+        self.assertIn("user-invocable: false", self.skill)
+        # One retrieval procedure: the existing fetch skill, never a parallel client.
+        self.assertIn("skills/fetch-ado-item/SKILL.md", self.skill.replace("../fetch-ado-item", "skills/fetch-ado-item"))
+        self.assertIn("mode=direct-children", self.skill)
+        self.assertIn("do not call `ado-readonly` directly", self.skill)
+
+    def test_direct_child_mode_excludes_parent_siblings_grandchildren(self) -> None:
+        self.assertIn("direct-children", self.fetch_skill)
+        for token in ("parent", "siblings", "grandchildren"):
+            self.assertIn(token, self.fetch_skill)
+        self.assertIn(
+            "`childDetail=full` is invalid with `direct-children`", self.fetch_skill
+        )
+
+    def test_prepare_owns_only_the_two_feature_files(self) -> None:
+        self.assertIn("ado-context.md", self.skill)
+        self.assertIn("delivery-map.md", self.skill)
+        self.assertIn(
+            "The only permitted tracked writes are the Feature's own `ado-context.md` "
+            "and `delivery-map.md`.",
+            self.skill,
+        )
+
+    def test_prepare_forbids_child_folder_writes(self) -> None:
+        self.assertIn(
+            "Never create, rename, refresh, or edit any child work-item folder or file",
+            self.skill,
+        )
+
+    def test_prepare_never_calls_feature_health(self) -> None:
+        self.assertIn("never invokes `/feature-health`", self.skill)
+
+    def test_root_must_be_exactly_a_feature(self) -> None:
+        self.assertIn("must be exactly `Feature`", self.skill)
+
+    def test_include_ids_validated_against_fresh_direct_children(self) -> None:
+        self.assertIn(
+            "verify every ID against the freshly fetched direct non-container",
+            self.skill,
+        )
+
+    def test_partial_discovery_preserves_and_never_creates_a_map(self) -> None:
+        self.assertIn("preserve any existing\n`delivery-map.md` byte-for-byte", self.skill)
+        self.assertIn("create no new map", self.skill)
+
+    def test_same_input_prepare_is_a_no_op(self) -> None:
+        self.assertIn("byte-identical", self.skill)
+
+
+class TestSolutionDesignDeliveryMapRouting(unittest.TestCase):
+    """Feature context reaches a Story only through a local delivery map."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.prompt = (ROOT / ".github/prompts/solution-design.prompt.md").read_text(
+            encoding="utf-8"
+        )
+        cls.skill = (ROOT / ".github/skills/solution-design/SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        cls.fetch_prompt = (ROOT / ".github/prompts/fetch-ado-item.prompt.md").read_text(
+            encoding="utf-8"
+        )
+
+    def test_zero_one_multiple_map_handling_is_defined(self) -> None:
+        self.assertIn("Zero matches", self.skill)
+        self.assertIn("Exactly one match", self.skill)
+        self.assertIn("More than one match", self.skill)
+        self.assertIn("`15001` never matches `5001`", self.skill)
+
+    def test_one_match_records_feature_baseline_and_keeps_story_authority(self) -> None:
+        self.assertIn("Prepared delivery context:", self.skill)
+        self.assertIn("Feature ADO revision", self.skill)
+        self.assertIn("acceptance criteria remain\n  authoritative", self.skill)
+
+    def test_story_context_is_never_the_feature_link_target(self) -> None:
+        self.assertIn(
+            "never adds a pointer to a Story's `ado-context.md`",
+            self.skill.replace("preparing a Feature never adds", "never adds"),
+        )
+
+    def test_feature_input_routes_to_prepare_not_design(self) -> None:
+        self.assertIn("/prepare-delivery-feature itemId=<ID>", self.prompt)
+        self.assertIn("/prepare-delivery-feature itemId=<ID>", self.skill)
+
+    def test_fetch_routes_feature_to_prepare_without_auto_invoking(self) -> None:
+        self.assertIn("/prepare-delivery-feature itemId=<ID>", self.fetch_prompt)
+        self.assertIn("never invoked automatically", self.fetch_prompt)
+
+
+class TestFeatureHealthStaysDecoupled(unittest.TestCase):
+    """Feature Health is explicit and never edits guarded work-item folders."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.prompt = (ROOT / ".github/prompts/feature-health.prompt.md").read_text(
+            encoding="utf-8"
+        )
+        cls.prepare_skill = (
+            ROOT / ".github/skills/prepare-delivery-feature/SKILL.md"
+        ).read_text(encoding="utf-8")
+
+    def test_report_stays_in_output_and_no_work_item_write(self) -> None:
+        self.assertIn("output/feature-health/", self.prompt)
+        self.assertNotIn("link the report", self.prompt)
+        self.assertIn("does not edit `work-items/` folders", self.prompt)
+
+    def test_nothing_invokes_feature_health_automatically(self) -> None:
+        self.assertIn("Nothing invokes\nthis check automatically", self.prompt)
+        self.assertIn("never invokes `/feature-health`", self.prepare_skill)
+
+
+class TestPreparedFeatureScopeNormalization(unittest.TestCase):
+    """Corrective plan 2026-08-12 P1: direct-children is the canonical prepared-Feature
+    projection, same revision does not imply equivalent scope, and the one-time
+    normalization needs complete fresh direct-child evidence."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.fetch_skill = (ROOT / ".github/skills/fetch-ado-item/SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        cls.prepare_skill = (
+            ROOT / ".github/skills/prepare-delivery-feature/SKILL.md"
+        ).read_text(encoding="utf-8")
+
+    def test_projection_scope_participates_in_same_revision_equivalence(self) -> None:
+        self.assertIn("Projection scope is part of that equivalence", self.fetch_skill)
+        self.assertIn("not automatically equivalent", self.fetch_skill)
+
+    def test_prepare_owns_one_time_normalization_to_direct_children(self) -> None:
+        self.assertIn("canonical scope normalization", self.prepare_skill)
+        self.assertIn("even at the same revision", self.prepare_skill)
+        self.assertIn(
+            "`updated` for this first normalization and `unchanged` on the next identical",
+            self.prepare_skill,
+        )
+
+    def test_normalization_requires_complete_fresh_evidence(self) -> None:
+        self.assertIn("On complete fresh direct-child evidence", self.prepare_skill)
+        self.assertIn(
+            "complete, fresh direct-child enumeration", self.fetch_skill
+        )
+
+    def test_partial_evidence_never_narrows_tracked_context(self) -> None:
+        self.assertIn("Partial or stale direct-child evidence never triggers", self.fetch_skill)
+        self.assertIn("On partial evidence, no normalization happens at all", self.prepare_skill)
+        self.assertIn(
+            "must not claim canonical reprojection completed", self.prepare_skill
+        )
+
+
+class TestSolutionDesignRoutingPrecedesDiscovery(unittest.TestCase):
+    """Corrective plan 2026-08-12 P2: local type/map routing happens before package
+    docs and any Knowledge/Salesforce discovery."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.skill = (ROOT / ".github/skills/solution-design/SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        cls.prompt = (ROOT / ".github/prompts/solution-design.prompt.md").read_text(
+            encoding="utf-8"
+        )
+
+    def test_skill_defines_local_routing_stage_before_discovery_stage(self) -> None:
+        stage1 = self.skill.index("Stage 1 — local routing")
+        stage2 = self.skill.index("Stage 2 — design discovery")
+        self.assertLess(stage1, stage2)
+        # Package docs are read in Stage 2, after routing — not before it.
+        self.assertLess(stage2, self.skill.index("docs/package-concept.md"))
+
+    def test_no_remote_call_decides_type_or_membership(self) -> None:
+        self.assertIn("Knowledge, Salesforce, or Feature Health call", self.skill)
+        self.assertIn("stop before any design context is loaded", self.skill)
+
+    def test_prompt_pins_routing_before_docs_and_remote_discovery(self) -> None:
+        self.assertIn(
+            "before reading the package design documents or making any Knowledge or\n"
+            "Salesforce call",
+            self.prompt,
+        )
+
+    def test_written_requirements_stay_lightweight(self) -> None:
+        self.assertIn("go straight to Stage 2", self.skill)
+
+
+class TestDesignerCapabilitySurfaceUnchanged(unittest.TestCase):
+    """The three-lane Designer keeps the exact pre-change tools and hook."""
+
+    BASELINE_TOOLS = (
+        "tools: ['read', 'edit/editFiles', 'vscode/askQuestions', 'knowledge/*', "
+        "'ado-readonly/*', 'salesforce-readonly/review_org_identity', "
+        "'salesforce-readonly/review_installed_packages', "
+        "'salesforce-readonly/review_object_contract', "
+        "'salesforce-readonly/review_soql_query']"
+    )
+    BASELINE_HOOK = "command: python3 scripts/copilot_role_guard.py --role designer"
+
+    def setUp(self) -> None:
+        self.text = (ROOT / ".github/agents/designer.agent.md").read_text(encoding="utf-8")
+
+    def test_tools_array_is_byte_identical_to_baseline(self) -> None:
+        self.assertIn(self.BASELINE_TOOLS, self.text)
+
+    def test_role_guard_hook_is_unchanged(self) -> None:
+        self.assertIn(self.BASELINE_HOOK, self.text)
+
+    def test_designer_names_three_entry_points(self) -> None:
+        self.assertIn("three separate entry points", self.text)
+        for lane in ("/fetch-ado-item", "/prepare-delivery-feature", "/solution-design"):
+            self.assertIn(lane, self.text)
+
+
 if __name__ == "__main__":
     unittest.main()

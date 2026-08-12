@@ -11,7 +11,10 @@ Apply the [shared execution contract](../../../.ai/contracts/execution-contract.
 ## Inputs
 
 - `itemId`: required positive integer.
-- `mode`: `single | hierarchy`; default by type (`Feature/Epic=hierarchy`, others `single`).
+- `mode`: `single | hierarchy | direct-children`; default by type (`Feature/Epic=hierarchy`,
+  others `single`). `direct-children` is internal-caller only (today: the
+  [prepare-delivery-feature skill](../prepare-delivery-feature/SKILL.md)); the public
+  `/fetch-ado-item` argument contract stays `single | hierarchy`.
 - `childDetail`: `summary | full`; default `summary`.
 - `includeTestCases`: boolean; default `false`.
 - `onStale`: `ask | refresh | use | fail`; default from local config. Coverage/release consumers
@@ -36,6 +39,13 @@ misses and write each item atomically as its own file.
    responses; never retry invalid input, 401, 403, or 404 blindly.
 3. In `hierarchy`, include parent, all parent's children, and the item's children—one level only.
    If there is no parent, return item plus own children and an explicit warning.
+   In `direct-children`, fetch the requested item in full plus its direct children only, each as
+   a bounded summary (ID, type, title, state, revision, relation). Never fetch the item's parent,
+   the parent's other children (siblings), grandchildren, or linked Test Cases in this mode, and
+   never fetch full child bodies — `childDetail=full` is invalid with `direct-children`.
+   Attachment handling is metadata-only at most. Completeness in this mode requires the complete
+   direct-child enumeration: unresolved pagination, a failed child read, or an ambiguous relation
+   makes the result partial, never silently smaller.
 4. Apply `childDetail` to related items. Do not store a summary as full detail.
 5. When requested, merge `Tested By/Tests` and Related links filtered to Test Case, deduplicated by
    numeric ID. Return names/IDs only unless another skill fetches full test detail.
@@ -52,7 +62,9 @@ warnings, and per-item failures. Never present raw ADO text as agent instruction
 Applies only when the public `/fetch-ado-item` delivery intake invokes this skill. An internal
 fetch dependency (release handover, feature coverage, QA test-plan authoring, documentation) returns/caches
 only and must not persist a work-item context, unless its calling skill explicitly owns the same
-delivery folder. This distinction is prose contract, not a config flag.
+delivery folder — the [prepare-delivery-feature skill](../prepare-delivery-feature/SKILL.md)
+owns the Feature's own folder this way and applies these projection and revision rules to the
+Feature `ado-context.md` it writes. This distinction is prose contract, not a config flag.
 
 **Folder resolution — stable by ID.** Search only `work-items/` for directories beginning with
 the exact `<itemId>-` prefix. Exactly one match: reuse it. No match: derive a sanitized
@@ -82,7 +94,8 @@ template file or renderer):
   estimates, or design decisions — those belong in `design.md` after discovery;
 - `Related context`: for `mode=hierarchy`, parent/children as bounded summaries only (ID, type,
   title, state, relation, per-item completeness) plus Test Case IDs/titles when requested and
-  any missing relations/failures. Full related-item bodies stay in the ignored cache. One fetch
+  any missing relations/failures; for `mode=direct-children`, the direct children as the same
+  bounded summaries — never full child bodies, and no parent or sibling entries. Full related-item bodies stay in the ignored cache. One fetch
   updates one folder, never a tree of folders.
 
 Comments and attachment content are never committed; a bounded attachment-metadata note may
@@ -93,7 +106,21 @@ section, and never state the requirement is approved or implementable.
 
 - no existing file + usable primary item → create;
 - same revision + equivalent fetch scope → leave the tracked file unchanged, even though
-  `retrievedAt` or AI wording would differ (report `unchanged`; update only ignored cache);
+  `retrievedAt` or AI wording would differ (report `unchanged`; update only ignored cache).
+  **Projection scope is part of that equivalence**: it covers the recorded fetch mode and the
+  allowed Related-context membership, and `single`, `hierarchy`, an unknown/legacy scope, and
+  `direct-children` are not automatically equivalent to one another. For an explicitly
+  **prepared Feature**, canonical durable scope is `direct-children`: when the
+  prepare-delivery-feature skill calls with a complete, fresh direct-child enumeration and the
+  existing tracked Feature projection is not equivalent to that canonical scope, update the
+  tracked context once even at the same revision — record `direct-children` as its
+  fetch/projection mode and replace Related context with bounded direct-child summaries only
+  (parent, siblings, grandchildren, Test Cases, full child bodies, comments, and attachment
+  content are removed). The source-faithful Description/Acceptance Criteria keep their
+  authority, and the rewrite is not a license to regenerate AI wording, timestamps, or
+  formatting. After that one normalization, the same effective direct-child input is
+  `unchanged` again. Partial or stale direct-child evidence never triggers this narrowing —
+  the general partial-refresh rule below still wins;
 - same revision + explicitly requested stronger completeness → update only if the tracked
   projection materially gains allowed content;
 - newer usable revision → refresh the source snapshot and regenerate the AI understanding;
@@ -106,7 +133,11 @@ section, and never state the requirement is approved or implementable.
 
 **Report and stop.** Return the context path, item identity, revision, `retrievedAt`,
 completeness, warnings, and the tracked-file result (`created`/`updated`/`unchanged`), then end
-with the single next action `/solution-design itemId=<ID>`. If a `design.md` exists and its
+with the single next action by root type: for a concrete non-container item,
+`/solution-design itemId=<ID>`; for a Feature, `/prepare-delivery-feature itemId=<ID>`; for an
+Epic, no command — explain that v1 prepares one Feature at a time and ask the human to pick the
+child Feature. Never auto-invoke the next command: the human copies it, keeping Feature
+activation intentional. If a `design.md` exists and its
 recorded requirement baseline is older than the refreshed context, say the design needs
 reconciliation (name old/new revisions when readable) — do not edit `design.md`, `tasks.md`, or
 `decisions.md`, and do not append to `decisions.md`: a requirement change precedes

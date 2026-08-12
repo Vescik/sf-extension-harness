@@ -150,6 +150,45 @@ See [work-items/README.md](../work-items/README.md) for what each durable file m
 - letting `decisions.md` lag behind the implementation;
 - reading a local repository edit as a change already made in an org.
 
+### Delivering a multi-Story Feature (optional overlay)
+
+Most Stories stay on the default path even when ADO shows a Feature or Epic parent — a parent
+relation used for reporting adds nothing locally and is deliberately ignored. Use this overlay
+only when one ADO Feature is genuinely being delivered through several of its child Stories and
+you want each Story designed with the shared Feature context in view.
+
+Prepare the Feature once, explicitly:
+
+```text
+/prepare-delivery-feature itemId=5000
+```
+
+This persists two files in the Feature's own flat folder — `ado-context.md` (the Feature
+requirement snapshot) and `delivery-map.md` (which direct children are included in the active
+delivery, in what order) — and nothing else. No child folders are created, no Stories are
+fetched, and nothing else changes. To activate only a subset, name it:
+`/prepare-delivery-feature itemId=5000 include=5001,5003`.
+
+Then deliver each Story exactly as in the default path, in any order, one at a time:
+
+```text
+/fetch-ado-item itemId=5001
+/solution-design itemId=5001
+# implement, test, QA plan if needed, PR AB#5001
+```
+
+When a Story is listed as included in exactly one prepared map, its Solution Design reads the
+local Feature context and records that baseline in the Story's `design.md`; the Story's own
+acceptance criteria stay authoritative, and implementation, branch, commit, PR, and QA remain
+per Story — there is no Feature branch, Feature design, or Feature QA plan. Rerun prepare only
+when the Feature's scope or your active slice changes; there is no per-Story re-preparation.
+
+Two things this overlay is not: it is not Feature Knowledge (`/author-feature` and
+`.ai/knowledge/features/` curate governed product meaning — a delivery map is short-lived
+coordination, and neither implies the other), and it is not `/feature-health` (the explicit,
+higher-cost Feature/BRD-to-Story coverage review, which you run separately when a Feature is
+release-critical, ambiguous, or BRD-backed — never triggered by preparation or Story work).
+
 ## Playbook 2 — Bounded bug fix
 
 The express lane for a defect that is already diagnosed.
@@ -373,6 +412,7 @@ reviewing impact across a curated feature boundary. For the governing detail, se
 | `work-items/<id>-<slug>/design.md` | Accepted intent, scope, trade-offs, verification, and rollback |
 | `work-items/<id>-<slug>/tasks.md` | Current execution checklist |
 | `work-items/<id>-<slug>/decisions.md` | Append-only deviations and rulings |
+| `work-items/<feature-id>-<slug>/delivery-map.md` | Explicit membership and order of an actively prepared ADO Feature's delivery — coordination only (Feature folders only) |
 | `output/**` | Draft and review artifacts — not automatically authoritative |
 | `.ai/knowledge/**` | Governed Knowledge, written only through its existing lanes |
 
@@ -397,6 +437,7 @@ action — supply it, or stop the work.
 | Need | Entry point |
 |---|---|
 | Start from an ADO item | `/fetch-ado-item itemId=<ID>` (persists the requirement context), then `/solution-design itemId=<ID>` |
+| Deliver one ADO Feature through several child Stories | `/prepare-delivery-feature itemId=<Feature ID>` once, then the normal per-Story flow |
 | Start from a written requirement | `/solution-design <requirement>` |
 | Review a persisted design or implementation | `/check-against-principles itemId=<ID> scope=design` (or `scope=implementation`) |
 | Apply a small diagnosed fix | `/adhoc-fix component=<Type:Name> org=<alias>` plus the diagnosis |

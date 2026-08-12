@@ -21,6 +21,13 @@ For ADO-backed work the requirement arrives as a durable snapshot: `/fetch-ado-i
 revision as its requirement baseline — so a reviewer compares the design against the source
 acceptance criteria, not against the design's own paraphrase.
 
+When a human has explicitly prepared the item's parent ADO Feature for multi-Story delivery
+(`/prepare-delivery-feature`) and exactly one local delivery map includes the item, the design
+also reads that prepared Feature context and records it as a second, coordination baseline. This
+is optional broader context resolved locally: it never replaces the Story's acceptance criteria
+as the requirement authority, and an ordinary ADO parent relation without a prepared map changes
+nothing about the design.
+
 Three obligations sit inside that sentence, and all three are load-bearing:
 
 1. **Deliver a design.** A session that ends without a document is a product failure, whatever the

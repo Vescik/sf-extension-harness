@@ -33,7 +33,7 @@ the deep directory tree lives in `docs/workspace-topology.md`.
 ## Roles (`.github/agents/`)
 
 - **config-investigator** — Read-only evidence collector for allowlisted …. Loads instructions: managed-package; contracts: source-authority, tool-capabilities; skills: inventory-force-app, investigate-config-records, investigate-object, org-discovery, selected-files-knowledge.
-- **designer** — Design subscriber-owned extensions of the …. Loads skills: fetch-ado-item, org-discovery, solution-design.
+- **designer** — Design subscriber-owned extensions of the …. Loads skills: fetch-ado-item, org-discovery, prepare-delivery-feature, solution-design.
 - **developer** — Implement a designed work item …. Loads skills: development, git-workflow.
 - **git-agent** — Routine git operations by the …. Loads skills: git-workflow.
 - **knowledge-curator** — Maintains governed Knowledge from repository …. Loads instructions: managed-package; contracts: source-authority; skills: approve-knowledge-drafts, curate-knowledge, search-knowledge.
@@ -59,6 +59,7 @@ the deep directory tree lives in `docs/workspace-topology.md`.
 - `investigate-object` — Collect bounded, sanitized evidence about …
 - `maintain-workspace` — Bounded workspace control-plane maintenance — …
 - `org-discovery` — The recipe for investigating the …
+- `prepare-delivery-feature` — Prepare one ADO Feature as …
 - `prepare-qa-test-plan` — Author or refresh one work …
 - `search-ado` — Read-only Azure DevOps text search …
 - `search-knowledge` — Read-only search over governed Knowledge …
@@ -79,6 +80,7 @@ the deep directory tree lives in `docs/workspace-topology.md`.
 - `/investigate-config-records` → config-investigator
 - `/investigate-object` → config-investigator
 - `/pin-knowledge` → config-investigator
+- `/prepare-delivery-feature` → designer
 - `/prepare-qa-test-plan` → test-strategist
 - `/release-handover` → test-strategist
 - `/search-ado` → designer
