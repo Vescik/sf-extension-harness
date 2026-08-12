@@ -31,3 +31,17 @@ traceable to a work item or recorded decision.
 
 CI proves repository structure and deterministic controls. It does not replace live VS Code
 Customization Diagnostics or non-production integration smoke tests.
+
+## CI lanes
+
+Pull-request CI is diff-aware (`scripts/classify_ci_changes.py`). Only two path classes skip
+the full harness: `force-app/**` runs the bounded Salesforce lane (formatting, lint, and the
+advisory Integration Field Impact Check against `config/integration-fields.yml`), and
+`work-items/**` is delivery content that runs neither heavy lane. Every other path — including
+new, unlisted ones — runs the full harness. The always-created `PR CI / Gate` check aggregates
+the required lanes; a lane may be skipped only when the classifier declared it unnecessary.
+
+The integration field registry maps `ObjectApiName.FieldApiName` identities to the integrations
+that consume them; the integration owner named in each entry maintains it (see the header of
+`config/integration-fields.yml`). A registered-field match is advisory and never blocks a merge;
+a malformed registry or a crashed checker fails the Salesforce lane.
