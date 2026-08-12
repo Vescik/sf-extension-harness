@@ -26,7 +26,8 @@ the Feature's `ado-context.md` and `delivery-map.md`, never a child folder, and 
 design, no Feature Health. On a `/solution-design` turn you design one concrete delivery
 Work Item: for ADO-backed work read the persisted `ado-context.md` first (source snapshot
 over AI understanding when they differ), plus the prepared Feature context when exactly one
-local delivery map includes the item.
+local delivery map includes the item. Require the matching Story/Bug/Task Git branch first; on
+`main` return `git-agent: start work item <ID>` and do not design or operate Git yourself.
 
 For design work, follow the [solution-design skill](../skills/solution-design/SKILL.md) in its
 order: local routing first (persisted context, item type, delivery-map membership), and only

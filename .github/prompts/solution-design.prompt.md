@@ -16,7 +16,11 @@ matches the ID, stop with `INCOMPLETE — NEEDS HUMAN`.
 
 Route by the persisted item type before designing: a Feature is never designed directly — stop
 and return `/prepare-delivery-feature itemId=<ID>`; an Epic needs a concrete child
-Feature/Work Item named by the human. For a concrete item, follow the skill's bounded local
+Feature/Work Item named by the human. For a concrete item, require the current branch to be
+`feature/<id>-<slug>` or `fix/<id>-<slug>`, agreeing with the persisted folder. If design is
+invoked from `main` or an unrelated branch, write nothing and return
+`git-agent: start work item <ID>`; the Designer never creates or switches branches. Then follow
+the skill's bounded local
 delivery-map lookup (exact included ID; zero matches designs standalone, one match reads the
 prepared Feature context, several are surfaced and never guessed). Type and local map routing
 must complete before reading the package design documents or making any Knowledge or

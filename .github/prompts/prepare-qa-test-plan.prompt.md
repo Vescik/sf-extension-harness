@@ -13,7 +13,8 @@ it may state a bounded focus or the output language; reject any other `name=valu
 If `itemId` is missing, ask once with `#tool:vscode/askQuestions`; never guess an ID.
 
 Resolve exactly one `work-items/<id>-*/` folder. Zero matches: stop and return the recovery
-(`/fetch-ado-item itemId=<ID>` then `/solution-design itemId=<ID>` for ADO-backed work, or
+(`/fetch-ado-item itemId=<ID>`, then `git-agent: start work item <ID>`, then
+`/solution-design itemId=<ID>` for ADO-backed work, or
 `/solution-design` with the written requirement). Multiple matches: stop with
 `INCOMPLETE — NEEDS HUMAN` and write nothing.
 

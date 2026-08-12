@@ -28,10 +28,12 @@ This turn is requirement intake only:
    For a concrete non-container delivery item (User Story, Product Backlog Item, Bug, Task, …):
 
 ```text
-/solution-design itemId=<ID>
+git-agent: start work item <ID>
 ```
 
-   For a Feature, the next action is `/prepare-delivery-feature itemId=<ID>` (explicit
+   The git-agent creates the item branch and commits the intake context locally before returning
+   `/solution-design itemId=<ID>`. For a Feature, the next action is
+   `/prepare-delivery-feature itemId=<ID>` (explicit
    multi-Story delivery preparation — never invoked automatically from this turn). For an Epic,
    name no command: explain that v1 prepares one Feature at a time and ask the human to choose
    the child Feature.

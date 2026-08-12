@@ -81,17 +81,20 @@ From a written requirement:
 
 1. From an ADO item, `/fetch-ado-item` first persists the requirement snapshot in
    `work-items/<id>-<slug>/ado-context.md` — source-faithful ADO text kept separate from an
-   explicitly unapproved AI understanding — and stops with the next command
-   (`/solution-design itemId=<ID>`). Intake and design are deliberately separate steps.
-2. On `/solution-design`, the designer reads the persisted context (or your written
+   explicitly unapproved AI understanding — and stops with `git-agent: start work item <ID>`.
+2. The git-agent verifies clean, synchronized `main`, creates the Story/Bug/Task branch, stages
+   only the exact intake artifact, and commits it locally. It does not push and returns
+   `/solution-design itemId=<ID>`. This keeps intake, design, and implementation on one
+   item-scoped branch while preserving intake as its own reviewable commit.
+3. On `/solution-design`, the designer reads the persisted context (or your written
    requirement), gathers Knowledge, repository, and allowed org evidence, and persists the
    design in `work-items/<id>-<slug>/design.md`, naming its requirement baseline (context
    path + ADO revision) for ADO-backed work.
-3. You resolve business questions, vendor guarantees, and unapproved choices it surfaces.
-4. A reviewer can challenge the persisted design with `/check-against-principles`.
-5. After you accept the design, the developer implements against it and keeps `tasks.md` and
+4. You resolve business questions, vendor guarantees, and unapproved choices it surfaces.
+5. A reviewer can challenge the persisted design with `/check-against-principles`.
+6. After you accept the design, the developer implements against it and keeps `tasks.md` and
    `decisions.md` current.
-6. Verification follows the design; the test-strategist agent is the entry point when a QA
+7. Verification follows the design; the test-strategist agent is the entry point when a QA
    coverage decision is needed. When the item is being handed to a QA engineer,
    `/prepare-qa-test-plan itemId=<ID>` writes `work-items/<id>-<slug>/qa-test-plan.md` — a
    human-executable handoff (feature orientation plus Test Cases with expected results) that
@@ -101,9 +104,12 @@ From a written requirement:
    Skip it for work no tester picks up — Knowledge maintenance, investigations, harness-only
    changes; nothing creates it automatically, and QA execution results (PASS/FAIL, runs,
    screenshots) stay in Azure Test Plans, never in the repository.
-7. The git-agent can prepare routine branch, commit, and PR work; push, merge, release, and
+8. The git-agent can prepare later commits and PR work. It asks before every push; after a push
+   it actually completes successfully, it returns a suggested title, the fully completed
+   repository PR template for copying, and a direct GitHub creation link when the remote can be
+   identified. It does not need GitHub CLI and does not create the PR. Merge, release, and
    deployment remain yours under the repository's current rules.
-8. Changes to the workspace itself — prompts, skills, instructions, scripts, schemas, tests,
+9. Changes to the workspace itself — prompts, skills, instructions, scripts, schemas, tests,
    docs, tracked configuration — go through the **workspace-maintainer** agent, not a
    delivery agent. Files that define permissions or external capability (the safety
    hook/role guard, agent definitions, MCP and VS Code configuration) additionally stop for
@@ -173,6 +179,7 @@ Then deliver each Story exactly as in the default path, in any order, one at a t
 
 ```text
 /fetch-ado-item itemId=5001
+git-agent: start work item 5001
 /solution-design itemId=5001
 # implement, test, QA plan if needed, PR AB#5001
 ```
@@ -182,6 +189,11 @@ local Feature context and records that baseline in the Story's `design.md`; the 
 acceptance criteria stay authoritative, and implementation, branch, commit, PR, and QA remain
 per Story — there is no Feature branch, Feature design, or Feature QA plan. Rerun prepare only
 when the Feature's scope or your active slice changes; there is no per-Story re-preparation.
+
+If several Stories must branch in parallel before the prepared Feature context is present on
+`main`, stop at Git bootstrap and choose the coordination strategy explicitly. The git-agent does
+not duplicate an unmerged Feature map across unrelated Story branches; the default is sequential
+delivery after the first Story/context commit lands.
 
 Two things this overlay is not: it is not Feature Knowledge (`/author-feature` and
 `.ai/knowledge/features/` curate governed product meaning — a delivery map is short-lived
@@ -436,8 +448,8 @@ action — supply it, or stop the work.
 
 | Need | Entry point |
 |---|---|
-| Start from an ADO item | `/fetch-ado-item itemId=<ID>` (persists the requirement context), then `/solution-design itemId=<ID>` |
-| Deliver one ADO Feature through several child Stories | `/prepare-delivery-feature itemId=<Feature ID>` once, then the normal per-Story flow |
+| Start from an ADO item | `/fetch-ado-item itemId=<ID>`, then `git-agent: start work item <ID>`, then `/solution-design itemId=<ID>` |
+| Deliver one ADO Feature through several child Stories | `/prepare-delivery-feature itemId=<Feature ID>` once, then fetch → git-agent start → design per Story |
 | Start from a written requirement | `/solution-design <requirement>` |
 | Review a persisted design or implementation | `/check-against-principles itemId=<ID> scope=design` (or `scope=implementation`) |
 | Apply a small diagnosed fix | `/adhoc-fix component=<Type:Name> org=<alias>` plus the diagnosis |
@@ -446,7 +458,7 @@ action — supply it, or stop the work.
 | Investigate reference/config records | `/investigate-config-records objectApiName=<API name> org=<alias>` |
 | Author Feature Knowledge | `/author-feature <slug-or-name>` |
 | Assess feature coverage | `/feature-health itemId=<Feature ID>` |
-| Prepare routine Git work | `git-agent` custom agent |
+| Prepare routine Git work or push with a copyable PR handoff | `git-agent` custom agent |
 
 This table lists the entry points behind the playbooks above, not the whole catalog — the
 Copilot slash menu shows the full current set of public prompts.

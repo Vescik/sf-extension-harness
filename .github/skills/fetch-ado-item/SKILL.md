@@ -134,11 +134,12 @@ section, and never state the requirement is approved or implementable.
 **Report and stop.** Return the context path, item identity, revision, `retrievedAt`,
 completeness, warnings, and the tracked-file result (`created`/`updated`/`unchanged`), then end
 with the single next action by root type: for a concrete non-container item,
-`/solution-design itemId=<ID>`; for a Feature, `/prepare-delivery-feature itemId=<ID>`; for an
+`git-agent: start work item <ID>`; for a Feature, `/prepare-delivery-feature itemId=<ID>`; for an
 Epic, no command — explain that v1 prepares one Feature at a time and ask the human to pick the
 child Feature. Never auto-invoke the next command: the human copies it, keeping Feature
-activation intentional. If a `design.md` exists and its
-recorded requirement baseline is older than the refreshed context, say the design needs
+activation intentional. The git-agent bootstrap returns `/solution-design itemId=<ID>` after it
+has created the item branch and committed the exact intake files locally. If a `design.md`
+exists and its recorded requirement baseline is older than the refreshed context, say the design needs
 reconciliation (name old/new revisions when readable) — do not edit `design.md`, `tasks.md`, or
 `decisions.md`, and do not append to `decisions.md`: a requirement change precedes
 implementation-deviation classification.
