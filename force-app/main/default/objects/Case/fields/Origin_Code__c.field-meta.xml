@@ -3,7 +3,7 @@
   <fullName>Origin_Code__c</fullName>
   <externalId>true</externalId>
   <label>Origin_Code</label>
-  <length>64</length>
+  <length>80</length>
   <type>Text</type>
   <unique>true</unique>
 </CustomField>
