@@ -327,10 +327,13 @@ def run_check(
     # Deterministic: field identity, then integration key, then change label.
     rows.sort(key=lambda row: (row[1], row[2], row[0]))
 
-    if not integrations:
-        state = STATE_EMPTY
-    elif not events:
+    # NO_FIELD_METADATA_CHANGED is a complete statement regardless of registry contents;
+    # REGISTRY_EMPTY (impact not assessed) applies only when fields DID change and there
+    # is no registry to assess them against (pilot scenario 4 vs scenario 1).
+    if not events:
         state = STATE_NO_FIELDS
+    elif not integrations:
+        state = STATE_EMPTY
     elif rows:
         state = STATE_IMPACT
     else:

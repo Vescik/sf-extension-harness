@@ -247,10 +247,10 @@ class RenderingTests(unittest.TestCase):
             for key, name, owner in index.get(identity, ()):
                 rows.append((change, identity, key, name, owner))
         rows.sort(key=lambda row: (row[1], row[2], row[0]))
-        if not integrations:
-            state = impact.STATE_EMPTY
-        elif not events:
+        if not events:
             state = impact.STATE_NO_FIELDS
+        elif not integrations:
+            state = impact.STATE_EMPTY
         elif rows:
             state = impact.STATE_IMPACT
         else:
@@ -268,6 +268,12 @@ class RenderingTests(unittest.TestCase):
         state, report = self.render(VALID_REGISTRY["integrations"], [])
         self.assertEqual(impact.STATE_NO_FIELDS, state)
         self.assertTrue(report.startswith(impact.STATE_NO_FIELDS))
+
+    def test_no_fields_changed_wins_over_empty_registry(self) -> None:
+        # With zero changed field paths there is nothing to assess, so the complete
+        # statement is NO_FIELD_METADATA_CHANGED even in the bootstrap registry state.
+        state, _ = self.render({}, [])
+        self.assertEqual(impact.STATE_NO_FIELDS, state)
 
     def test_changed_fields_without_registry_match(self) -> None:
         state, report = self.render(
