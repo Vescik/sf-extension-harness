@@ -1,26 +1,2 @@
-# Integration field registry — the single authority mapping integration-sensitive
-# Salesforce fields to the integrations that consume them.
-#
-# Ownership and update timing:
-# - The integration/platform owner named in each entry maintains that entry; review the
-#   whole registry quarterly (human process) and whenever an integration contract changes.
-# - Populate entries only from confirmed integration contracts — never from guesses.
-#   The bootstrap state below (integrations: {}) is intentional for a freshly copied
-#   workspace: the checker reports REGISTRY_EMPTY and does not claim "no impact".
-# - Fields are canonical, case-preserving `ObjectApiName.FieldApiName` strings
-#   (e.g. Account.External_Id__c). One field may appear under several integrations;
-#   duplicates within one integration are invalid.
-# - No credentials, endpoints, tokens, payloads, customer data, or org IDs belong here.
-#
-# Populated example shape (see scripts/check_integration_field_impact.py for validation):
-#
-#   integrations:
-#     sap-customer-sync:
-#       name: SAP Customer Sync
-#       owner: salesforce-integration-team
-#       fields:
-#         - Account.External_Id__c
-#         - Contact.Customer_Number__c
-
-version: 1
+version: 99
 integrations: {}
