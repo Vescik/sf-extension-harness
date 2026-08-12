@@ -18,7 +18,9 @@ Route by the persisted item type before designing: a Feature is never designed d
 and return `/prepare-delivery-feature itemId=<ID>`; an Epic needs a concrete child
 Feature/Work Item named by the human. For a concrete item, follow the skill's bounded local
 delivery-map lookup (exact included ID; zero matches designs standalone, one match reads the
-prepared Feature context, several are surfaced and never guessed).
+prepared Feature context, several are surfaced and never guessed). Type and local map routing
+must complete before reading the package design documents or making any Knowledge or
+Salesforce call — the skill's Stage 1 comes first, always.
 
 For a written requirement without an ADO item, proceed directly — no `ado-context.md` exists or
 is fabricated, and the design identifies the requirement as human-provided.
