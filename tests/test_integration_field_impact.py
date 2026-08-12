@@ -465,6 +465,55 @@ class CliAndGitIntegrationTests(GitFixture):
         completed, _ = self.run_cli(repo, registry, "f" * 40, head)
         self.assertEqual(2, completed.returncode)
 
+    def test_cp1252_console_never_crashes_the_checker(self) -> None:
+        # Windows decodes stdout as cp1252; non-ASCII registry values (or report text)
+        # must degrade the console echo, never fail the run. PYTHONIOENCODING emulates
+        # the Windows console on any OS.
+        import os
+
+        repo = self.make_repo()
+        self.field_file(repo, "Account", "External_Id__c")
+        base = self.commit_all(repo, "base")
+        self.field_file(repo, "Account", "External_Id__c", "<CustomField>v2</CustomField>")
+        head = self.commit_all(repo, "head")
+        registry = registry_file(
+            repo,
+            {
+                "version": 1,
+                "integrations": {
+                    "erp-sync": {
+                        "name": "Müller → ERP",
+                        "owner": "integrationsbüro",
+                        "fields": ["Account.External_Id__c"],
+                    }
+                },
+            },
+        )
+        report_path = repo / "impact-report.md"
+        completed = subprocess.run(
+            [
+                sys.executable,
+                str(CHECKER),
+                "--registry",
+                str(registry),
+                "--base",
+                base,
+                "--head",
+                head,
+                "--markdown-output",
+                str(report_path),
+            ],
+            cwd=str(repo),
+            capture_output=True,
+            text=False,
+            check=False,
+            env={**os.environ, "PYTHONIOENCODING": "cp1252"},
+        )
+        self.assertEqual(0, completed.returncode, completed.stderr.decode("utf-8", "replace"))
+        report = report_path.read_text(encoding="utf-8")
+        self.assertTrue(report.startswith(impact.STATE_IMPACT))
+        self.assertIn("Müller", report)  # the file keeps full fidelity
+
     def test_no_field_metadata_changed(self) -> None:
         repo = self.make_repo()
         self.write(repo, "docs/a.md", "one")

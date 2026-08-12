@@ -268,7 +268,9 @@ def render_report(
         lines += [f"The check could not produce a trustworthy result: {escape_markdown(detail)}", ""]
         return "\n".join(lines)
     lines += [
-        f"- Compared: `{base[:12]}` → `{head[:12]}`",
+        # ASCII only in emitted output: Windows consoles decode stdout as cp1252/cp437,
+        # and a non-encodable character turns a healthy report into a crashed checker.
+        f"- Compared: `{base[:12]}` -> `{head[:12]}`",
         f"- Changed field metadata paths: {len(events)}",
         f"- Registered matches: {len(rows)}",
     ]
@@ -350,7 +352,19 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def harden_console_streams() -> None:
+    """Console output must never crash the checker: Windows decodes stdout as
+    cp1252/cp437, and registry display values are arbitrary user text. The report
+    file itself is always written as UTF-8; only the console echo degrades."""
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(errors="replace")
+        except (AttributeError, ValueError, OSError):
+            pass
+
+
 def main(argv: Optional[List[str]] = None) -> int:
+    harden_console_streams()
     args = build_parser().parse_args(argv)
     try:
         state, report = run_check(args.registry, args.base, args.head)

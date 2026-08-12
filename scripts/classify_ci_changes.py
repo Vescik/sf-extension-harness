@@ -229,10 +229,10 @@ def gate_decision(
             messages.append(f"{lane}: skipped as declared unnecessary")
         elif result == "skipped":
             ok = False
-            messages.append(f"{lane}: REQUIRED but skipped — failing the gate")
+            messages.append(f"{lane}: REQUIRED but skipped - failing the gate")
         else:
             ok = False
-            messages.append(f"{lane}: {result} ({requirement}) — failing the gate")
+            messages.append(f"{lane}: {result} ({requirement}) - failing the gate")
     return ok, messages
 
 
@@ -306,7 +306,18 @@ def run_gate(args: argparse.Namespace) -> int:
     return 0 if ok else 1
 
 
+def harden_console_streams() -> None:
+    """Changed paths can contain arbitrary user text; a Windows cp1252/cp437 console
+    must degrade the echo (errors="replace"), never crash the classifier."""
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(errors="replace")
+        except (AttributeError, ValueError, OSError):
+            pass
+
+
 def main(argv: Optional[List[str]] = None) -> int:
+    harden_console_streams()
     args = build_parser().parse_args(argv)
     if args.command == "classify":
         return run_classify(args)
