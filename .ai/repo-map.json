@@ -344,6 +344,13 @@
       "path": ".github/prompts/pin-knowledge.prompt.md"
     },
     {
+      "agent": "designer",
+      "argumentHint": "itemId=<Feature ID> [include=all|<ID,ID,...>]",
+      "description": "Prepare one ADO Feature as explicit delivery context for its direct child Work Items — persists the Feature's ado-context.md and a delivery-map.md membership manifest; never touches child folders.",
+      "name": "prepare-delivery-feature",
+      "path": ".github/prompts/prepare-delivery-feature.prompt.md"
+    },
+    {
       "agent": "test-strategist",
       "argumentHint": "itemId=<ID> [optional focus or output language]",
       "description": "Author or refresh the human-executable QA handoff for one work item — work-items/<id>-<slug>/qa-test-plan.md, written interactively by the Test Strategist.",
@@ -469,6 +476,11 @@
       "path": ".github/skills/org-discovery/SKILL.md"
     },
     {
+      "description": "Prepare one ADO Feature as explicit multi-Story delivery context — verify the Feature type, fetch it with its direct children only, and persist the Feature's ado-context.md plus a delivery-map.md membership manifest in its flat work-item folder. Never writes child folders, never runs Feature Health.",
+      "name": "prepare-delivery-feature",
+      "path": ".github/skills/prepare-delivery-feature/SKILL.md"
+    },
+    {
       "description": "Author or refresh one work item's human-executable QA handoff (qa-test-plan.md) — feature orientation plus executable Test Cases — through proportional evidence discovery and a bounded interactive loop. Use only through the public prompt on the Test Strategist.",
       "name": "prepare-qa-test-plan",
       "path": ".github/skills/prepare-qa-test-plan/SKILL.md"
@@ -521,6 +533,7 @@
     ".github/prompts/investigate-config-records.prompt.md": "sha256:7b0b01aa9fc67a0b1341262ded2b7697b58b23da943b77aa27f5ebda64f51c7f",
     ".github/prompts/investigate-object.prompt.md": "sha256:9a34e5f1b55df46efe47956e42434c966f7ea4010169f168c9f532dbab4ac8e0",
     ".github/prompts/pin-knowledge.prompt.md": "sha256:00cab2578d66741c3d01d762039e2fb093b592a6b143306f691a333e001c2091",
+    ".github/prompts/prepare-delivery-feature.prompt.md": "sha256:88b64e24f5970e296f9e5f2bea0ec7172c077a853eae84ef62452771eb14e484",
     ".github/prompts/prepare-qa-test-plan.prompt.md": "sha256:31dac03082ea4c8b0803081024a55b65dd29bdd8100d5f0747e129525daab613",
     ".github/prompts/release-handover.prompt.md": "sha256:723b90811dac3acd2a604baaa9dc5c35ed00640a9920755fefaaecbb01c5f18c",
     ".github/prompts/search-ado.prompt.md": "sha256:2542fd8b73bb7241a547dceb6c317ceae8846c52b8aa1b07fa5c8bf95ed0ac8e",
@@ -533,7 +546,7 @@
     ".github/skills/check-feature-coverage/SKILL.md": "sha256:c4f0aab3f0ddca5dbc91faa94d80d6bafe9d47e60ff2f384ff66419ae60210a0",
     ".github/skills/curate-knowledge/SKILL.md": "sha256:a8cb40548103832468240a086c07bf5450f8e35aaaaeae9548fbbb26fab3387f",
     ".github/skills/development/SKILL.md": "sha256:7130d05995ecb2f1f4ede36c71b7b0e61d54565f2814ec2bc9359f8de07c8397",
-    ".github/skills/fetch-ado-item/SKILL.md": "sha256:32a890962453428ec3d0740a1a1237ac2eeebcd7e4a2552f367ef18b48937337",
+    ".github/skills/fetch-ado-item/SKILL.md": "sha256:cb4f465e6ab617b3313c613c4deb88b3fe3d1fe5010ee748ca9acaff4eba40ca",
     ".github/skills/generate-release-handover/SKILL.md": "sha256:c6401666bd65f946e3c7ac56ce9bd831004f0e70975361dfa99bcc9fbd6b2523",
     ".github/skills/generate-technical-documentation/SKILL.md": "sha256:d9181d06e0c5044dd7ad07566bf96d110480865b339e6defbb5b43a7a4a28e4b",
     ".github/skills/git-workflow/SKILL.md": "sha256:ef700ba146d5ab8c8d52310a3e1808d525ed2cfe08f2fb92de80d24619e1fd74",
@@ -542,6 +555,7 @@
     ".github/skills/investigate-object/SKILL.md": "sha256:6f840761c0dbbeb27b0964597bb761e3171fe61e62362c023f8a1df2f0d75ecf",
     ".github/skills/maintain-workspace/SKILL.md": "sha256:fd57545f10116b1fdc1d6ab594f213368b0679fe73203f4ac207b01fbb113684",
     ".github/skills/org-discovery/SKILL.md": "sha256:633a176c055bbdf5fe864ad5527cbea6411080b85e0771da4294ce7d094f2866",
+    ".github/skills/prepare-delivery-feature/SKILL.md": "sha256:1279e5ca3d12f37ae6582ed332d5c400be6f4536953badec41da6feec132017a",
     ".github/skills/prepare-qa-test-plan/SKILL.md": "sha256:39dcdd8e053614b85bb1fe7c05b8b9632276edde8c3ed1f6412746a91fbcab49",
     ".github/skills/search-ado/SKILL.md": "sha256:4c6a1e155d7cf3b2079953837681ebd89e6226b4ff98f8ae30f079640b788cc7",
     ".github/skills/search-knowledge/SKILL.md": "sha256:c526fa7f5435eb80f8064a59d147fd0c37ec714389cb197400d3d7d2b158cd07",
@@ -549,5 +563,5 @@
     ".github/skills/solution-design/SKILL.md": "sha256:1150735fa4540de7cbe6036523ed3bfad6d90d1257b6b00151c2507b74a150b7",
     "config/repo-map-seed.json": "sha256:13a7cd0d34ceb5183795165fa2bb0b260a5e5e0a6f6a2041bd7b099d5eb27d75"
   },
-  "wordCount": 799
+  "wordCount": 812
 }
