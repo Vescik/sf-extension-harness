@@ -93,3 +93,5 @@ Empty Knowledge produces explicit unknowns, not fabricated package facts.
 org-facing retrieve, validation, or deployment, a human must narrow and bind the manifest to the
 components the approved design (`work-items/<id>-<slug>/design.md`) names; wildcard presence is
 never authorization.
+
+<!-- CI pilot scenario 7 probe (disposable) -->
