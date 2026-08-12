@@ -38,8 +38,9 @@ Files appear by lifecycle stage — nothing creates empty placeholders for later
   and no nested folders — the layout stays flat, one sibling directory per Work Item.
 
 Requirement intake and solution design are separate steps: `/fetch-ado-item`
-persists `ado-context.md` and stops; `/solution-design` reads it and writes
-`design.md`. When a refreshed `ado-context.md` carries a newer ADO revision
+persists `ado-context.md` and stops; `git-agent: start work item <ID>` creates the item branch
+and commits only the intake context locally; `/solution-design` then reads it and writes
+`design.md` on that branch. When a refreshed `ado-context.md` carries a newer ADO revision
 than the design's baseline, no downstream role absorbs the change silently —
 route back to Solution Design and reconcile the design first.
 

@@ -29,7 +29,11 @@ stop before any design context is loaded.
    no direct technical design — stop and return `/prepare-delivery-feature itemId=<ID>`; an
    Epic gets a request for a concrete child Feature/Work Item instead. Both stop here, before
    package docs and before any Knowledge or org call.
-3. For a concrete ADO-backed item, resolve prepared Feature delivery context locally — never
+3. For a concrete item, require the current Git branch to agree with the item and stable folder:
+   `feature/<id>-<slug>` or `fix/<id>-<slug>`. On `main` or an unrelated branch, stop before
+   discovery and return `git-agent: start work item <ID>`; the Designer never creates or switches
+   branches.
+4. Resolve prepared Feature delivery context locally — never
    over ADO. Search `work-items/*/delivery-map.md` for the exact numeric Story ID listed as
    included (exact-ID match only: `15001` never matches `5001`; a deferred listing does not
    count). Zero matches: proceed standalone — an ADO parent relation alone activates nothing,
@@ -40,8 +44,9 @@ stop before any design context is loaded.
    Feature, or persist the ambiguity as an open design issue under the product goal's
    degraded-delivery rule; discovery does not start until the ambiguity is handled.
 
-A written requirement without ADO provenance needs no context file — never fabricate one;
-identify the requirement as human-provided in the design and go straight to Stage 2.
+A written requirement without ADO provenance needs no context file and does not use the
+ADO-specific Git bootstrap — never fabricate either; identify the requirement as human-provided
+in the design and go straight to Stage 2.
 
 ## Stage 2 — design discovery and authoring
 

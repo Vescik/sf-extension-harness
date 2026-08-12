@@ -337,7 +337,7 @@ class TestFetchPromptIntakeBoundary(unittest.TestCase):
 
     Pins the key boundary of the ado-context split without pinning generated
     Markdown wording: the prompt routes to the fetch skill, persists
-    ado-context.md, names /solution-design as the next action, and no longer
+    ado-context.md, names the git-agent bootstrap as the next action, and no longer
     instructs an automatic continuation into Solution Design."""
 
     def setUp(self) -> None:
@@ -349,7 +349,8 @@ class TestFetchPromptIntakeBoundary(unittest.TestCase):
         self.assertIn("skills/fetch-ado-item/SKILL.md", self.text)
         self.assertIn("ado-context.md", self.text)
 
-    def test_prompt_stops_with_design_command_as_next_action(self) -> None:
+    def test_prompt_stops_with_git_bootstrap_as_next_action(self) -> None:
+        self.assertIn("git-agent: start work item <ID>", self.text)
         self.assertIn("/solution-design itemId=<ID>", self.text)
 
     def test_prompt_no_longer_continues_into_designing(self) -> None:
@@ -357,6 +358,63 @@ class TestFetchPromptIntakeBoundary(unittest.TestCase):
         # it; intake must not silently become designing again.
         self.assertNotIn("skills/solution-design/SKILL.md", self.text)
         self.assertNotIn("design.md first", self.text)
+
+
+class TestGitBootstrapBeforeSolutionDesign(unittest.TestCase):
+    """Pins the lightweight intake -> branch -> design lifecycle contract."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.git_skill = (ROOT / ".github/skills/git-workflow/SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        cls.git_agent = (ROOT / ".github/agents/git-agent.agent.md").read_text(
+            encoding="utf-8"
+        )
+        cls.design_prompt = (ROOT / ".github/prompts/solution-design.prompt.md").read_text(
+            encoding="utf-8"
+        )
+
+    def test_git_agent_owns_start_work_item(self) -> None:
+        self.assertIn("start work item <ID>", self.git_skill)
+        self.assertIn("start work item <ID>", self.git_agent)
+        self.assertIn("/solution-design itemId=<ID>", self.git_skill)
+
+    def test_start_is_exact_path_local_and_story_scoped(self) -> None:
+        self.assertIn("Never use `git add .`", self.git_skill)
+        self.assertRegex(self.git_skill.lower(), r"do\s+not push")
+        self.assertIn("never Feature-scoped", self.git_skill)
+
+    def test_design_refuses_main_for_ado_item(self) -> None:
+        self.assertIn("git-agent: start work item <ID>", self.design_prompt)
+        self.assertIn("Designer never creates or switches branches", self.design_prompt)
+
+
+class TestGitPostPushPRHandoff(unittest.TestCase):
+    """Pins the no-CLI, post-success push handoff contract."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.git_skill = (ROOT / ".github/skills/git-workflow/SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        cls.git_agent = (ROOT / ".github/agents/git-agent.agent.md").read_text(
+            encoding="utf-8"
+        )
+
+    def test_successful_push_returns_copyable_template_and_compare_link(self) -> None:
+        self.assertIn("After a successful push", self.git_skill)
+        self.assertIn(".github/pull_request_template.md", self.git_skill)
+        self.assertIn("compare/<base>...<branch>?expand=1", self.git_skill)
+        self.assertIn("complete PR description in one copyable Markdown code block", self.git_skill)
+
+    def test_handoff_does_not_create_pr_or_require_github_cli(self) -> None:
+        self.assertIn("Do not require GitHub CLI", self.git_skill)
+        self.assertIn("This never creates the PR", self.git_agent)
+
+    def test_failed_or_unknown_remote_is_not_misrepresented(self) -> None:
+        self.assertIn("rejected, failed, or unverified push", self.git_skill)
+        self.assertIn("Never guess an owner or repository", self.git_skill)
 
 
 class TestPrepareDeliveryFeatureBoundaries(unittest.TestCase):
