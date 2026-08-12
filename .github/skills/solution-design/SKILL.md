@@ -32,7 +32,19 @@ a form to fill.
    context file is missing, stop and give the human `/fetch-ado-item itemId=<ID>` instead of
    fetching and designing in one turn. A written requirement without ADO provenance needs no
    context file — never fabricate one; identify the requirement as human-provided in the
-   design.
+   design. Read the item's type from the persisted provenance first: a Feature gets no direct
+   technical design — stop and return `/prepare-delivery-feature itemId=<ID>`; an Epic gets a
+   request for a concrete child Feature/Work Item instead.
+4. For a concrete ADO-backed item, resolve prepared Feature delivery context locally — never
+   over ADO. Search `work-items/*/delivery-map.md` for the exact numeric Story ID listed as
+   included (exact-ID match only: `15001` never matches `5001`; a deferred listing does not
+   count). Zero matches: proceed standalone — an ADO parent relation alone activates nothing,
+   fetches nothing, and warns about nothing. Exactly one match: verify the map's Feature ID and
+   recorded revision against its sibling Feature `ado-context.md`, read both files whole, and
+   use them as broader delivery context. More than one match: never choose by title, path
+   order, or modification time — name both maps and ask the human once for the intended active
+   Feature, or persist the ambiguity as an open design issue under the product goal's
+   degraded-delivery rule.
 
 ## What a good design names
 
@@ -46,6 +58,25 @@ a form to fill.
   Human-readable provenance, no digest. When `ado-context.md` is later refreshed to a newer
   revision than the design names, the design must be reconciled through Solution Design before
   any downstream role acts on the changed requirement.
+
+  When exactly one prepared delivery map includes the Story, the design additionally records
+  the coordination baseline — and only then:
+
+  ```text
+  Prepared delivery context:
+  - Feature: <feature ID and title>
+  - Feature context: work-items/<feature-id>-<slug>/ado-context.md
+  - Feature ADO revision: <feature revision>
+  - Delivery map: work-items/<feature-id>-<slug>/delivery-map.md
+  - Membership: included
+  ```
+
+  The design states explicitly that the Story's source acceptance criteria remain
+  authoritative: Feature context may clarify purpose, boundaries, sequencing, and cross-Story
+  dependencies, but never silently adds or deletes a Story AC. Where Feature prose and Story
+  ACs conflict, the design surfaces the conflict as a finding — it does not rewrite the Story
+  context, and preparing a Feature never adds a pointer to a Story's `ado-context.md`. The
+  Story stays the sole design, implementation, branch, PR, and QA unit.
 - **Touched objects and components, each with ownership** — package-owned,
   subscriber-owned, or platform, from the org's object contract, not assumption.
 - **Package impact in its own section** — anything touching or depending on

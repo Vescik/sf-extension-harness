@@ -31,6 +31,7 @@
         "skills": [
           "fetch-ado-item",
           "org-discovery",
+          "prepare-delivery-feature",
           "solution-design"
         ]
       },
@@ -511,7 +512,7 @@
     ".ai/contracts/source-authority.md": "sha256:21f45190131347752c36ced221855635b5a60126c11c67fe29b564de446d1af3",
     ".ai/contracts/tool-capabilities.md": "sha256:026cea29616050a9c0b3abce1f3736c1444e7c40593f2ef11caad8cfa8857d43",
     ".github/agents/config-investigator.agent.md": "sha256:8b73e53fc5d13f4516caa1991cab385da273942647029cb88ee570e8ee554358",
-    ".github/agents/designer.agent.md": "sha256:93c8b4b158d663fde7bc281c298000866b8cfa4e87d6db80441d02dc40046d7c",
+    ".github/agents/designer.agent.md": "sha256:3acaf91775f1ee83e7f4b0bfa55e78c4c12e51b4b7918d37fd98fa87598d89ce",
     ".github/agents/developer.agent.md": "sha256:56cfa1dde15e233f5343bd576006b2cb96c1effd45b935b88173f3cdabd4c8ff",
     ".github/agents/git-agent.agent.md": "sha256:1ec54fe0d4ad399d5dcd61f4d5d148c14b119666ee7142af85ada66f51a200b2",
     ".github/agents/knowledge-curator.agent.md": "sha256:d7a6cf67e9b0b94718dbf105c789926bb35b338bf5b70ed65419f715ce777e07",
@@ -528,7 +529,7 @@
     ".github/prompts/curate-knowledge.prompt.md": "sha256:818076a6aefcff40a5620d74b946ebe72d3def5f0ae52302768346b870132fed",
     ".github/prompts/document-metadata-change.prompt.md": "sha256:3b1053dd1b43285a040fea875b88759cadc4c6c309180fbd5f64fec7054791a8",
     ".github/prompts/feature-health.prompt.md": "sha256:908ec77718be0e7b6fdc578cba0430c968e4e0d20b9a4c1218e54dae51144305",
-    ".github/prompts/fetch-ado-item.prompt.md": "sha256:ea9e7ea14a183c84069f8b3c51905fde2e73b8b5f4a580ae3b4fa9939478392e",
+    ".github/prompts/fetch-ado-item.prompt.md": "sha256:2fe067213d917faee3c0f9cdcf6db0176e6827f76c852d8901c20c325fe92931",
     ".github/prompts/inventory-force-app.prompt.md": "sha256:6ced25c44d8b41fd537e0d72884e72c223ad4a0b566ef6bf217b9818c555a9ee",
     ".github/prompts/investigate-config-records.prompt.md": "sha256:7b0b01aa9fc67a0b1341262ded2b7697b58b23da943b77aa27f5ebda64f51c7f",
     ".github/prompts/investigate-object.prompt.md": "sha256:9a34e5f1b55df46efe47956e42434c966f7ea4010169f168c9f532dbab4ac8e0",
@@ -538,7 +539,7 @@
     ".github/prompts/release-handover.prompt.md": "sha256:723b90811dac3acd2a604baaa9dc5c35ed00640a9920755fefaaecbb01c5f18c",
     ".github/prompts/search-ado.prompt.md": "sha256:2542fd8b73bb7241a547dceb6c317ceae8846c52b8aa1b07fa5c8bf95ed0ac8e",
     ".github/prompts/search-knowledge.prompt.md": "sha256:4216ccfa6c977f0aa1c831c1b0d3c68d6a1de1e947a3819f9f8aadc672230b14",
-    ".github/prompts/solution-design.prompt.md": "sha256:4243d358bc4ce9f6d8c04654353b6b956ef7b0bbde6e59ebae6168058594c836",
+    ".github/prompts/solution-design.prompt.md": "sha256:68a0afc25fda55be014cf14414245332ec851d2dd9afcbac9ba806fe5393edc8",
     ".github/skills/adhoc-fix/SKILL.md": "sha256:3be040d2d47363bffdaa05ed19f459901385a081a2e1859da11c573c035eb21d",
     ".github/skills/approve-knowledge-drafts/SKILL.md": "sha256:9ce9376500f3dc7853dfe96ba4d4def2fc270368ea64e12f428c2e93eef27f38",
     ".github/skills/author-feature/SKILL.md": "sha256:da52400d84f83de04429de21aa35503d91de0c5717160280cbd4df17934474bf",
@@ -546,7 +547,7 @@
     ".github/skills/check-feature-coverage/SKILL.md": "sha256:c4f0aab3f0ddca5dbc91faa94d80d6bafe9d47e60ff2f384ff66419ae60210a0",
     ".github/skills/curate-knowledge/SKILL.md": "sha256:a8cb40548103832468240a086c07bf5450f8e35aaaaeae9548fbbb26fab3387f",
     ".github/skills/development/SKILL.md": "sha256:7130d05995ecb2f1f4ede36c71b7b0e61d54565f2814ec2bc9359f8de07c8397",
-    ".github/skills/fetch-ado-item/SKILL.md": "sha256:cb4f465e6ab617b3313c613c4deb88b3fe3d1fe5010ee748ca9acaff4eba40ca",
+    ".github/skills/fetch-ado-item/SKILL.md": "sha256:ed3ef726bfcb7eaa7d44081e080b210d29bcadb8d2d7df5dfb46b1a05e21f244",
     ".github/skills/generate-release-handover/SKILL.md": "sha256:c6401666bd65f946e3c7ac56ce9bd831004f0e70975361dfa99bcc9fbd6b2523",
     ".github/skills/generate-technical-documentation/SKILL.md": "sha256:d9181d06e0c5044dd7ad07566bf96d110480865b339e6defbb5b43a7a4a28e4b",
     ".github/skills/git-workflow/SKILL.md": "sha256:ef700ba146d5ab8c8d52310a3e1808d525ed2cfe08f2fb92de80d24619e1fd74",
@@ -560,8 +561,8 @@
     ".github/skills/search-ado/SKILL.md": "sha256:4c6a1e155d7cf3b2079953837681ebd89e6226b4ff98f8ae30f079640b788cc7",
     ".github/skills/search-knowledge/SKILL.md": "sha256:c526fa7f5435eb80f8064a59d147fd0c37ec714389cb197400d3d7d2b158cd07",
     ".github/skills/selected-files-knowledge/SKILL.md": "sha256:414eebec8329142c45eab0bae4166a9a1e5ead894eaae82b8c697ff3bb7ec122",
-    ".github/skills/solution-design/SKILL.md": "sha256:1150735fa4540de7cbe6036523ed3bfad6d90d1257b6b00151c2507b74a150b7",
+    ".github/skills/solution-design/SKILL.md": "sha256:d8324c8dcf8c06c05aba5d485e4b8e5ca120c3fd1c9ad4f9cbea71ab322ddda8",
     "config/repo-map-seed.json": "sha256:13a7cd0d34ceb5183795165fa2bb0b260a5e5e0a6f6a2041bd7b099d5eb27d75"
   },
-  "wordCount": 812
+  "wordCount": 813
 }
