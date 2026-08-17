@@ -157,7 +157,11 @@ class ExecutorFixture(unittest.TestCase):
         self.config_path = self.root / "harness.local.json"
         self.write_config()
         self._cwd = os.getcwd()
+        # LIFO cleanups: the temp dir must be removed LAST, after the cwd has left it —
+        # Windows cannot rmdir the current working directory (WinError 32).
+        self.addCleanup(self._tmp.cleanup)
         os.chdir(self.root)
+        self.addCleanup(os.chdir, self._cwd)
         patches = [
             mock.patch.object(vsd, "REPO_ROOT", self.root),
             mock.patch.object(org_proof, "CONFIG_PATH", self.config_path),
@@ -167,8 +171,6 @@ class ExecutorFixture(unittest.TestCase):
         for patch in patches:
             patch.start()
             self.addCleanup(patch.stop)
-        self.addCleanup(os.chdir, self._cwd)
-        self.addCleanup(self._tmp.cleanup)
 
     @staticmethod
     def manifest_xml(type_names: list[str]) -> str:
@@ -285,7 +287,10 @@ class TestScopeContainment(ExecutorFixture):
 
     def test_symlink_escape_is_denied(self) -> None:
         link = self.root / "force-app/link-out"
-        link.symlink_to(self.root / "outside")
+        try:
+            link.symlink_to(self.root / "outside")
+        except OSError:  # Windows without symlink privilege: containment still enforced
+            self.skipTest("symlink creation is not permitted on this runner")
         runner = RecordingRunner()
         _, envelope = self.start(["start", "--source-dir", "force-app/link-out"], runner)
         self.assertEqual(envelope["state"], "ERROR")
