@@ -372,7 +372,7 @@ scenarios:
     event:
       tool_name: execute/runInTerminal
       tool_input:
-        command: git push --force-with-lease origin feature/242850-approval-notifications
+        command: git push --force-with-lease origin work-item/242850-approval-notifications
     expectedDecision: deny
     reasonContains: Destructive operation
 
@@ -426,7 +426,7 @@ scenarios:
     event:
       tool_name: execute/runInTerminal
       tool_input:
-        command: git push origin feature/242850-approval-notifications
+        command: git push origin work-item/242850-approval-notifications
     expectedDecision: ask
     reasonContains: confirm explicitly
 
@@ -437,7 +437,7 @@ scenarios:
     event:
       tool_name: execute/runInTerminal
       tool_input:
-        command: git push origin --delete feature/242850-approval-notifications
+        command: git push origin --delete work-item/242850-approval-notifications
     expectedDecision: deny
     reasonContains: never deletes remote branches
 

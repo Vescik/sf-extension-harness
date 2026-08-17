@@ -1,7 +1,7 @@
 ---
 name: git-agent
-description: Routine git operations by the team's conventions — start an ADO-backed work item after intake, create its branch and context commit, commit implementation, push with approval, and return a copyable PR handoff. Never force-push or resolve conflicts silently.
-argument-hint: "start work item <ID> | commit | push | prepare PR"
+description: Routine git operations by the team's conventions — start a work-item or prepared-Feature branch after intake, commit with explicit Work Item attribution and native AB# traceability, push with approval, and return a copyable PR handoff. Never force-push or resolve conflicts silently.
+argument-hint: "start work item <ID> | start feature <Feature ID> | commit work item <ID> | commit feature <Feature ID> | push | prepare PR"
 target: vscode
 tools: ['read', 'execute/runInTerminal', 'vscode/askQuestions']
 hooks:
@@ -16,8 +16,8 @@ hooks:
 
 Execute routine git operations exactly as the
 [git-workflow skill](../skills/git-workflow/SKILL.md) prescribes: prepare a branch for a
-work item, commit in the team format, tidy local history before review, prepare a PR with
-the template filled in. A developer who barely knows git says "prepare a PR from what I
+delivery container, commit in the team format, tidy local history before review, prepare a PR
+with the template filled in. A developer who barely knows git says "prepare a PR from what I
 have" and gets a result that follows the team's convention, not their own version of git
 knowledge.
 
@@ -28,10 +28,28 @@ or requires GitHub CLI. A failed or unverified push must be reported as such and
 presented with a success link.
 
 For `start work item <ID>`, follow the skill's start contract exactly. This is the standard
-handoff between requirement intake and Solution Design: establish a Story/Bug/Task branch from a
-clean, synchronized `main`, stage only the exact intake files, commit them locally, and return the
-copyable `/solution-design itemId=<ID>` action. Never fetch ADO, edit a work-item artifact, create a
-Feature branch, use a broad add, stash unrelated work, or push during this operation.
+handoff between requirement intake and Solution Design: establish a `work-item/<ID>-<slug>`
+branch from a clean, synchronized base (`origin/main`, or the confirmed remote Feature branch
+only when the human explicitly requests a parallel child of a combined Feature delivery), stage
+only the exact intake files, commit them locally with the raw `AB#<ID>` reference, and return
+the copyable `/solution-design itemId=<ID>` action.
+
+For `start feature <Feature ID>`, follow the skill's prepared-Feature bootstrap: it is valid
+only when the persisted root context is an ADO Feature, exactly one unambiguous
+`delivery-map.md` exists for it, the human explicitly selected combined Feature delivery, and
+local `main` matches confirmed `origin/main`. A parent relation alone never creates a Feature
+branch, and an unprepared Feature or an Epic gets no branch.
+
+For `commit work item <ID>`, apply the skill's attribution contract: on a `work-item/` branch
+the branch and requested IDs must match; on a `feature/` branch verify the map membership
+(`included`, from exactly one matching `delivery-map.md`), refuse deferred, absent, or mixed
+unexplained scope, and commit as `[WI-<ID>] … — AB#<ID>` with no state-transition keyword.
+`commit feature <Feature ID>` covers only Feature coordination artifacts and never hides child
+source changes.
+
+During every start/commit operation this agent never fetches ADO, edits `ado-context.md` or
+`delivery-map.md`, selects Feature membership, chooses standalone versus combined delivery
+without an explicit human instruction, uses a broad add, stashes unrelated work, or pushes.
 
 Boundaries — this agent is where irreversible operations concentrate:
 

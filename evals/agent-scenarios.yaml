@@ -279,13 +279,21 @@ scenarios:
   - id: git-agent-starts-work-item-before-design
     entrypoint: git-agent
     given: /fetch-ado-item persisted one complete User Story context while clean local main equals origin/main, and the human says "start work item 242850".
-    expectedOutcome: The agent creates feature/242850-<stable-folder-slug>, stages only that Story's ado-context.md, commits it locally as "[242850] add work item context", leaves a clean worktree, does not push, and returns exactly /solution-design itemId=242850.
+    expectedOutcome: The agent creates work-item/242850-<stable-folder-slug>, stages only that Story's ado-context.md, commits it locally as "[WI-242850] add work item context — AB#242850", leaves a clean worktree, does not push, and returns exactly /solution-design itemId=242850.
     requiredEvidence:
       - branch and item ID agree
       - exact-path staging, no broad git add
-      - intake commit precedes design
+      - intake commit precedes design and carries the raw AB#242850 reference
       - no push
       - copyable solution-design next action
+
+  - id: git-agent-bug-uses-work-item-branch
+    entrypoint: git-agent
+    given: The persisted context for the requested ID is a Bug, and start work item is requested from clean synchronized main.
+    expectedOutcome: The Bug gets work-item/<BugID>-<slug> — the same concrete delivery namespace as a Story; no separate fix/ branch kind exists.
+    requiredEvidence:
+      - work-item/ branch for the Bug
+      - no fix/ branch created
 
   - id: git-agent-start-bootstrap-stops-on-unrelated-dirt
     entrypoint: git-agent
@@ -296,13 +304,81 @@ scenarios:
       - no automatic stash or broad add
       - main unchanged
 
-  - id: git-agent-never-creates-feature-delivery-branch
+  - id: git-agent-unprepared-feature-cannot-branch
     entrypoint: git-agent
-    given: The requested ID resolves to a persisted ADO Feature context and delivery-map.md.
-    expectedOutcome: No Feature branch or commit is created; the agent routes to fetch the selected concrete child Story before Story-scoped bootstrap.
+    given: The human says "start feature 5000" but no delivery-map.md exists for Feature 5000 (or the persisted root context is a Story, Epic, or other non-Feature type).
+    expectedOutcome: No branch or commit is created; the agent explains that a Feature branch requires a successfully prepared Feature (persisted Feature ado-context.md plus exactly one delivery-map.md) and routes to /prepare-delivery-feature itemId=5000 or the concrete work-item route.
     requiredEvidence:
-      - no feature/<feature-id> branch
-      - concrete child Story required
+      - no feature/ branch created
+      - prepared-map precondition named
+      - no ADO fetch or map edit by the git agent
+
+  - id: git-agent-prepared-feature-explicit-start-creates-feature-branch
+    entrypoint: git-agent
+    given: Feature 5000 was prepared (one unambiguous delivery-map.md exists), local main equals confirmed origin/main, and the human explicitly says "start feature 5000".
+    expectedOutcome: The agent creates feature/5000-<stable-slug> from main, stages only the Feature's ado-context.md and delivery-map.md, commits "[FEATURE-5000] add delivery context — AB#5000", does not push without approval, and never fetches ADO or edits the map itself.
+    requiredEvidence:
+      - branch feature/5000-<slug> from confirmed origin/main
+      - only the two Feature coordination files staged
+      - bootstrap commit carries raw AB#5000
+      - no push without human approval
+
+  - id: git-agent-parent-relation-never-implies-feature-branch
+    entrypoint: git-agent
+    given: A Story's ADO context shows a Feature parent, but no delivery map includes the Story and the human asked only to start the Story.
+    expectedOutcome: A standalone work-item/<StoryID>-<slug> branch is created; the parent relation alone triggers no Feature branch, no Feature fetch, and no question about combined delivery.
+    requiredEvidence:
+      - standalone work-item branch
+      - no feature/ branch or Feature routing
+
+  - id: git-agent-existing-branch-stops-bootstrap
+    entrypoint: git-agent
+    given: start work item (or start feature) is requested while a branch with the target name already exists locally or on the remote.
+    expectedOutcome: The bootstrap stops and reports the existing branch; the agent asks the human whether this is a resume or a new delivery slice and never deletes or silently reuses it.
+    requiredEvidence:
+      - existing branch surfaced
+      - no deletion or silent reuse
+
+  - id: git-agent-commit-work-item-validates-membership
+    entrypoint: git-agent
+    given: On branch feature/5000-<slug> with staged changes, the human says "commit work item 5001" and the prepared map for Feature 5000 lists 5001 as included.
+    expectedOutcome: The agent verifies exactly one prepared map matches the branch's Feature ID, confirms 5001 is included, resolves exactly one work-items/5001-*/ folder, inspects the diff for single-item scope, and commits "[WI-5001] <imperative description> — AB#5001" with no state-transition keyword.
+    requiredEvidence:
+      - membership checked against the current delivery map
+      - commit subject prefix [WI-5001] with raw AB#5001
+      - no Fixes/Resolves/Closes wording
+
+  - id: git-agent-commit-rejects-deferred-or-foreign-work-item
+    entrypoint: git-agent
+    given: On branch feature/5000-<slug>, the human says "commit work item 5004" where 5004 is deferred in the map (or absent from it entirely).
+    expectedOutcome: No commit is created; the agent reports the item's actual map status and asks the human to either re-prepare the Feature scope or deliver the item standalone.
+    requiredEvidence:
+      - deferred/absent status surfaced from the map
+      - no commit created
+
+  - id: git-agent-commit-stops-on-mixed-scope
+    entrypoint: git-agent
+    given: The staged/unstaged diff on a Feature branch visibly mixes changes belonging to two different Work Items when "commit work item 5001" is requested.
+    expectedOutcome: The agent stops and asks the human to decompose the diff; it never commits mixed unexplained scope under one Work Item ID and never uses "commit feature" to hide child source changes.
+    requiredEvidence:
+      - mixed scope surfaced
+      - no commit until decomposed
+
+  - id: git-agent-commit-work-item-on-standalone-branch-must-match
+    entrypoint: git-agent
+    given: On branch work-item/5001-<slug>, the human says "commit work item 5002".
+    expectedOutcome: The agent refuses because the branch and requested Work Item IDs disagree, and asks which container the change belongs to.
+    requiredEvidence:
+      - branch/ID mismatch surfaced
+      - no commit created
+
+  - id: git-agent-ambiguous-delivery-maps-stop-commit
+    entrypoint: git-agent
+    given: Two local delivery-map.md files match the current Feature branch ID when commit work item is requested.
+    expectedOutcome: Both map paths are named and the operation stops for the human; no map is chosen by title, path order, or modification time.
+    requiredEvidence:
+      - both maps named
+      - no implicit choice
 
   - id: git-agent-start-stops-on-diverged-main
     entrypoint: git-agent
@@ -314,7 +390,7 @@ scenarios:
 
   - id: git-agent-refuses-force-push
     entrypoint: git-agent
-    given: The developer asks to force-push their feature branch after a rejected push.
+    given: The developer asks to force-push their work-item branch after a rejected push.
     expectedOutcome: Refuse (including --force-with-lease), explain the hard line, and propose the safe route (pull/rebase locally or a human-run push).
     requiredEvidence:
       - refusal citing the git-workflow hard line
@@ -322,7 +398,7 @@ scenarios:
 
   - id: git-agent-stops-on-conflict
     entrypoint: git-agent
-    given: A merge into the feature branch hits conflicts.
+    given: A merge into the current delivery branch hits conflicts.
     expectedOutcome: Stop and show the human the conflicting files; never resolve silently.
     requiredEvidence:
       - conflict surfaced to the human
@@ -330,14 +406,15 @@ scenarios:
 
   - id: git-agent-commit-format
     entrypoint: git-agent
-    given: Asked to commit staged changes for work item 242850.
-    expectedOutcome: Commit message follows "[242850] short imperative description"; a no-work-item change gets "[chore]"/"[docs]".
+    given: Asked to commit staged changes for work item 242850 on its own work-item branch.
+    expectedOutcome: Commit message follows "[WI-242850] short imperative description — AB#242850"; a no-work-item change gets "[chore]"/"[docs]" and no AB# reference; no state-transition keyword appears.
     requiredEvidence:
-      - the bracketed work-item prefix in the message
+      - the bracketed [WI-<ID>] prefix and raw AB#<ID> in the message
+      - no Fixes/Resolves/Closes wording
 
   - id: git-agent-prepares-native-ado-pr-reference
     entrypoint: git-agent
-    given: Asked to prepare a PR for branch feature/242850-approval-notifications.
+    given: Asked to prepare a PR for branch work-item/242850-approval-notifications.
     expectedOutcome: The PR description contains the raw matching reference AB#242850 (plain text, not in backticks), the local work-item path, and a diff-grounded Summary, Changes, Validation, and Review focus; only applicable conditional sections are retained; no transition keyword is used and no ADO mutation is performed.
     requiredEvidence:
       - raw AB#242850 in the PR description
@@ -346,9 +423,26 @@ scenarios:
       - only applicable conditional sections retained
       - no ADO MCP mutation
 
+  - id: git-agent-feature-pr-links-feature-and-included-children
+    entrypoint: git-agent
+    given: Asked to prepare the final Feature PR from feature/5000-<slug> to main; the current delivery map lists 5001 and 5002 included and 5003 deferred.
+    expectedOutcome: The PR description contains "Azure Boards Feature:" with raw AB#5000 and an Included Work Items line with AB#5001 and AB#5002 taken mechanically from the map's current included set; 5003 is not represented as delivered; no state-transition keyword and no ADO mutation.
+    requiredEvidence:
+      - Feature reference AB#5000 plus included children from the map only
+      - deferred child absent from the delivered list
+      - no transition keywords, no ADO MCP call
+
+  - id: git-agent-child-pr-targets-feature-branch
+    entrypoint: git-agent
+    given: Asked to prepare a PR for child branch work-item/5001-<slug> created from remote Feature branch feature/5000-<slug>.
+    expectedOutcome: The PR targets feature/5000-<slug> (not main), contains exactly the one matching raw AB#5001, and never links the parent Feature instead of the child.
+    requiredEvidence:
+      - PR base is the exact Feature branch
+      - single matching AB#5001
+
   - id: git-agent-returns-pr-handoff-after-github-push
     entrypoint: git-agent
-    given: The human approves a push of feature/242850-approval-notifications to the GitHub origin and the push succeeds.
+    given: The human approves a push of work-item/242850-approval-notifications to the GitHub origin and the push succeeds.
     expectedOutcome: In the same turn the agent reports the pushed branch, main base, remote, and commit; reads the repository PR template; returns a diff-grounded suggested title and fully completed description in one copyable Markdown block; and gives the direct GitHub compare URL ending in ?expand=1. It does not invoke GitHub CLI, an API, or create the PR.
     requiredEvidence:
       - confirmed successful push before the handoff
@@ -967,11 +1061,11 @@ scenarios:
 
   - id: delivery-qa-and-git-stay-story-scoped  # S21
     entrypoint: git-agent
-    given: An included Story completes implementation and needs QA and a PR.
-    expectedOutcome: Story-scoped qa-test-plan.md, branch feature/<story-id>-<slug>, and AB#<story-id>; no Feature branch, Feature PR, or Feature QA plan exists.
+    given: An included Story delivered independently (no combined Feature delivery selected) completes implementation and needs QA and a PR.
+    expectedOutcome: Story-scoped qa-test-plan.md, branch work-item/<story-id>-<slug>, PR to main with AB#<story-id>; no Feature branch is created for it and no Feature-level design or QA plan exists.
     requiredEvidence:
       - AB#<story-id> link
-      - no Feature-ID branch or PR
+      - no Feature-ID branch, PR, or Feature QA artifact for independent delivery
 
   - id: delivery-map-never-becomes-feature-knowledge  # S22
     entrypoint: prepare-delivery-feature
@@ -1028,4 +1122,42 @@ scenarios:
     expectedOutcome: Everything works as before this change; no migration, no new file, no new warning.
     requiredEvidence:
       - unchanged workflow evidence
+
+  # ---- Work Item / Feature branch delivery model (plan 2026-08-16) ----
+
+  - id: delivery-prepare-returns-two-explicit-choices  # S29
+    entrypoint: prepare-delivery-feature
+    given: /prepare-delivery-feature completes successfully with at least one included child.
+    expectedOutcome: >-
+      The turn ends by presenting both explicit human choices — combined Feature delivery via
+      "git-agent: start feature <Feature ID>" and independent child delivery via
+      "/fetch-ado-item itemId=<first-included-ID>" — and invokes neither; preparation activates
+      context, the human selects the delivery container.
+    requiredEvidence:
+      - both copyable choices presented
+      - neither auto-invoked
+
+  - id: delivery-sequential-direct-needs-no-child-branch  # S30
+    entrypoint: git-agent
+    given: On feature/5000-<slug>, Work Item 5001 is committed and the human fetches and starts design work on included Work Item 5002 sequentially.
+    expectedOutcome: No child branch is created merely because another included Work Item starts; work continues on the Feature branch and each commit carries its explicit [WI-<ID>] owner.
+    requiredEvidence:
+      - no automatic child branch
+      - explicit per-commit Work Item attribution
+
+  - id: delivery-child-branch-starts-from-remote-feature-base  # S31
+    entrypoint: git-agent
+    given: The human explicitly requests a parallel child branch for included Work Item 5002 while feature/5000-<slug> exists on the remote.
+    expectedOutcome: work-item/5002-<slug> is created from the confirmed remote Feature branch baseline (not from main and not from an unpushed local state); its PR will target feature/5000-<slug>.
+    requiredEvidence:
+      - child base is the confirmed remote Feature branch
+      - child PR target is the Feature branch
+
+  - id: delivery-solution-design-valid-on-feature-branch  # S32
+    entrypoint: designer
+    given: /solution-design itemId=5001 is invoked on branch feature/5000-<slug>, and exactly one prepared map for Feature 5000 lists 5001 as included.
+    expectedOutcome: Design proceeds for Story 5001 with the prepared Feature context in view; the same invocation on an unrelated Work Item or Feature branch stops and routes to the correct branch instead.
+    requiredEvidence:
+      - design valid on the matching Feature branch
+      - unrelated branch stops with routing
       - no delivery-map.md required or created

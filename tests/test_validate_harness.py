@@ -380,10 +380,12 @@ class TestGitBootstrapBeforeSolutionDesign(unittest.TestCase):
         self.assertIn("start work item <ID>", self.git_agent)
         self.assertIn("/solution-design itemId=<ID>", self.git_skill)
 
-    def test_start_is_exact_path_local_and_story_scoped(self) -> None:
+    def test_start_is_exact_path_local_and_scoped_to_one_container(self) -> None:
         self.assertIn("Never use `git add .`", self.git_skill)
         self.assertRegex(self.git_skill.lower(), r"do\s+not push")
-        self.assertIn("never Feature-scoped", self.git_skill)
+        # A concrete item gets a work-item branch; a Feature branch exists only
+        # through the explicit prepared-Feature bootstrap, never through start work item.
+        self.assertIn("work-item/<ID>-<stable-slug>", self.git_skill)
 
     def test_design_refuses_main_for_ado_item(self) -> None:
         self.assertIn("git-agent: start work item <ID>", self.design_prompt)
@@ -664,6 +666,82 @@ class TestDesignerCapabilitySurfaceUnchanged(unittest.TestCase):
         self.assertIn("three separate entry points", self.text)
         for lane in ("/fetch-ado-item", "/prepare-delivery-feature", "/solution-design"):
             self.assertIn(lane, self.text)
+
+
+class TestWorkItemFeatureBranchModel(unittest.TestCase):
+    """Plan 2026-08-16 (Work Item and Feature Branch Delivery Model): `work-item/` is
+    the only standard concrete ADO delivery namespace; `feature/` is reserved for an
+    explicitly prepared multi-Story ADO Feature; commits carry explicit Work Item
+    ownership plus a link-only raw AB# reference; PR linking is per delivery container."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.git_skill = (ROOT / ".github/skills/git-workflow/SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        cls.git_agent = (ROOT / ".github/agents/git-agent.agent.md").read_text(
+            encoding="utf-8"
+        )
+        cls.design_skill = (ROOT / ".github/skills/solution-design/SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        cls.prepare_skill = (
+            ROOT / ".github/skills/prepare-delivery-feature/SKILL.md"
+        ).read_text(encoding="utf-8")
+        cls.template = (ROOT / ".github/pull_request_template.md").read_text(
+            encoding="utf-8"
+        )
+
+    def test_branch_namespaces_are_work_item_feature_chore_only(self) -> None:
+        self.assertIn("work-item/<work-item-id>-<slug>", self.git_skill)
+        self.assertIn("feature/<feature-id>-<slug>", self.git_skill)
+        self.assertIn("chore/<short-description>", self.git_skill)
+        # The old namespaces are retired: no fix/ branch kind, no integration/ line.
+        self.assertNotIn("fix/<work-item-id>", self.git_skill)
+        self.assertNotIn("integration/<", self.git_skill)
+
+    def test_feature_branch_requires_prepared_feature_and_explicit_human_choice(self) -> None:
+        self.assertIn("start feature <Feature ID>", self.git_skill)
+        self.assertIn("start feature <Feature ID>", self.git_agent)
+        self.assertIn("delivery-map.md", self.git_skill)
+        # A parent relation alone never creates a Feature branch.
+        self.assertIn("parent relation alone never", self.git_skill)
+
+    def test_commit_attribution_is_explicit_on_feature_branches(self) -> None:
+        self.assertIn("commit work item <ID>", self.git_skill)
+        self.assertIn("commit feature <Feature ID>", self.git_skill)
+        self.assertIn("[WI-<ID>]", self.git_skill)
+        # ADO-backed commits carry the link-only raw AB# reference.
+        self.assertIn("AB#<ID>", self.git_skill)
+
+    def test_commits_and_prs_never_use_state_transition_keywords(self) -> None:
+        for keyword in ("Fixes", "Resolves", "Closes"):
+            self.assertIn(keyword, self.git_skill)  # named in order to be forbidden
+        self.assertIn("state-transition", self.git_skill)
+
+    def test_pr_linking_is_per_delivery_container(self) -> None:
+        # Standalone/child PR: exactly one matching AB#. Final Feature PR: the Feature
+        # plus the included children taken mechanically from the delivery map.
+        self.assertIn("Azure Boards Feature: AB#", self.git_skill)
+        self.assertIn("Included Work Items", self.git_skill)
+
+    def test_pr_template_has_adaptive_work_item_and_feature_modes(self) -> None:
+        self.assertIn("Azure Boards Feature: AB#", self.template)
+        self.assertIn("Included Work Items", self.template)
+        # Work Item mode stays: one delivering Work Item, no transition keywords.
+        self.assertIn("AB#<id>", self.template)
+
+    def test_final_feature_merge_preserves_work_item_commits_or_stops(self) -> None:
+        self.assertIn("merge commit", self.git_skill)
+        self.assertIn("Do not squash the final Feature PR", self.git_skill)
+
+    def test_design_stage_accepts_work_item_or_matching_feature_branch(self) -> None:
+        self.assertIn("work-item/<id>-<slug>", self.design_skill)
+        self.assertIn("feature/<feature-id>-<slug>", self.design_skill)
+
+    def test_prepare_returns_the_two_explicit_delivery_choices(self) -> None:
+        self.assertIn("git-agent: start feature", self.prepare_skill)
+        self.assertIn("/fetch-ado-item itemId=<first-included-ID>", self.prepare_skill)
 
 
 if __name__ == "__main__":

@@ -29,10 +29,13 @@ stop before any design context is loaded.
    no direct technical design — stop and return `/prepare-delivery-feature itemId=<ID>`; an
    Epic gets a request for a concrete child Feature/Work Item instead. Both stop here, before
    package docs and before any Knowledge or org call.
-3. For a concrete item, require the current Git branch to agree with the item and stable folder:
-   `feature/<id>-<slug>` or `fix/<id>-<slug>`. On `main` or an unrelated branch, stop before
-   discovery and return `git-agent: start work item <ID>`; the Designer never creates or switches
-   branches.
+3. For a concrete item, require the current Git branch to agree with the item's delivery
+   container: `work-item/<id>-<slug>` matching the item and stable folder, or a combined
+   Feature branch `feature/<feature-id>-<slug>` when exactly one prepared delivery map for
+   that exact Feature ID lists the item as included (resolved in step 4). On `main`, an
+   unrelated Work Item branch, or a Feature branch whose map does not include the item, stop
+   before discovery and return `git-agent: start work item <ID>`; the Designer never creates
+   or switches branches.
 4. Resolve prepared Feature delivery context locally — never
    over ADO. Search `work-items/*/delivery-map.md` for the exact numeric Story ID listed as
    included (exact-ID match only: `15001` never matches `5001`; a deferred listing does not
@@ -95,7 +98,9 @@ Only after Stage 1 established the applicable local baselines:
   dependencies, but never silently adds or deletes a Story AC. Where Feature prose and Story
   ACs conflict, the design surfaces the conflict as a finding — it does not rewrite the Story
   context, and preparing a Feature never adds a pointer to a Story's `ado-context.md`. The
-  Story stays the sole design, implementation, branch, PR, and QA unit.
+  Story stays the sole design and QA unit, and its implementation keeps explicit `[WI-<id>]`
+  commit ownership whether it is delivered on its own `work-item/` branch or as part of a
+  combined Feature branch.
 - **Touched objects and components, each with ownership** — package-owned,
   subscriber-owned, or platform, from the org's object contract, not assumption.
 - **Package impact in its own section** — anything touching or depending on
