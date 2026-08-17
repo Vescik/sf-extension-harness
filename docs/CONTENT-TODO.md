@@ -71,8 +71,9 @@ Sekcje do wypełnienia:
 
 ```markdown
 ## Commity
-Format: `[<work-item-id>] krótki opis` — np. `[242850] add notification pref flow`.
-Commity bez work-itemu (chore, docs): `[chore]` / `[docs]`.
+Format: `[WI-<work-item-id>] krótki opis — AB#<work-item-id>` — np.
+`[WI-242850] add notification pref flow — AB#242850`.
+Commity bez work-itemu (chore, docs): `[chore]` / `[docs]`, bez `AB#`.
 ```
 
 ## 4. `docs/keywords-taxonomy.md` — słownik user-speak → system-speak

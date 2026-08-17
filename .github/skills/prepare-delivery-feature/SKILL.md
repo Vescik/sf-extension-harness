@@ -162,6 +162,14 @@ warnings; Feature context path and result (`created|updated|unchanged|preserved|
 delivery-map path and result; included IDs in order; deferred IDs; unsupported container
 children; added/removed/retyped differences from a prior map; Story designs found with an older
 Feature baseline; the explicit statements that no child folder was created or modified and that
-Feature Health was not run. End with exactly one suggested next action for the first included
-Story — `/fetch-ado-item itemId=<first-included-ID>` — or, with no included child, the required
+Feature Health was not run. With at least one included child, end by presenting the two
+explicit human delivery choices, invoking neither:
+
+```text
+Combined delivery: git-agent: start feature <Feature ID>
+Independent child delivery: /fetch-ado-item itemId=<first-included-ID>
+```
+
+Preparation activates context only; the human selects the delivery container, and a prepared
+Feature never silently implies a Feature branch. With no included child, state the required
 human action and no fabricated ID.

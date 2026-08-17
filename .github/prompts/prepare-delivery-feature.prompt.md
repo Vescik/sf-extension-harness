@@ -27,10 +27,13 @@ This turn is Feature delivery preparation only:
    reconciliation rules. Never create or edit a child work-item folder or file.
 4. Report per the skill's return contract, including that no child folder changed and that
    Feature Health was not run.
-5. Stop. With at least one included child, end the turn with exactly one copyable next action:
+5. Stop. With at least one included child, end the turn by presenting the two explicit human
+   delivery choices, invoking neither — preparation activates context; the human selects the
+   delivery container:
 
 ```text
-/fetch-ado-item itemId=<first-included-ID>
+Combined delivery: git-agent: start feature <Feature ID>
+Independent child delivery: /fetch-ado-item itemId=<first-included-ID>
 ```
 
 Do not begin Solution Design, org/Knowledge discovery, Feature Health, or per-child fetches in

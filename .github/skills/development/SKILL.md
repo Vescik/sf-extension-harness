@@ -25,10 +25,20 @@ have, not a gap to fill silently.
    implementation.
 2. Keep `tasks.md` current — checkboxes are the whole progress state; there is no other
    status machinery.
-3. When reality forces a deviation from the design — an existing field reused, an
-   extension point that behaves differently, a live-discovered constraint — append it to
-   `decisions.md` with the reason, then implement. Append-only: never rewrite history in
-   that file, never absorb a deviation silently.
+3. Read the design's Planned change surface before the first edit. Normal directly
+   supporting work — a test fixture, a manifest adjustment, work-item documentation whose
+   only purpose is to implement or verify a planned surface — needs no decision entry.
+   When reality forces a material deviation from the design — an existing field reused, an
+   extension point that behaves differently, a live-discovered constraint, an additional,
+   removed, substituted, or differently acted-on surface — append it to `decisions.md`
+   before implementing it. The entry names, in prose (no rigid template): the planned
+   surface/action, the actual surface/action, the reason, the affected AC or design
+   decision, and — when material — the verification, rollback, and QA-plan impact.
+   Append-only: never rewrite history in that file, never absorb a deviation silently, and
+   never rewrite `design.md` merely to make it match the implementation. A recorded
+   deviation is traceable, not approved — package boundaries and all other rules still
+   apply. A changed business requirement (a newer ADO revision) routes back through
+   Solution Design; `decisions.md` never absorbs requirement changes.
 4. A surprise about the package itself (an upgrade overwrote something, a validation
    fired unexpectedly) is worth more than the work item: propose it as a
    `docs/package-constraints.md` entry immediately.

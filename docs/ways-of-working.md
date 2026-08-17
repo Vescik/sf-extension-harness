@@ -82,10 +82,12 @@ From a written requirement:
 1. From an ADO item, `/fetch-ado-item` first persists the requirement snapshot in
    `work-items/<id>-<slug>/ado-context.md` — source-faithful ADO text kept separate from an
    explicitly unapproved AI understanding — and stops with `git-agent: start work item <ID>`.
-2. The git-agent verifies clean, synchronized `main`, creates the Story/Bug/Task branch, stages
-   only the exact intake artifact, and commits it locally. It does not push and returns
-   `/solution-design itemId=<ID>`. This keeps intake, design, and implementation on one
-   item-scoped branch while preserving intake as its own reviewable commit.
+2. The git-agent verifies clean, synchronized `main`, creates the `work-item/<id>-<slug>`
+   branch, stages only the exact intake artifact, and commits it locally with the item's raw
+   `AB#<id>` reference (once pushed, Azure Boards links the commit natively — no manual Branch
+   link is required). It does not push and returns `/solution-design itemId=<ID>`. This keeps
+   intake, design, and implementation on one item-scoped branch while preserving intake as its
+   own reviewable commit.
 3. On `/solution-design`, the designer reads the persisted context (or your written
    requirement), gathers Knowledge, repository, and allowed org evidence, and persists the
    design in `work-items/<id>-<slug>/design.md`, naming its requirement baseline (context
@@ -163,6 +165,9 @@ relation used for reporting adds nothing locally and is deliberately ignored. Us
 only when one ADO Feature is genuinely being delivered through several of its child Stories and
 you want each Story designed with the shared Feature context in view.
 
+For the human Git/ADO procedure — including remote-first checkpoints, parallel Stories, and the
+combined Feature-branch mode — see [Delivery Process](delivery-process.md).
+
 Prepare the Feature once, explicitly:
 
 ```text
@@ -175,20 +180,31 @@ delivery, in what order) — and nothing else. No child folders are created, no 
 fetched, and nothing else changes. To activate only a subset, name it:
 `/prepare-delivery-feature itemId=5000 include=5001,5003`.
 
-Then deliver each Story exactly as in the default path, in any order, one at a time:
+Preparation ends with two explicit choices — you select the delivery container; nothing is
+inferred from the ADO parent relation:
 
-```text
-/fetch-ado-item itemId=5001
-git-agent: start work item 5001
-/solution-design itemId=5001
-# implement, test, QA plan if needed, PR AB#5001
-```
+- **Independent child delivery** (the default): deliver each Story exactly as in the default
+  path, in any order, one at a time:
+
+  ```text
+  /fetch-ado-item itemId=5001
+  git-agent: start work item 5001
+  /solution-design itemId=5001
+  # implement, test, QA plan if needed, PR AB#5001
+  ```
+
+- **Combined Feature delivery**: `git-agent: start feature 5000` creates
+  `feature/5000-<slug>`, and included Stories land on that one branch as explicit
+  `[WI-<id>] … — AB#<id>` commits (`git-agent: commit work item <ID>`), with optional
+  parallel `work-item/<id>` child branches targeting the Feature branch. One final Feature PR
+  to `main` links the Feature and its included children and merges as a merge commit. See
+  [Delivery Process](delivery-process.md) for the full procedure.
 
 When a Story is listed as included in exactly one prepared map, its Solution Design reads the
 local Feature context and records that baseline in the Story's `design.md`; the Story's own
-acceptance criteria stay authoritative, and implementation, branch, commit, PR, and QA remain
-per Story — there is no Feature branch, Feature design, or Feature QA plan. Rerun prepare only
-when the Feature's scope or your active slice changes; there is no per-Story re-preparation.
+acceptance criteria stay authoritative, and design, decisions, and QA remain per Story. Neither
+mode creates a Feature design or Feature QA plan. Rerun prepare only when the Feature's scope or
+your active slice changes; there is no per-Story re-preparation.
 
 If several Stories must branch in parallel before the prepared Feature context is present on
 `main`, stop at Git bootstrap and choose the coordination strategy explicitly. The git-agent does
@@ -392,6 +408,36 @@ for your release action, with org-data steps separated out and named as yours.
 - editing package-owned configuration surfaces;
 - treating local `config/harness.local.json` as a deliverable.
 
+## How a design, its implementation, and review stay aligned
+
+The slash prompts and the Designer agent are entry surfaces; the step-by-step Solution Design
+procedure lives in one place, the solution-design skill. What you should expect in the
+artifacts:
+
+- **`design.md` connects requirements to solutions and verification.** Its
+  `Acceptance criteria coverage` matrix gives every acceptance criterion (or human-provided
+  requirement outcome) a row naming its solution, its planned verification, and an honest
+  status — `Covered`, `Explicit no-change` with a reason, or `Open`. Its
+  `Planned change surface` table declares which logical components the work intends to
+  create, modify, or remove, and which package dependencies stay read-only.
+- **Development records material deviations, append-only, in `decisions.md`** — planned vs
+  actual surface, the reason, and any verification/rollback/QA impact. The design is not
+  rewritten to match the code.
+- **Implementation review compares all three with the exact diff** and reports a
+  `Scope alignment` classification (`ALIGNED`, `EXPLAINED DELTA`, `UNEXPLAINED DELTA`,
+  `INCOMPLETE`) before its normal verdict. Tests, fixtures, and manifests that only support a
+  planned component are not flagged as scope creep — but an explained delta is reviewable,
+  not automatically approved: every package and safety rule still applies.
+- **On a shared Feature branch, name the exact review subject.** One Story's review never
+  infers its commits from the whole branch. Supply them explicitly, for example:
+
+  ```text
+  /check-against-principles itemId=5001 scope=implementation commits=a1b2c3d,e4f5a6b
+  ```
+
+  (or a contiguous `base=<ref> head=<ref>` range). Without exact attribution the review
+  returns `INCOMPLETE` rather than guessing.
+
 ## Feature Knowledge
 
 Two kinds of governed Knowledge live in this workspace, and they answer different questions:
@@ -449,7 +495,7 @@ action — supply it, or stop the work.
 | Need | Entry point |
 |---|---|
 | Start from an ADO item | `/fetch-ado-item itemId=<ID>`, then `git-agent: start work item <ID>`, then `/solution-design itemId=<ID>` |
-| Deliver one ADO Feature through several child Stories | `/prepare-delivery-feature itemId=<Feature ID>` once, then fetch → git-agent start → design per Story |
+| Deliver one ADO Feature through several child Stories | `/prepare-delivery-feature itemId=<Feature ID>` once, then choose: independent per-Story delivery, or `git-agent: start feature <Feature ID>` for one combined Feature branch |
 | Start from a written requirement | `/solution-design <requirement>` |
 | Review a persisted design or implementation | `/check-against-principles itemId=<ID> scope=design` (or `scope=implementation`) |
 | Apply a small diagnosed fix | `/adhoc-fix component=<Type:Name> org=<alias>` plus the diagnosis |

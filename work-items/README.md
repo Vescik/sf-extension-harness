@@ -32,15 +32,22 @@ Files appear by lifecycle stage — nothing creates empty placeholders for later
   thing that activates Feature context, and only for the exact child IDs it lists as
   `included`. An ADO parent relation alone activates nothing. The map owns membership,
   delivery order, deferred/unsupported children, and reconciliation warnings — never
-  requirements, status, design, tasks, or QA content. Preparing a Feature never creates or
+  requirements, status, design, tasks, or QA content. It also gates delivery: a combined
+  `feature/<feature-id>-<slug>` branch exists only for a prepared Feature the human explicitly
+  selected for combined delivery, and `commit work item <ID>` on that branch is valid only for
+  IDs the map currently lists as `included`. Preparing a Feature never creates or
   edits child folders, and the other lifecycle files above remain per concrete Work Item:
   there is no Feature-level `design.md`, `tasks.md`, `decisions.md`, or `qa-test-plan.md`,
   and no nested folders — the layout stays flat, one sibling directory per Work Item.
 
 Requirement intake and solution design are separate steps: `/fetch-ado-item`
-persists `ado-context.md` and stops; `git-agent: start work item <ID>` creates the item branch
-and commits only the intake context locally; `/solution-design` then reads it and writes
-`design.md` on that branch. When a refreshed `ado-context.md` carries a newer ADO revision
+persists `ado-context.md` and stops; `git-agent: start work item <ID>` creates the
+`work-item/<id>-<slug>` branch and commits only the intake context locally;
+`/solution-design` then reads it and writes `design.md` on that branch. For a prepared
+Feature delivered combined, `git-agent: start feature <Feature ID>` creates one
+`feature/<feature-id>-<slug>` branch instead, and included items land there as explicit
+`[WI-<id>]` commits — a Story then owns commits, not necessarily its own branch. When a
+refreshed `ado-context.md` carries a newer ADO revision
 than the design's baseline, no downstream role absorbs the change silently —
 route back to Solution Design and reconcile the design first.
 
