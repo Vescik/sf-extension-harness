@@ -13,7 +13,9 @@ agents, guarded read-only access to Azure DevOps and a Salesforce sandbox, and s
 fail closed. Nothing here contains credentials; you authorize everything locally in Parts 6–7.
 
 **Scope (important).** The MCP surface is **read-only on every platform**: repository work, ADO
-reads, and read-only Salesforce org access all work; agents never deploy to the org. The only raw
+reads, and read-only Salesforce org access all work; agents never perform a real deploy to the
+org (the Developer's guarded wrapper can run a check-only `--dry-run` validation against your
+project-local development org — it deploys nothing). The only raw
 Salesforce CLI an agent may request is `sf project retrieve start`, and it always stops for your
 approval. Browser automation tooling is not available in this harness (see
 `docs/compatibility.md`).

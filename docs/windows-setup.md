@@ -2,7 +2,9 @@
 
 This is the practical runbook for running the brain-core harness on **Windows** in VS Code + GitHub
 Copilot. The MCP surface is **read-only on every platform**: the read-only Salesforce facade and
-ADO reads work in full; agents never deploy. The only raw Salesforce CLI an agent may request is
+ADO reads work in full; agents never perform a real deploy (the Developer's guarded
+`validate_salesforce_deploy.py` wrapper runs only check-only `--dry-run` validations against the
+project-local development org). The only raw Salesforce CLI an agent may request is
 `sf project retrieve start`, which always stops for your approval.
 
 > The single most common failure ("Blocked by Pre-Tool Use hook" / "Organization name is required")

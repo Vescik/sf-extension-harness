@@ -2,5 +2,13 @@
   "trailingComma": "none",
   "plugins": [
     "@prettier/plugin-xml"
+  ],
+  "overrides": [
+    {
+      "files": "**/*.xml",
+      "options": {
+        "parser": "xml"
+      }
+    }
   ]
 }

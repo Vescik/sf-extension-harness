@@ -235,9 +235,13 @@ owner decision of 2026-07-14.)
 - Record-level reads for design/development context run through the facade's
   `review_soql_query` tool (the CLI `salesforce_read.py` lane was retired 2026-08-04).
   There is no write-mode Salesforce
-  MCP server: agents never deploy, and the only raw Salesforce CLI they may request is
-  `sf project retrieve start --target-org <configured-alias>`, which the safety hook stops for
-  per-invocation human confirmation.
+  MCP server: agents never perform a real deploy, and the only raw Salesforce CLI they may
+  request is `sf project retrieve start --target-org <configured-alias>`, which the safety hook
+  stops for per-invocation human confirmation. The one deploy-shaped surface is the Developer's
+  guarded `scripts/validate_salesforce_deploy.py` wrapper — a check-only
+  `sf project deploy start --dry-run` validation against the identity-proven project-local
+  `development` org; it deploys nothing, and direct `sf project deploy …` stays denied for
+  every role even with `--dry-run`.
 - Browser tooling is not available in this harness: direct browser/Playwright/automation commands
   and browser-named MCP tools are denied by the global safety hook (the guarded browser lane was
   removed 2026-08-05).
