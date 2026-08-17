@@ -9,6 +9,7 @@ from __future__ import annotations
 import ast
 import io
 import json
+import re
 import shutil
 import subprocess
 import tempfile
@@ -983,6 +984,66 @@ class TestCheckAgainstPrinciplesScopeSubject(unittest.TestCase):
             "Never infer the subject from commit titles", self.skill_squashed
         )
         self.assertIn("Scope alignment: INCOMPLETE", self.skill)
+
+
+class TestSalesforcePrettierScope(unittest.TestCase):
+    """Prettier checks only file families with a configured parser.
+
+    Pins the 2026-08-17 parser-scope fix: `.cls`, `.trigger`, `.cmp`, `.component`,
+    and `.page` have no installed Prettier parser (`inferredParser: null`) and must
+    never re-enter the target set without an explicit, individually proven override.
+    XML metadata stays checked through @prettier/plugin-xml with an explicit parser
+    mapping — never through accidental inference or a generic text check."""
+
+    UNSUPPORTED_EXTENSIONS = ("cls", "trigger", "cmp", "component", "page")
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.package = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))
+        cls.prettierrc = json.loads((ROOT / ".prettierrc").read_text(encoding="utf-8"))
+        cls.ci_text = (ROOT / ".github/workflows/harness-ci.yml").read_text(encoding="utf-8")
+
+    @staticmethod
+    def target_set(script: str) -> list[str]:
+        """Extract the quoted glob/path targets from a Prettier package script."""
+        return re.findall(r'"([^"]+)"', script)
+
+    def test_write_and_verify_share_one_target_set(self) -> None:
+        scripts = self.package["scripts"]
+        write_targets = self.target_set(scripts["prettier"])
+        verify_targets = self.target_set(scripts["prettier:verify"])
+        self.assertTrue(write_targets, "prettier script must declare explicit targets")
+        self.assertEqual(write_targets, verify_targets)
+        self.assertIn("--write", scripts["prettier"])
+        self.assertIn("--check", scripts["prettier:verify"])
+
+    def test_unsupported_salesforce_extensions_are_not_targeted(self) -> None:
+        for script_name in ("prettier", "prettier:verify"):
+            joined = " ".join(self.target_set(self.package["scripts"][script_name]))
+            for extension in self.UNSUPPORTED_EXTENSIONS:
+                with self.subTest(script=script_name, extension=extension):
+                    self.assertNotRegex(joined, rf"[{{,.]{extension}[,}}\"]|\*\.{extension}\b")
+
+    def test_xml_metadata_families_remain_targeted(self) -> None:
+        for script_name in ("prettier", "prettier:verify"):
+            targets = self.target_set(self.package["scripts"][script_name])
+            self.assertIn("force-app/**/*.xml", targets)
+            self.assertIn("manifest/**/*.xml", targets)
+
+    def test_xml_plugin_is_declared_and_loaded(self) -> None:
+        self.assertIn("@prettier/plugin-xml", self.package.get("devDependencies", {}))
+        self.assertIn("@prettier/plugin-xml", self.prettierrc.get("plugins", []))
+
+    def test_xml_parser_is_explicitly_selected(self) -> None:
+        overrides = self.prettierrc.get("overrides", [])
+        xml_overrides = [o for o in overrides if o.get("files") == "**/*.xml"]
+        self.assertEqual(len(xml_overrides), 1, ".prettierrc must map **/*.xml exactly once")
+        self.assertEqual(xml_overrides[0].get("options", {}).get("parser"), "xml")
+
+    def test_ci_still_runs_the_formatting_gate_fail_closed(self) -> None:
+        self.assertIn("npm run prettier:verify", self.ci_text)
+        for bypass in ("continue-on-error: true", "prettier:verify || true"):
+            self.assertNotIn(bypass, self.ci_text)
 
 
 if __name__ == "__main__":
