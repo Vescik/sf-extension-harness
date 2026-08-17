@@ -408,6 +408,36 @@ for your release action, with org-data steps separated out and named as yours.
 - editing package-owned configuration surfaces;
 - treating local `config/harness.local.json` as a deliverable.
 
+## How a design, its implementation, and review stay aligned
+
+The slash prompts and the Designer agent are entry surfaces; the step-by-step Solution Design
+procedure lives in one place, the solution-design skill. What you should expect in the
+artifacts:
+
+- **`design.md` connects requirements to solutions and verification.** Its
+  `Acceptance criteria coverage` matrix gives every acceptance criterion (or human-provided
+  requirement outcome) a row naming its solution, its planned verification, and an honest
+  status — `Covered`, `Explicit no-change` with a reason, or `Open`. Its
+  `Planned change surface` table declares which logical components the work intends to
+  create, modify, or remove, and which package dependencies stay read-only.
+- **Development records material deviations, append-only, in `decisions.md`** — planned vs
+  actual surface, the reason, and any verification/rollback/QA impact. The design is not
+  rewritten to match the code.
+- **Implementation review compares all three with the exact diff** and reports a
+  `Scope alignment` classification (`ALIGNED`, `EXPLAINED DELTA`, `UNEXPLAINED DELTA`,
+  `INCOMPLETE`) before its normal verdict. Tests, fixtures, and manifests that only support a
+  planned component are not flagged as scope creep — but an explained delta is reviewable,
+  not automatically approved: every package and safety rule still applies.
+- **On a shared Feature branch, name the exact review subject.** One Story's review never
+  infers its commits from the whole branch. Supply them explicitly, for example:
+
+  ```text
+  /check-against-principles itemId=5001 scope=implementation commits=a1b2c3d,e4f5a6b
+  ```
+
+  (or a contiguous `base=<ref> head=<ref>` range). Without exact attribution the review
+  returns `INCOMPLETE` rather than guessing.
+
 ## Feature Knowledge
 
 Two kinds of governed Knowledge live in this workspace, and they answer different questions:

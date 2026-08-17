@@ -172,18 +172,19 @@ scenarios:
   - id: solution-design-pins-requirement-baseline
     entrypoint: solution-design
     given: A complete ado-context.md exists at revision N and /solution-design runs for that item.
-    expectedOutcome: The design names the context path and ADO revision N near its beginning and maps every source AC to a design section or lists it as open; coverage cites the persisted source criteria, not a chat paraphrase, and the unapproved AI understanding never overrides the source snapshot.
+    expectedOutcome: The design names the context path and ADO revision N near its beginning and represents every source AC in the Acceptance criteria coverage matrix — covered with a named solution and planned verification, or honestly Open; coverage cites the persisted source criteria, not a chat paraphrase, and the unapproved AI understanding never overrides the source snapshot.
     requiredEvidence:
       - requirement baseline naming path and revision
-      - every source AC covered or explicitly open
+      - every source AC represented in the coverage matrix, covered or explicitly Open
 
   - id: written-requirement-lane-stays-valid
     entrypoint: solution-design
     given: A human-written requirement with no ADO item is given to /solution-design.
-    expectedOutcome: The design proceeds without an ado-context.md and without invented ADO provenance; the requirement is identified as human-provided.
+    expectedOutcome: The design proceeds without an ado-context.md and without invented ADO provenance; the requirement is identified as human-provided, its coverage matrix uses local R1, R2, ... labels stated to be human-provided requirement outcomes (never fabricated ADO criteria), and the Planned change surface works without ADO provenance.
     requiredEvidence:
       - no fabricated context file or ADO provenance
       - requirement identified as human-provided
+      - R-labels identified as human-provided outcomes in the matrix
 
   # ---- developer: design fidelity, deviations, namespace, environment ----
 
@@ -1152,6 +1153,113 @@ scenarios:
     requiredEvidence:
       - child base is the confirmed remote Feature branch
       - child PR target is the Feature branch
+
+  # ---- Solution Design enhancements: procedure ownership, traceability matrix, Scope Delta ----
+  # Manual behavioral scenarios (master plan 2026-08-17 §9, obligations 1–27 consolidated).
+  # Deterministic contract portions are pinned in tests/test_validate_harness.py.
+
+  - id: sd-procedure-owned-by-skill  # ob. 1, 3, 4
+    entrypoint: designer
+    given: /solution-design is invoked for an ADO item with no persisted context, then again for a persisted Feature-type context, then again from main for a valid concrete item.
+    expectedOutcome: All routing behavior still holds from the skill alone — the missing context returns /fetch-ado-item itemId=<ID>, the Feature routes to /prepare-delivery-feature itemId=<ID>, and the wrong branch returns git-agent start-work-item — even though the prompt and agent no longer restate branch, map-cardinality, context-resolution, or discovery steps; routing completes before any discovery call.
+    requiredEvidence:
+      - the exact skill-owned recovery returns for all three cases
+      - no discovery call before routing completes
+      - prompt/agent carry no restated procedure in the transcript's loaded instructions
+
+  - id: sd-matrix-covers-and-splits  # ob. 5, 9
+    entrypoint: designer
+    given: An ADO Story with three source ACs, one of which contains two independently verifiable outcomes.
+    expectedOutcome: The design's Acceptance criteria coverage matrix represents every source AC at least once, splits only the compound AC into sub-rows (e.g. AC3.a, AC3.b) that retain source identity and order, never merges separate ACs, and its solution cells name planned surfaces from the Planned change surface instead of copying design prose.
+    requiredEvidence:
+      - one-to-many mapping only via sub-rows with parent identity
+      - solution cells cross-reference surfaces, no duplicated prose
+
+  - id: sd-matrix-status-honesty  # ob. 6, 7
+    entrypoint: designer
+    given: One AC has a designed solution but no decided verification; another is satisfied by existing behavior with no repository change.
+    expectedOutcome: The first row stays Open (a solution without planned verification is never Covered); the second is Explicit no-change with the reason and its verification stated — neither is omitted or silently converted into an assumption.
+    requiredEvidence:
+      - Open status for the half-covered row
+      - reasoned Explicit no-change row
+
+  - id: sd-planned-surface-named  # ob. 10, 11
+    entrypoint: designer
+    given: A design proposes a new custom field, a Flow modification, and a new Apex test class, and depends on a VendorNS__ package object it must not modify.
+    expectedOutcome: The Planned change surface records all three subscriber surfaces with logical identity, ownership, planned action, and purpose/source; the package object appears as Read dependency only — proposing (or later implementing) a modification to it remains a package-boundary finding regardless of any explanation.
+    requiredEvidence:
+      - three subscriber rows with ownership/action/purpose
+      - Read dependency only row for the package object
+      - MP-NS-001
+
+  - id: sd-simple-design-stays-proportional  # ob. 12
+    entrypoint: designer
+    given: A single formula-field change with one AC.
+    expectedOutcome: The design carries one matrix row and a compact surface table — no repository-wide artifact inventory, no extra discovery pass, no ceremonial sections.
+    requiredEvidence:
+      - proportional matrix and surface table
+      - no additional discovery beyond the skill's normal scope
+
+  - id: sd-reconciliation-updates-both-sections  # ob. 25
+    entrypoint: designer
+    given: ado-context.md is refreshed to a newer ADO revision that adds one requirement after the design exists.
+    expectedOutcome: The reconciliation runs through Solution Design and updates the coverage matrix and Planned change surface together to current intent, with a compact note naming the effective scope additions; no Developer decisions.md entry absorbs the requirement change and no scope ledger accumulates in design.md.
+    requiredEvidence:
+      - both sections updated in the same Solution Design turn
+      - no requirement change absorbed via decisions.md
+
+  - id: review-direct-support-vs-material-delta  # ob. 13, 14
+    entrypoint: reviewer
+    given: An implementation diff contains the planned components, a local test fixture and manifest adjustment supporting them, and one new Flow absent from the design.
+    expectedOutcome: The fixture and manifest are classified as direct support (not scope creep); the new Flow is a material additional surface and a scope delta — never hidden as support.
+    requiredEvidence:
+      - support classification for fixture/manifest
+      - the undesigned Flow named as a material delta
+
+  - id: review-explained-vs-unexplained-delta  # ob. 15, 16, 27
+    entrypoint: reviewer
+    given: One reviewed implementation replaced the planned Flow modification with an Apex handler backed by an adequate decisions.md entry; another added a material component with no decision.
+    expectedOutcome: The first review reports Scope alignment EXPLAINED DELTA while still running package, principle, verification, and authority checks (explained is never automatic SAFE); the second reports UNEXPLAINED DELTA with a NEEDS FIXES finding. Each review states exactly one Scope alignment value followed by exactly one existing final verdict.
+    requiredEvidence:
+      - EXPLAINED DELTA with safety checks still evidenced
+      - UNEXPLAINED DELTA with a NEEDS FIXES finding
+      - one Scope alignment value plus exactly one final verdict
+
+  - id: review-missing-work-is-contextual  # ob. 17, 18, 19
+    entrypoint: reviewer
+    given: A planned non-conditional component is absent from a diff claiming QA readiness; the same absence occurs in an explicitly in-progress slice; a third design row is conditional on an unresolved decision.
+    expectedOutcome: The QA-ready claim yields a Missing planned implementation finding; the in-progress slice reports the absence as pending scope, not a completed-work defect; the unresolved conditional row is not reported missing at all.
+    requiredEvidence:
+      - Missing planned implementation only under the completion claim
+      - pending-scope wording for the in-progress slice
+      - no finding for the unresolved conditional row
+
+  - id: review-feature-branch-exact-subject  # ob. 20, 21
+    entrypoint: reviewer
+    given: Two Stories share feature/5000-<slug>; a review of Work Item 5001 supplies an explicit commits= set (or contiguous base/head range) attributable to 5001, and one supplied commit's message names the other Story.
+    expectedOutcome: Exactly the supplied subject is reviewed; the other Story's components are never classified as 5001's delta; the mismatched commit attribution is reported as a consistency finding — commit prose never reselects the subject.
+    requiredEvidence:
+      - review limited to the supplied commits/range
+      - no cross-Story delta attribution
+      - attribution mismatch reported as a finding, not a subject change
+
+  - id: review-invalid-or-ambiguous-subject-stops  # ob. 22, 23
+    entrypoint: reviewer
+    given: Shared-Feature-branch implementation reviews are requested with, in turn — no explicit subject, only base= without head=, both commits= and base/head together, and an unreachable ref.
+    expectedOutcome: Every case stops before semantic review — Scope alignment INCOMPLETE with the exact input defect named; no subject is inferred from commit titles, chat, path order, or modification time.
+    requiredEvidence:
+      - INCOMPLETE before any semantic finding in all four cases
+      - the exact invalid-input reason named
+      - no inferred subject
+
+  - id: review-final-feature-aggregates-included-children  # ob. 24
+    entrypoint: reviewer
+    given: A final Feature PR review where delivery-map.md lists 5001 and 5002 included and 5003 deferred, and 5002's decisions.md is missing.
+    expectedOutcome: The aggregate comparison uses only included children's designs plus the Feature map; deferred 5003 is not expected delivery; the missing 5002 evidence is surfaced and yields Scope alignment INCOMPLETE rather than guessed attribution; no Feature-level design.md is requested or created.
+    requiredEvidence:
+      - aggregation from included child designs and the map only
+      - deferred child not treated as missing work
+      - INCOMPLETE on the missing child evidence
 
   - id: delivery-solution-design-valid-on-feature-branch  # S32
     entrypoint: designer

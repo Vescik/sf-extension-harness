@@ -21,6 +21,11 @@ from scripts import validate_harness
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def squash(text: str) -> str:
+    """Collapse whitespace so semantic-marker assertions survive re-wrapping."""
+    return " ".join(text.split())
+
+
 class TempRootBase(unittest.TestCase):
     def setUp(self) -> None:
         tmp = tempfile.TemporaryDirectory()
@@ -388,8 +393,14 @@ class TestGitBootstrapBeforeSolutionDesign(unittest.TestCase):
         self.assertIn("work-item/<ID>-<stable-slug>", self.git_skill)
 
     def test_design_refuses_main_for_ado_item(self) -> None:
-        self.assertIn("git-agent: start work item <ID>", self.design_prompt)
-        self.assertIn("Designer never creates or switches branches", self.design_prompt)
+        # SD-PROC consolidation (plan 2026-08-17): the branch-refusal behavior is
+        # skill-owned; the prompt only routes to the skill and its recovery returns.
+        design_skill = squash(
+            (ROOT / ".github/skills/solution-design/SKILL.md").read_text(encoding="utf-8")
+        )
+        self.assertIn("git-agent: start work item <ID>", design_skill)
+        self.assertIn("the Designer never creates or switches branches", design_skill)
+        self.assertIn("skills/solution-design/SKILL.md", self.design_prompt)
 
 
 class TestGitPostPushPRHandoff(unittest.TestCase):
@@ -536,7 +547,7 @@ class TestSolutionDesignDeliveryMapRouting(unittest.TestCase):
         )
 
     def test_feature_input_routes_to_prepare_not_design(self) -> None:
-        self.assertIn("/prepare-delivery-feature itemId=<ID>", self.prompt)
+        # Skill-owned since the SD-PROC consolidation; the prompt no longer restates it.
         self.assertIn("/prepare-delivery-feature itemId=<ID>", self.skill)
 
     def test_fetch_routes_feature_to_prepare_without_auto_invoking(self) -> None:
@@ -631,11 +642,10 @@ class TestSolutionDesignRoutingPrecedesDiscovery(unittest.TestCase):
         self.assertIn("stop before any design context is loaded", self.skill)
 
     def test_prompt_pins_routing_before_docs_and_remote_discovery(self) -> None:
-        self.assertIn(
-            "before reading the package design documents or making any Knowledge or\n"
-            "Salesforce call",
-            self.prompt,
-        )
+        # The prompt is a thin alias: it pins only that the skill's Stage 1 routing
+        # precedes discovery, without restating the procedure itself.
+        self.assertIn("before any discovery", self.prompt)
+        self.assertIn("skills/solution-design/SKILL.md", self.prompt)
 
     def test_written_requirements_stay_lightweight(self) -> None:
         self.assertIn("go straight to Stage 2", self.skill)
@@ -742,6 +752,237 @@ class TestWorkItemFeatureBranchModel(unittest.TestCase):
     def test_prepare_returns_the_two_explicit_delivery_choices(self) -> None:
         self.assertIn("git-agent: start feature", self.prepare_skill)
         self.assertIn("/fetch-ado-item itemId=<first-included-ID>", self.prepare_skill)
+
+
+class TestSolutionDesignProcedureOwnership(unittest.TestCase):
+    """SD-PROC (plan 2026-08-17): the solution-design skill is the sole step-by-step
+    procedure; the prompt is a true thin alias; the Designer body keeps role boundaries
+    without restating branch, map-cardinality, context-resolution, or discovery steps."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.skill = (ROOT / ".github/skills/solution-design/SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        cls.prompt = (ROOT / ".github/prompts/solution-design.prompt.md").read_text(
+            encoding="utf-8"
+        )
+        cls.agent = (ROOT / ".github/agents/designer.agent.md").read_text(encoding="utf-8")
+
+    def test_skill_owns_the_two_stage_procedure(self) -> None:
+        self.assertIn("Stage 1 — local routing", self.skill)
+        self.assertIn("Stage 2 — design discovery", self.skill)
+
+    def test_skill_retains_recovery_and_routing_returns(self) -> None:
+        # Consolidation removes duplication, never the behavior: the skill still owns
+        # missing-context recovery, Feature/Epic routing, and the branch refusal.
+        self.assertIn("/fetch-ado-item itemId=<ID>", self.skill)
+        self.assertIn("/prepare-delivery-feature itemId=<ID>", self.skill)
+        self.assertIn("git-agent: start work item <ID>", self.skill)
+        self.assertIn("INCOMPLETE — NEEDS HUMAN", self.skill)
+
+    def test_prompt_is_a_thin_alias_without_restated_procedure(self) -> None:
+        self.assertIn("skills/solution-design/SKILL.md", self.prompt)
+        self.assertIn("work-items/{id}/design.md", self.prompt)
+        for restated in (
+            "work-item/<id>-<slug>",
+            "feature/<feature-id>-<slug>",
+            "git-agent: start work item",
+            "/fetch-ado-item itemId=<ID>",
+            "/prepare-delivery-feature itemId=<ID>",
+            "INCOMPLETE — NEEDS HUMAN",
+            "Zero matches",
+            "docs/package-concept.md",
+        ):
+            self.assertNotIn(restated, self.prompt, restated)
+
+    def test_agent_keeps_boundaries_without_procedural_duplication(self) -> None:
+        self.assertIn("skills/solution-design/SKILL.md", self.agent)
+        squashed = squash(self.agent)
+        self.assertIn("Git operations belong to the Git Agent", squashed)
+        for restated in (
+            "work-item/<id>-<slug>",
+            "feature/<feature-id>-<slug>",
+            "git-agent: start work item",
+            "docs/package-concept.md",
+            "exactly one",
+        ):
+            self.assertNotIn(restated, self.agent, restated)
+
+
+class TestSolutionDesignTraceabilityMatrix(unittest.TestCase):
+    """SD-TRACE: one canonical AC/requirement -> solution -> planned verification matrix."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.skill = (ROOT / ".github/skills/solution-design/SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        cls.squashed = squash(cls.skill)
+
+    def test_matrix_heading_and_required_columns(self) -> None:
+        self.assertIn("## Acceptance criteria coverage", self.skill)
+        self.assertIn(
+            "| Criterion | Solution / planned surfaces | Planned verification | Status |",
+            self.skill,
+        )
+
+    def test_three_status_meanings_and_covered_requires_both_halves(self) -> None:
+        for status in ("`Covered`", "`Explicit no-change`", "`Open`"):
+            self.assertIn(status, self.skill, status)
+        self.assertIn(
+            "A criterion cannot be `Covered` when either its solution or its planned "
+            "verification is absent",
+            self.squashed,
+        )
+        self.assertIn("never omitted or silently converted into assumptions", self.squashed)
+
+    def test_every_criterion_represented_and_never_merged(self) -> None:
+        self.assertIn("at least one row", self.squashed)
+        self.assertIn("retains the source AC identity and source order", self.squashed)
+        self.assertIn("Never merge separate source ACs", self.squashed)
+
+    def test_human_written_requirements_keep_their_provenance(self) -> None:
+        self.assertIn("`R1`, `R2`", self.skill)
+        self.assertIn("never fabricated ADO criteria", self.squashed)
+
+    def test_no_duplicate_narrative_coverage_remains(self) -> None:
+        self.assertNotIn("which part of the design satisfies which AC", self.squashed)
+        self.assertIn(
+            "do not duplicate the same coverage in parallel prose", self.squashed
+        )
+
+
+class TestSolutionDesignScopeDeltaContract(unittest.TestCase):
+    """1B Scope Delta: planned surface in design, deviations in decisions, comparison in
+    review — no new artifact, parser, or gate."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.design_skill = (ROOT / ".github/skills/solution-design/SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        cls.dev_skill = (ROOT / ".github/skills/development/SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        cls.review_skill = (
+            ROOT / ".github/skills/check-against-principles/SKILL.md"
+        ).read_text(encoding="utf-8")
+        cls.design_squashed = squash(cls.design_skill)
+        cls.dev_squashed = squash(cls.dev_skill)
+        cls.review_squashed = squash(cls.review_skill)
+
+    def test_surface_heading_and_required_columns(self) -> None:
+        self.assertIn("## Planned change surface", self.design_skill)
+        self.assertIn(
+            "| Surface | Ownership | Planned action | Purpose / source |", self.design_skill
+        )
+
+    def test_action_vocabulary(self) -> None:
+        for action in ("`Create`", "`Modify`", "`Remove`", "`Read dependency only`"):
+            self.assertIn(action, self.design_skill, action)
+
+    def test_conditional_rows_exclusions_and_no_ledger(self) -> None:
+        self.assertIn("[conditional — decision:", self.design_skill)
+        self.assertIn("Explicit exclusions", self.design_squashed)
+        self.assertIn(
+            "do not append a scope or matrix ledger inside `design.md`", self.design_squashed
+        )
+
+    def test_development_deviation_names_planned_and_actual_scope(self) -> None:
+        self.assertIn(
+            "the planned surface/action, the actual surface/action, the reason",
+            self.dev_squashed,
+        )
+        self.assertIn("Append-only", self.dev_skill)
+        self.assertIn("never absorbs requirement changes", self.dev_squashed)
+        self.assertIn("traceable, not approved", self.dev_squashed)
+
+    def test_reviewer_owns_the_four_scope_alignment_values(self) -> None:
+        self.assertIn(
+            "Scope alignment: ALIGNED | EXPLAINED DELTA | UNEXPLAINED DELTA | INCOMPLETE",
+            self.review_skill,
+        )
+
+    def test_explained_delta_is_never_safe_or_approval(self) -> None:
+        self.assertIn("Explained is not safe and not approved", self.review_squashed)
+        self.assertIn("never implies `SAFE`", self.review_squashed)
+
+    def test_reviewer_keeps_the_existing_final_verdicts(self) -> None:
+        for verdict in (
+            "`SAFE`",
+            "`NEEDS FIXES`",
+            "`INCOMPLETE — NEEDS HUMAN`",
+            "`STOP — TOO RISKY`",
+        ):
+            self.assertIn(verdict, self.review_skill, verdict)
+        self.assertIn("It never replaces the final verdict", self.review_squashed)
+
+    def test_missing_work_is_contextual_and_support_is_distinguished(self) -> None:
+        self.assertIn("Missing planned implementation", self.review_skill)
+        self.assertIn("pending scope, not a completed-work defect", self.review_squashed)
+        self.assertIn("direct support", self.review_squashed)
+        self.assertIn("cannot be hidden as support", self.review_squashed)
+
+    def test_read_dependency_never_requires_a_diff_and_package_rule_stands(self) -> None:
+        self.assertIn(
+            "`Read dependency only` never requires a repository diff", self.review_squashed
+        )
+        self.assertIn(
+            "a `decisions.md` explanation is never permission", self.review_squashed
+        )
+
+    def test_feature_review_aggregates_child_authority_only(self) -> None:
+        self.assertIn("delivery-map.md", self.review_skill)
+        self.assertIn("no Feature-level `design.md`", self.review_squashed)
+
+
+class TestCheckAgainstPrinciplesScopeSubject(unittest.TestCase):
+    """The implementation review subject is supplied exactly, never inferred."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.prompt = (
+            ROOT / ".github/prompts/check-against-principles.prompt.md"
+        ).read_text(encoding="utf-8")
+        cls.skill = (
+            ROOT / ".github/skills/check-against-principles/SKILL.md"
+        ).read_text(encoding="utf-8")
+        cls.prompt_squashed = squash(cls.prompt)
+        cls.skill_squashed = squash(cls.skill)
+
+    def test_argument_hint_offers_exactly_the_two_subject_forms(self) -> None:
+        hint_line = next(
+            line for line in self.prompt.splitlines() if line.startswith("argument-hint:")
+        )
+        self.assertIn("base=<ref> head=<ref>", hint_line)
+        self.assertIn("commits=<sha1>,<sha2>,...", hint_line)
+
+    def test_prompt_defines_input_only_and_delegates_the_procedure(self) -> None:
+        self.assertIn("skills/check-against-principles/SKILL.md", self.prompt)
+        self.assertIn("This prompt defines input only", self.prompt_squashed)
+
+    def test_shared_feature_branch_requires_an_explicit_subject(self) -> None:
+        self.assertIn(
+            "on a shared Feature branch requires explicit", self.prompt_squashed
+        )
+        self.assertIn(
+            "Never compare a Story design against the whole multi-Story Feature diff",
+            self.skill_squashed,
+        )
+
+    def test_invalid_forms_stop_before_semantic_review(self) -> None:
+        self.assertIn("`base` and `head` must appear together", self.skill_squashed)
+        self.assertIn("never accept both", self.prompt_squashed)
+        self.assertIn("before any semantic review", self.prompt_squashed)
+        self.assertIn("stop before any semantic review", self.skill_squashed)
+
+    def test_subject_is_never_inferred_from_prose(self) -> None:
+        self.assertIn("prose alone never selects the subject", self.skill_squashed)
+        self.assertIn(
+            "Never infer the subject from commit titles", self.skill_squashed
+        )
+        self.assertIn("Scope alignment: INCOMPLETE", self.skill)
 
 
 if __name__ == "__main__":
