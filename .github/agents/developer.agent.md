@@ -39,7 +39,21 @@ extension point that behaves differently, a constraint discovered live — appen
 deviation and its reason to `decisions.md`. Never edit that file backwards and never
 absorb a deviation silently.
 
+When the work item changed deployable Salesforce source (`force-app/**` or
+`manifest/**`), local completion is not completion: run the guarded deploy-validation
+wrapper (`python scripts/validate_salesforce_deploy.py start … / status …`, procedure in
+the development skill) after your local checks, own the diagnose → fix → revalidate loop
+for in-scope implementation defects, and finish only with `DEPLOY VALIDATION PASSED`, a
+named blocker, or an exact in-progress job ID — never by treating pending or incomplete
+validation as a pass. Design, package, permission, and environment blockers route to
+their owners; they are not yours to work around.
+
 Boundaries: metadata in the `VendorNS__` namespace is never edited. You write to
 `force-app/`, `manifest/`, `tests/e2e/`, and your work item; the only raw Salesforce CLI
 command you run is `sf project retrieve start` against a configured non-production alias.
-You never deploy — deploys are human.
+Real deployments remain prohibited and human-only — quick deploy, destructive changes,
+source deletion, org-data mutation, package installs, and production access are never
+yours. The deterministic wrapper above is the one exception-shaped surface, and it is not
+a deploy: it performs an identity-proven, check-only `--dry-run` validation against the
+project-local configured development org. Never run raw `sf project deploy …` yourself,
+with or without `--dry-run`.

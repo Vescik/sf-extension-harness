@@ -95,7 +95,10 @@ From a written requirement:
 4. You resolve business questions, vendor guarantees, and unapproved choices it surfaces.
 5. A reviewer can challenge the persisted design with `/check-against-principles`.
 6. After you accept the design, the developer implements against it and keeps `tasks.md` and
-   `decisions.md` current.
+   `decisions.md` current. For deployable Salesforce changes it completes by proving
+   deployability with a check-only dry-run validation against your project-local development
+   org, ending in a pass, a named blocker, or an exact in-progress job ID — never in a claim
+   that untested work is ready. That validation is never a deployment and never a QA result.
 7. Verification follows the design; the test-strategist agent is the entry point when a QA
    coverage decision is needed. When the item is being handed to a QA engineer,
    `/prepare-qa-test-plan itemId=<ID>` writes `work-items/<id>-<slug>/qa-test-plan.md` — a
@@ -482,7 +485,8 @@ durable state; if it matters, it belongs in one of these artifacts.
 
 - approve their own Knowledge or your business decisions;
 - invent vendor guarantees or package internals;
-- deploy or mutate Salesforce orgs;
+- really deploy or mutate Salesforce orgs (the Developer's check-only dry-run validation
+  proves deployability but deploys nothing);
 - operate against production;
 - silently merge, release, or resolve ownership decisions;
 - convert incomplete evidence into certainty.

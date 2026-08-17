@@ -9,6 +9,7 @@ from scripts import copilot_role_guard as guard
 from scripts import force_app_knowledge
 from scripts import knowledge_search
 from scripts import knowledge_store
+from scripts import validate_salesforce_deploy
 
 
 # Subcommands that exist in the CLI parsers but are deliberately NOT reachable through the
@@ -18,6 +19,7 @@ INTENTIONALLY_UNGUARDED = {
     "force_app_knowledge": {},
     "knowledge_store": {},
     "knowledge_search": {},
+    "validate_salesforce_deploy": {},
 }
 
 # Parser flags the guard deliberately does not accept for a guarded subcommand.
@@ -26,6 +28,7 @@ INTENTIONALLY_EXCLUDED_FLAGS: dict[str, dict[str, set[str]]] = {
     "force_app_knowledge": {},
     "knowledge_store": {},
     "knowledge_search": {},
+    "validate_salesforce_deploy": {},
 }
 
 
@@ -96,6 +99,13 @@ class GuardParserContractTests(unittest.TestCase):
             "knowledge_store",
             knowledge_store.build_parser(),
             guard.KNOWLEDGE_STORE_COMMAND_FLAGS,
+        )
+
+    def test_validate_deploy_guard_mirrors_parser(self) -> None:
+        self.contract(
+            "validate_salesforce_deploy",
+            validate_salesforce_deploy.build_parser(),
+            guard.VALIDATE_DEPLOY_COMMAND_FLAGS,
         )
 
     def test_knowledge_search_guard_mirrors_parser(self) -> None:

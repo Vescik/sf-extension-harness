@@ -1318,6 +1318,92 @@ def check_retired_surfaces(audit: Audit, root: Path = ROOT) -> None:
         )
 
 
+def check_deploy_validation_wiring(audit: Audit) -> None:
+    """Guarded check-only deploy validation (2026-08-17): executor, role/agent/skill/
+    contract/settings wiring present, and the direct-deploy denial unchanged."""
+
+    executor = required_text(ROOT / "scripts/validate_salesforce_deploy.py", audit)
+    audit.require('"--dry-run"' in executor, "deploy validation executor must hard-code --dry-run")
+    audit.require('"--async"' in executor, "deploy validation executor must hard-code --async")
+    # Forbidden child flags (--wait, --use-most-recent, destructive/ignore flags) are proven
+    # unconstructible behaviorally in tests/test_validate_salesforce_deploy.py; here we pin
+    # that the fixed report shape is the only status path.
+    audit.require(
+        '"report",' in executor and '"resume"' not in executor,
+        "deploy validation status must read `deploy report` and never resume",
+    )
+
+    guard = required_text(ROOT / "scripts/copilot_role_guard.py", audit)
+    audit.require(
+        'VALIDATE_DEPLOY_ROLES = frozenset({"developer"})' in guard,
+        "deploy validation wrapper must be admitted for the developer role only",
+    )
+    audit.require(
+        "validate_salesforce_deploy.py" in guard,
+        "role guard must route the deploy validation wrapper",
+    )
+
+    hook = required_text(ROOT / "scripts/copilot_safety_hook.py", audit)
+    audit.require(
+        "retrieve" in hook and "deploy" in hook.lower(),
+        "safety hook must keep classifying deploy-shaped surfaces",
+    )
+    audit.require(
+        "except human-approved `sf project retrieve start`" in hook,
+        "direct Salesforce CLI denial (deploys included) must remain the hook's terminal rule",
+    )
+
+    agent = required_text(ROOT / ".github/agents/developer.agent.md", audit)
+    audit.require(
+        "validate_salesforce_deploy.py" in agent,
+        "developer agent must name the guarded deploy-validation wrapper",
+    )
+    audit.require(
+        "Real deployments remain prohibited and human-only" in agent,
+        "developer agent must keep real deployment human-only",
+    )
+    audit.require(
+        "You never deploy — deploys are human." not in agent,
+        "developer agent must not keep the absolute pre-wrapper deploy sentence",
+    )
+
+    skill = required_text(ROOT / ".github/skills/development/SKILL.md", audit)
+    audit.require(
+        "Deploy validation: PASSED | BLOCKED | IN PROGRESS" in skill,
+        "development skill must pin the completion-language block",
+    )
+    audit.require(
+        "validate_salesforce_deploy.py start" in skill,
+        "development skill must carry the wrapper procedure",
+    )
+
+    capabilities = required_text(ROOT / ".ai/contracts/tool-capabilities.md", audit)
+    audit.require(
+        "validate_salesforce_deploy.py" in capabilities,
+        "tool capability map must record the check-only wrapper",
+    )
+    contract = required_text(ROOT / ".ai/contracts/execution-contract.md", audit)
+    audit.require(
+        "validate_salesforce_deploy.py" in contract,
+        "execution contract must list the guarded deploy-validation executor",
+    )
+
+    settings = load_jsonc(ROOT / ".vscode/settings.json", audit)
+    auto = settings.get("chat.tools.terminal.autoApprove", {})
+    wrapper_keys = [key for key in auto if "validate_salesforce_deploy" in key]
+    audit.require(
+        len(wrapper_keys) == 1,
+        "settings must auto-approve exactly one anchored deploy-validation wrapper shape",
+    )
+    for key in wrapper_keys:
+        audit.require(
+            key.startswith("/^") and key.endswith("$/") and "(?:start|status)" in key,
+            "wrapper auto-approval must stay anchored to the start/status shapes",
+        )
+    audit.require(auto.get("sf") is False and auto.get("sfdx") is False,
+                  "raw sf/sfdx must stay denied in terminal auto-approval")
+
+
 def check_contracts_match_mcp(audit: Audit) -> None:
     """Normative contracts must not advertise MCP servers that mcp.json does not configure.
 
@@ -1456,6 +1542,7 @@ def main() -> int:
             check_schemas_and_evals,
             check_grounding_contracts,
             check_contracts_match_mcp,
+            check_deploy_validation_wiring,
             check_repo_map,
             check_placeholders,
             check_secret_signatures,

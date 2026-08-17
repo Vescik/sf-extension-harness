@@ -1758,5 +1758,114 @@ class WorkspaceMaintainerTests(unittest.TestCase):
                     self.assertFalse(role_guard.allowed_role_command(command, ROOT, role))
 
 
+class DeployValidationWrapperTests(unittest.TestCase):
+    """Phase 2 boundary (2026-08-17): the guarded wrapper is the only deploy-shaped
+    surface, Developer-only, and no raw deploy path opens anywhere — including raw
+    commands that themselves carry --dry-run."""
+
+    START = (
+        "python scripts/validate_salesforce_deploy.py start "
+        "--source-dir force-app/main/default/classes --test WidgetServiceTest"
+    )
+    STATUS = (
+        "python scripts/validate_salesforce_deploy.py status "
+        "--job-id 0Af000000000001AAA --org dev-sbx"
+    )
+
+    def test_developer_may_run_exact_wrapper_shapes(self) -> None:
+        from scripts import copilot_role_guard as role_guard
+
+        for command in (
+            self.START,
+            self.STATUS,
+            "python scripts/validate_salesforce_deploy.py start --manifest manifest/package.xml",
+        ):
+            with self.subTest(command=command):
+                self.assertTrue(role_guard.allowed_role_command(command, ROOT, "developer"))
+
+    def test_other_roles_cannot_run_the_wrapper(self) -> None:
+        from scripts import copilot_role_guard as role_guard
+
+        for role in (
+            "designer",
+            "reviewer",
+            "config-investigator",
+            "knowledge-curator",
+            "test-strategist",
+            "workspace-maintainer",
+        ):
+            with self.subTest(role=role):
+                self.assertFalse(role_guard.allowed_role_command(self.START, ROOT, role))
+                self.assertFalse(role_guard.allowed_role_command(self.STATUS, ROOT, role))
+
+    def test_wrapper_variants_outside_the_grammar_are_denied(self) -> None:
+        from scripts import copilot_role_guard as role_guard
+
+        for command in (
+            "python scripts/validate_salesforce_deploy.py deploy --source-dir force-app",
+            "python scripts/validate_salesforce_deploy.py start --source-dir force-app --wait 10",
+            "python scripts/validate_salesforce_deploy.py start --ignore-errors",
+            "python scripts/validate_salesforce_deploy.py start force-app",
+            "python scripts/validate_salesforce_deploy.py",
+            self.START + " && sf project deploy start",
+            self.START + " > out.txt",
+        ):
+            with self.subTest(command=command):
+                self.assertFalse(role_guard.allowed_role_command(command, ROOT, "developer"))
+
+    def test_direct_dry_run_deploy_stays_denied_for_every_role(self) -> None:
+        from scripts import copilot_role_guard as role_guard
+
+        command = "sf project deploy start --dry-run --async --target-org dev-sbx --json"
+        for role in sorted(role_guard.ALLOWED_PREFIXES):
+            if role == "git-agent":
+                continue
+            with self.subTest(role=role):
+                self.assertFalse(role_guard.allowed_role_command(command, ROOT, role))
+        decision, _ = role_guard.git_agent_terminal_decision(command)
+        self.assertEqual(decision, "deny")
+
+    def test_safety_hook_denies_every_raw_deploy_shape(self) -> None:
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            write_local_config(root)
+            for command in (
+                "sf project deploy start --dry-run --async --target-org dev-sbx --json",
+                "sf project deploy start --target-org dev-sbx",
+                "sf project deploy validate --target-org dev-sbx",
+                "sf project deploy quick --job-id 0Af000000000001AAA --target-org dev-sbx",
+                "sf project deploy cancel --job-id 0Af000000000001AAA --target-org dev-sbx",
+                "sf project deploy resume --job-id 0Af000000000001AAA --target-org dev-sbx",
+                "sf project deploy report --use-most-recent --target-org dev-sbx",
+                "sf project deploy report --job-id 0Af000000000001AAA --target-org dev-sbx",
+            ):
+                with self.subTest(command=command):
+                    output = run_hook(
+                        "copilot_safety_hook.py",
+                        {
+                            "cwd": str(root),
+                            "tool_name": "execute/runInTerminal",
+                            "tool_input": {"command": command},
+                        },
+                    )
+                    self.assertEqual(hook_decision(output), "deny")
+
+    def test_wrapper_command_passes_the_global_safety_hook(self) -> None:
+        # The hook must not misread the wrapper as a wrapped raw `sf` command; the
+        # role guard (not the hook) is what narrows it to the Developer.
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            write_local_config(root)
+            output = run_hook(
+                "copilot_safety_hook.py",
+                {
+                    "cwd": str(root),
+                    "tool_name": "execute/runInTerminal",
+                    "tool_input": {"command": self.START},
+                },
+            )
+            self.assertEqual(hook_decision(output), "continue")
+
+
 if __name__ == "__main__":
     unittest.main()

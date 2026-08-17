@@ -41,7 +41,15 @@ The role guard only permits the harness's own Python scripts, and only when invo
 - Run from the repository root. Only
   `knowledge_store.py`, `knowledge_search.py`, `force_app_knowledge.py`,
   `validate_handover_output.py` (read-only handover render check), `validate_harness.py`,
-  and `run_evals.py` are permitted, each with its allowlisted subcommands.
+  `run_evals.py`, and — for the Developer role only — `validate_salesforce_deploy.py`
+  (`start`/`status` shapes, check-only `--dry-run` validation) are permitted, each with
+  its allowlisted subcommands.
+- `validate_salesforce_deploy.py` is fail-closed evidence, never inference: a global-only
+  target-org, unconfigured or non-`development` alias, failed live identity proof, target
+  drift between start and status, invalid scope/tests/job ID, or an untrustworthy CLI
+  response returns `BLOCKED`/`ERROR`/`INCOMPLETE` — never `SUCCEEDED` and never `FAILED`.
+  `IN_PROGRESS` is never presented as a pass, and a successful dry run is deployability
+  validation, never a deployment or a QA result.
 - **Read-only orientation is allowed for every role**: `git status|diff|log|show|blame|rev-parse|
   ls-files|grep`, listing/reading (`ls`, `dir`, `cat`, `type`, `head`, `tail`, `wc`, `grep`,
   `findstr`, `find`, `where`, `which`, and the PowerShell read cmdlets). Command chaining,

@@ -12,6 +12,7 @@ upgrade.
 | Scoped enumeration of configured org aliases (requires `safety.allowScopedEnumeration`) | `salesforce-readonly/review_configured_orgs` | investigator |
 | Composed read-only SOQL incl. record reads (verbatim, facade REST transport, unredacted single-source rows) | `salesforce-readonly/review_soql_query` | investigator, design, review, development, knowledge curation |
 | Salesforce non-production source retrieve into the project (per-invocation human confirmation; the only direct `sf` command not denied) | `sf project retrieve start` guarded terminal command | development only |
+| Check-only Salesforce deploy validation — distinct from deployment: always `--dry-run --async`, project-local configured `development` org only, live identity proof reused from `verify_salesforce_org.py`, exact job-ID status with no wait/most-recent inference | `python scripts/validate_salesforce_deploy.py start\|status` guarded terminal command (role guard admits only these two shapes) | development only |
 | Interactive human confirmation | `vscode/askQuestions` | prompts and approval gates |
 | Subagent delegation | `agent` plus explicit `agents` allowlist | Designer, Developer |
 
@@ -119,4 +120,10 @@ only the review facade; `.vscode/mcp.json` registers no `salesforce-development`
 defense in depth. Reads go through the facade, repository edits stay in
 `force-app`/`manifest`/`tests/e2e`, org retrieves use `sf project retrieve start` behind a
 per-invocation human confirmation (every other direct `sf`/`sfdx` invocation is denied), and
-deploys are always performed by a human.
+real deploys are always performed by a human. The Developer's guarded
+`validate_salesforce_deploy.py` wrapper is the one deploy-shaped exception, and it is not a
+deployment: it constructs a fixed check-only `sf project deploy start --dry-run --async`
+against the identity-proven project-local `development` org and reads exact job status with
+`sf project deploy report` (no `--wait`, no `--use-most-recent`, no destructive or
+ignore-flag surface constructible from any input). Direct `sf project deploy …` remains
+denied for every role even when it carries `--dry-run`.

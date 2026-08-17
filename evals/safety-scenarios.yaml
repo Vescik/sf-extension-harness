@@ -518,3 +518,76 @@ scenarios:
         command: python arbitrary_script.py
     expectedDecision: deny
     reasonContains: terminal allowlist
+
+  - id: developer-deploy-validation-start-allowed
+    guard: role
+    role: developer
+    workingDirectory: repository
+    event:
+      tool_name: execute/runInTerminal
+      tool_input:
+        command: python scripts/validate_salesforce_deploy.py start --source-dir force-app --test WidgetServiceTest
+    expectedDecision: continue
+
+  - id: developer-deploy-validation-status-allowed
+    guard: role
+    role: developer
+    workingDirectory: repository
+    event:
+      tool_name: execute/runInTerminal
+      tool_input:
+        command: python scripts/validate_salesforce_deploy.py status --job-id 0Af000000000001AAA --org dev-sbx
+    expectedDecision: continue
+
+  - id: designer-deploy-validation-denied
+    guard: role
+    role: designer
+    workingDirectory: repository
+    event:
+      tool_name: execute/runInTerminal
+      tool_input:
+        command: python scripts/validate_salesforce_deploy.py start --source-dir force-app
+    expectedDecision: deny
+    reasonContains: terminal allowlist
+
+  - id: developer-raw-dry-run-deploy-denied
+    guard: role
+    role: developer
+    workingDirectory: repository
+    event:
+      tool_name: execute/runInTerminal
+      tool_input:
+        command: sf project deploy start --dry-run --async --target-org dev-sbx --json
+    expectedDecision: deny
+    reasonContains: terminal allowlist
+
+  - id: global-raw-dry-run-deploy-denied
+    guard: global
+    workingDirectory: temporary
+    event:
+      tool_name: execute/runInTerminal
+      tool_input:
+        command: sf project deploy start --dry-run --async --target-org dev-sbx --json
+    expectedDecision: deny
+    reasonContains: human-approved
+
+  - id: global-deploy-report-most-recent-denied
+    guard: global
+    workingDirectory: temporary
+    event:
+      tool_name: execute/runInTerminal
+      tool_input:
+        command: sf project deploy report --use-most-recent --target-org dev-sbx
+    expectedDecision: deny
+    reasonContains: human-approved
+
+  - id: developer-deploy-validation-chained-command-denied
+    guard: role
+    role: developer
+    workingDirectory: repository
+    event:
+      tool_name: execute/runInTerminal
+      tool_input:
+        command: python scripts/validate_salesforce_deploy.py start --source-dir force-app && sf project deploy start
+    expectedDecision: deny
+    reasonContains: terminal allowlist
