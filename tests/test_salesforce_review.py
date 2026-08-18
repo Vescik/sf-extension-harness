@@ -144,6 +144,14 @@ class MockSalesforce(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
 
+class QuietHTTPServer(ThreadingHTTPServer):
+    def handle_error(self, request, client_address):  # noqa: D102
+        # The server under test may close its socket mid-body after a bounded
+        # streaming rejection; the resulting BrokenPipeError in the mock is expected
+        # and must not spray tracebacks over the test output.
+        return
+
+
 class FacadeHarness(unittest.TestCase):
     maxDiff = None
 
@@ -157,7 +165,7 @@ class FacadeHarness(unittest.TestCase):
             "is_sandbox": True,
         }
         MockSalesforce.requests_seen = []
-        self.http = ThreadingHTTPServer(("127.0.0.1", 0), MockSalesforce)
+        self.http = QuietHTTPServer(("127.0.0.1", 0), MockSalesforce)
         threading.Thread(target=self.http.serve_forever, daemon=True).start()
         # shutdown() stops serve_forever but leaves the listening socket open —
         # server_close() releases it, or every test leaks a socket warning.
@@ -300,12 +308,60 @@ class FacadeHarness(unittest.TestCase):
                 count += 1
         return count
 
+    @staticmethod
+    def large_account_describe(target_bytes: int) -> dict:
+        """A realistic oversized describe, generated in memory (never a committed fixture).
+
+        The bulk mirrors the live regression: a giant picklistValues collection that
+        normalization intentionally ignores. Field traits stay describe-shaped so the
+        normal merge path runs once the payload is accepted."""
+        describe = {
+            "name": "Account",
+            "fields": [
+                {"name": "Name", "type": "string", "nillable": False, "calculated": False, "relationshipName": None, "referenceTo": [], "length": 255, "precision": None, "scale": None, "unique": False, "externalId": False, "createable": True, "updateable": True},
+                {
+                    "name": "Load__c",
+                    "type": "picklist",
+                    "nillable": True,
+                    "calculated": False,
+                    "relationshipName": None,
+                    "referenceTo": [],
+                    "length": 255,
+                    "precision": None,
+                    "scale": None,
+                    "unique": False,
+                    "externalId": False,
+                    "createable": True,
+                    "updateable": True,
+                    "picklistValues": [],
+                },
+            ],
+        }
+        value = {"active": True, "defaultValue": False, "label": "Harness Load Value %07d", "value": "harness_load_value_%07d"}
+        overhead = len(json.dumps(value).encode()) + 10
+        count = max(1, (target_bytes - len(json.dumps(describe).encode())) // overhead)
+        describe["fields"][1]["picklistValues"] = [
+            {"active": True, "defaultValue": False, "label": f"Harness Load Value {i:07d}", "value": f"harness_load_value_{i:07d}"}
+            for i in range(count)
+        ]
+        return describe
+
+    def seed_two_field_tooling(self) -> None:
+        MockSalesforce.state["entity_records"] = [{"QualifiedApiName": "Account"}]
+        MockSalesforce.state["field_records"] = [
+            {"QualifiedApiName": "Name", "DataType": "Text(255)", "IsNillable": False, "IsCalculated": False, "RelationshipName": None, "ReferenceTo": None, "Length": 255, "Precision": None, "Scale": None, "IsIndexed": True},
+            {"QualifiedApiName": "Load__c", "DataType": "Picklist", "IsNillable": True, "IsCalculated": False, "RelationshipName": None, "ReferenceTo": None, "Length": 255, "Precision": None, "Scale": None, "IsIndexed": False},
+        ]
+
 
 class ProtocolAndSurface(FacadeHarness):
     def test_tool_surface_pin_and_handshake(self) -> None:
         responses, _ = self.roundtrip([self.initialize_message(), {"jsonrpc": "2.0", "id": 2, "method": "tools/list"}])
         init = next(r for r in responses if r["id"] == 1)
         self.assertEqual(init["result"]["protocolVersion"], "2025-06-18")
+        # Version pin (D11, 2026-08-18): 2.1.0 marks the 64/16 MiB bounded-streaming
+        # server; a live process still reporting 2.0.0 is stale and must be restarted.
+        self.assertEqual(init["result"]["serverInfo"]["version"], "2.1.0")
         tools = next(r for r in responses if r["id"] == 2)["result"]["tools"]
         # Read-only pin (plan par. 7 test 7): exactly these seven, no write handlers.
         self.assertEqual(
@@ -649,51 +705,6 @@ class ObjectContractAndDiagnostics(FacadeHarness):
         self.assertEqual(rest["indexed"], True)
         self.assertEqual(by_name["OwnerId"]["referenceTo"], ["User"])
 
-    @staticmethod
-    def large_account_describe(target_bytes: int) -> dict:
-        """A realistic oversized describe, generated in memory (never a committed fixture).
-
-        The bulk mirrors the live regression: a giant picklistValues collection that
-        normalization intentionally ignores. Field traits stay describe-shaped so the
-        normal merge path runs once the payload is accepted."""
-        describe = {
-            "name": "Account",
-            "fields": [
-                {"name": "Name", "type": "string", "nillable": False, "calculated": False, "relationshipName": None, "referenceTo": [], "length": 255, "precision": None, "scale": None, "unique": False, "externalId": False, "createable": True, "updateable": True},
-                {
-                    "name": "Load__c",
-                    "type": "picklist",
-                    "nillable": True,
-                    "calculated": False,
-                    "relationshipName": None,
-                    "referenceTo": [],
-                    "length": 255,
-                    "precision": None,
-                    "scale": None,
-                    "unique": False,
-                    "externalId": False,
-                    "createable": True,
-                    "updateable": True,
-                    "picklistValues": [],
-                },
-            ],
-        }
-        value = {"active": True, "defaultValue": False, "label": "Harness Load Value %07d", "value": "harness_load_value_%07d"}
-        overhead = len(json.dumps(value).encode()) + 10
-        count = max(1, (target_bytes - len(json.dumps(describe).encode())) // overhead)
-        describe["fields"][1]["picklistValues"] = [
-            {"active": True, "defaultValue": False, "label": f"Harness Load Value {i:07d}", "value": f"harness_load_value_{i:07d}"}
-            for i in range(count)
-        ]
-        return describe
-
-    def seed_two_field_tooling(self) -> None:
-        MockSalesforce.state["entity_records"] = [{"QualifiedApiName": "Account"}]
-        MockSalesforce.state["field_records"] = [
-            {"QualifiedApiName": "Name", "DataType": "Text(255)", "IsNillable": False, "IsCalculated": False, "RelationshipName": None, "ReferenceTo": None, "Length": 255, "Precision": None, "Scale": None, "IsIndexed": True},
-            {"QualifiedApiName": "Load__c", "DataType": "Picklist", "IsNillable": True, "IsCalculated": False, "RelationshipName": None, "ReferenceTo": None, "Length": 255, "Precision": None, "Scale": None, "IsIndexed": False},
-        ]
-
     def test_large_valid_describe_above_generic_cap_is_accepted(self) -> None:
         # Live regression pin (2026-08-11): Account describe of 2,102,565 bytes returned
         # HTTP 200 yet the generic 1 MiB vendor cap rejected it as REST_SCHEMA_MISMATCH
@@ -771,22 +782,60 @@ class ObjectContractAndDiagnostics(FacadeHarness):
 
 
 class LargeDescribePayloadBounds(FacadeHarness):
-    """The 8 MiB bound belongs to the object-describe supplement alone (2026-08-11).
+    """Endpoint-specific inbound bounds for the object-contract path only (2026-08-18).
 
-    Every other REST call keeps the generic maxVendorPayloadBytes policy cap, and an
-    oversized response is a payload-size failure (REST_PAYLOAD_TOO_LARGE), never the
-    false REST_SCHEMA_MISMATCH diagnosis the live Account regression produced."""
+    The full sObject describe accepts up to 64 MiB and each Tooling FieldDefinition
+    query page up to 16 MiB; every other REST call keeps the generic
+    maxVendorPayloadBytes policy cap. An oversized response is a payload-size failure
+    (REST_PAYLOAD_TOO_LARGE), never the false REST_SCHEMA_MISMATCH diagnosis the
+    original live Account regression produced, and larger inbound bounds never widen
+    the fixed 500-field, 480 KB result, or 1 MiB frame caps."""
 
-    def test_generic_rest_call_does_not_inherit_the_describe_bound(self) -> None:
-        # The Tooling FieldDefinition query is a non-describe REST call inside the same
-        # tool: above 1 MiB it must fail with the corrected payload classification.
+    def test_object_fields_above_generic_cap_below_16mib_is_accepted(self) -> None:
+        # A FieldDefinition page above the old generic 1 MiB cap (but under 16 MiB,
+        # 500 fields, and the result cap) must now produce the normal VERIFIED
+        # contract instead of a payload rejection.
         MockSalesforce.state["entity_records"] = [{"QualifiedApiName": "Account"}]
-        filler = "x" * 2048
         MockSalesforce.state["field_records"] = [
-            {"QualifiedApiName": f"F{i}__c", "DataType": f"Text(255){filler}", "IsNillable": True}
-            for i in range(600)
+            {
+                "QualifiedApiName": f"F{i:03d}__c",
+                "DataType": "Text(255)",
+                "IsNillable": True,
+                "IsCalculated": False,
+                "RelationshipName": None,
+                "ReferenceTo": None,
+                "Length": 255,
+                "Precision": None,
+                "Scale": None,
+                "IsIndexed": False,
+                "Filler": "x" * 8192,
+            }
+            for i in range(300)
         ]
-        self.assertGreater(len(json.dumps({"done": True, "records": MockSalesforce.state["field_records"]}).encode()), 1_048_576)
+        raw = len(json.dumps({"done": True, "records": MockSalesforce.state["field_records"]}).encode())
+        self.assertGreater(raw, 1_048_576)
+        self.assertLess(raw, 16 * 1024 * 1024)
+        responses, _ = self.roundtrip(
+            [self.initialize_message(), self.call(2, "review_object_contract", {"objectApiName": "Account"})]
+        )
+        envelope = self.envelope_of(responses, 2)
+        validate_salesforce_review_envelope(ROOT, envelope)
+        self.assertEqual(envelope["status"], "VERIFIED")
+        self.assertEqual(envelope["warnings"], [])
+        obj = envelope["facts"]["object"]
+        self.assertEqual(obj["fieldCount"], 300)
+        self.assertFalse(obj["truncated"])
+
+    def test_object_field_page_above_16mib_is_rejected(self) -> None:
+        # One Tooling page above 16 MiB stops at the stream boundary with the size
+        # classification — never a schema mismatch, never a widened bound.
+        MockSalesforce.state["entity_records"] = [{"QualifiedApiName": "Account"}]
+        MockSalesforce.state["field_records"] = [
+            {"QualifiedApiName": f"F{i:04d}__c", "DataType": "Text(255)", "Filler": "y" * 8192}
+            for i in range(2100)
+        ]
+        raw = len(json.dumps({"done": True, "records": MockSalesforce.state["field_records"]}).encode())
+        self.assertGreater(raw, 16 * 1024 * 1024)
         responses, _ = self.roundtrip(
             [self.initialize_message(), self.call(2, "review_object_contract", {"objectApiName": "Account"})]
         )
@@ -796,78 +845,84 @@ class LargeDescribePayloadBounds(FacadeHarness):
         self.assertEqual(envelope["warnings"], ["REST_PAYLOAD_TOO_LARGE"])
         self.assertNotIn("object", envelope.get("facts") or {})
 
-    def test_transport_enforces_explicit_and_default_bounds(self) -> None:
-        # Direct transport boundary (no 8 MiB fixture): the keyword-only override is
-        # authoritative when supplied, the policy cap applies otherwise, and the
-        # stderr diagnostic stays sanitized (operation label + byte counts only).
-        import io
-        from unittest.mock import patch
-        from scripts import salesforce_review_server as srv
+    def test_more_than_500_fields_still_returns_result_truncated(self) -> None:
+        # D10: larger response bytes never buy a larger semantic field contract.
+        MockSalesforce.state["entity_records"] = [{"QualifiedApiName": "Account"}]
+        MockSalesforce.state["field_records"] = [
+            {"QualifiedApiName": f"F{i:03d}__c", "DataType": "Text(255)", "IsNillable": True}
+            for i in range(501)
+        ]
+        responses, _ = self.roundtrip(
+            [self.initialize_message(), self.call(2, "review_object_contract", {"objectApiName": "Account"})]
+        )
+        envelope = self.envelope_of(responses, 2)
+        validate_salesforce_review_envelope(ROOT, envelope)
+        self.assertEqual(envelope["status"], "INCOMPLETE")
+        self.assertEqual(envelope["warnings"], ["RESULT_TRUNCATED"])
+        self.assertTrue(envelope["completeness"]["truncated"])
 
-        client = srv.RestClient.__new__(srv.RestClient)
-        client.runtime = {"policy": {"maxVendorPayloadBytes": 1_048_576}}
-        client.fail_closed = False
-        client.token = "t"
-        client._session = None
-        client._session_lock = threading.Lock()
+    def test_non_object_query_above_generic_cap_remains_rejected(self) -> None:
+        # D2: model-composed SOQL never inherits the enlarged object-contract bounds.
+        MockSalesforce.state["records"] = [
+            {"Id": f"001AA{i:010d}", "Payload__c": "z" * 4000} for i in range(300)
+        ]
+        raw = len(json.dumps({"done": True, "records": MockSalesforce.state["records"]}).encode())
+        self.assertGreater(raw, 1_048_576)
+        responses, _ = self.roundtrip(
+            [self.initialize_message(), self.call(2, "review_soql_query", {"query": "SELECT Id, Payload__c FROM Account"})]
+        )
+        envelope = self.envelope_of(responses, 2)
+        validate_salesforce_review_envelope(ROOT, envelope)
+        self.assertEqual(envelope["status"], "INCOMPLETE")
+        self.assertEqual(envelope["warnings"], ["REST_PAYLOAD_TOO_LARGE"])
 
-        class FakeResponse:
-            def __init__(self, content: bytes, status_code: int = 200):
-                self.content = content
-                self.status_code = status_code
+    def test_describe_above_old_8mib_bound_is_accepted_and_compacted(self) -> None:
+        # A ~9.5 MB describe (generated in memory, never a committed fixture) would
+        # have overflowed the previous 8 MiB bound; it must now normalize, and none
+        # of its raw picklist bulk may reach the agent-facing envelope.
+        self.seed_two_field_tooling()
+        describe = self.large_account_describe(9_500_000)
+        self.assertGreater(len(json.dumps(describe).encode()), 8 * 1024 * 1024)
+        MockSalesforce.state["describe"] = describe
+        responses, _ = self.roundtrip(
+            [self.initialize_message(), self.call(2, "review_object_contract", {"objectApiName": "Account"})]
+        )
+        envelope = self.envelope_of(responses, 2)
+        validate_salesforce_review_envelope(ROOT, envelope)
+        self.assertEqual(envelope["status"], "VERIFIED")
+        self.assertEqual(envelope["warnings"], [])
+        serialized = json.dumps(envelope)
+        self.assertNotIn("picklistValues", serialized)
+        self.assertNotIn("Harness Load Value", serialized)
+        self.assertLess(len(serialized.encode()), 480_000)
 
-            def json(self):
-                return json.loads(self.content)
-
-        big = json.dumps({"pad": "y" * 2000}).encode()
-        with patch.object(srv.RestClient, "_get", return_value=FakeResponse(big)):
-            captured = io.StringIO()
-            with patch.object(srv.sys, "stderr", captured):
-                with self.assertRaises(srv.ReviewError) as ctx:
-                    client.get_json("/x", max_payload_bytes=1000, operation="object-describe")
-            self.assertEqual(ctx.exception.code, "REST_PAYLOAD_TOO_LARGE")
-            self.assertEqual(ctx.exception.status, "INCOMPLETE")
-            diagnostic = captured.getvalue()
-            self.assertIn("operation=object-describe", diagnostic)
-            self.assertIn("limit=1000", diagnostic)
-            self.assertNotIn("Bearer", diagnostic)
-            self.assertNotIn("/x", diagnostic)
-            # Same payload passes when the explicit bound allows it.
-            self.assertEqual(client.get_json("/x", max_payload_bytes=10_000)["pad"], "y" * 2000)
-        oversized_default = json.dumps({"pad": "z" * 1_100_000}).encode()
-        with patch.object(srv.RestClient, "_get", return_value=FakeResponse(oversized_default)):
-            with self.assertRaises(srv.ReviewError) as ctx:
-                client.get_json("/x")
-            self.assertEqual(ctx.exception.code, "REST_PAYLOAD_TOO_LARGE")
-
-    def test_http_errors_under_the_bound_keep_their_classification(self) -> None:
-        from unittest.mock import patch
-        from scripts import salesforce_review_server as srv
-
-        client = srv.RestClient.__new__(srv.RestClient)
-        client.runtime = {"policy": {"maxVendorPayloadBytes": 1_048_576}}
-        client.fail_closed = False
-        client.token = "t"
-        client._session = None
-        client._session_lock = threading.Lock()
-
-        class FakeResponse:
-            def __init__(self, content: bytes, status_code: int):
-                self.content = content
-                self.status_code = status_code
-
-            def json(self):
-                return json.loads(self.content)
-
-        body = json.dumps([{"errorCode": "UNKNOWN_EXCEPTION"}]).encode()
-        with patch.object(srv.RestClient, "_get", return_value=FakeResponse(body, 500)):
-            with self.assertRaises(srv.ReviewError) as ctx:
-                client.get_json("/x", max_payload_bytes=8 * 1024 * 1024)
-            self.assertEqual(ctx.exception.code, "REST_SCHEMA_MISMATCH")
-        with patch.object(srv.RestClient, "_get", return_value=FakeResponse(body, 404)):
-            with self.assertRaises(srv.ReviewError) as ctx:
-                client.get_json("/x", max_payload_bytes=8 * 1024 * 1024)
-            self.assertEqual(ctx.exception.code, "REST_NOT_FOUND")
+    def test_object_contract_normalized_above_result_cap_keeps_output_failure(self) -> None:
+        # An inbound payload accepted under 16 MiB whose NORMALIZED contract exceeds
+        # 480,000 bytes must keep the existing output-size classification — inbound
+        # capacity never relabels or widens the agent-facing result cap.
+        MockSalesforce.state["entity_records"] = [{"QualifiedApiName": "Account"}]
+        MockSalesforce.state["field_records"] = [
+            {
+                "QualifiedApiName": f"Ref{i:03d}__c",
+                "DataType": "Lookup(User)",
+                "IsNillable": True,
+                "IsCalculated": False,
+                "RelationshipName": f"Ref{i:03d}__r",
+                "ReferenceTo": {"referenceTo": [f"Target_{i:03d}_{j:02d}_{'t' * 40}" for j in range(25)]},
+                "Length": None,
+                "Precision": None,
+                "Scale": None,
+                "IsIndexed": False,
+            }
+            for i in range(400)
+        ]
+        responses, _ = self.roundtrip(
+            [self.initialize_message(), self.call(2, "review_object_contract", {"objectApiName": "Account"})]
+        )
+        envelope = self.envelope_of(responses, 2)
+        validate_salesforce_review_envelope(ROOT, envelope)
+        self.assertEqual(envelope["status"], "INCOMPLETE")
+        self.assertEqual(envelope["warnings"], ["CLI_OUTPUT_TOO_LARGE"])
 
     def test_payload_warning_is_incomplete_class_never_blocking(self) -> None:
         from scripts import salesforce_review_server as srv
@@ -899,6 +954,421 @@ class LargeDescribePayloadBounds(FacadeHarness):
         envelope = self.envelope_of(responses, 2)
         self.assertEqual(envelope["status"], "INCOMPLETE")
         self.assertEqual(envelope["warnings"], ["CLI_OUTPUT_TOO_LARGE"])
+
+
+class FakeStreamResponse:
+    """A streaming requests.Response stand-in: decoded chunks, headers, close tracking."""
+
+    def __init__(self, content: bytes = b"", status_code: int = 200, headers: "dict | None" = None, chunk_size: int = 1024, explode_after: "int | None" = None):
+        self._content = content
+        self.status_code = status_code
+        self.headers = {k.title(): v for k, v in (headers or {}).items()}
+        self._chunk_size = chunk_size
+        self.closed = False
+        self.chunks_yielded = 0
+        self._explode_after = explode_after
+
+    def iter_content(self, chunk_size: int = 65_536):
+        for start in range(0, len(self._content), self._chunk_size):
+            if self._explode_after is not None and self.chunks_yielded >= self._explode_after:
+                raise RuntimeError("unexpected mid-body failure")
+            self.chunks_yielded += 1
+            yield self._content[start:start + self._chunk_size]
+
+    def close(self):
+        self.closed = True
+
+
+class BoundedStreamingTransport(unittest.TestCase):
+    """D3/D4: bounds count decoded bytes via a bounded streaming read (limit + 1),
+    the response is closed on every exit path, and diagnostics stay sanitized."""
+
+    def make_client(self):
+        from scripts import salesforce_review_server as srv
+
+        client = srv.RestClient.__new__(srv.RestClient)
+        client.runtime = {"policy": {"maxVendorPayloadBytes": 1_048_576}}
+        client.fail_closed = False
+        client.token = "t"
+        client._session = srv.requests.Session()
+        self.addCleanup(client._session.close)
+        client._session_lock = threading.Lock()
+        client._refresh_lock = threading.Lock()
+        return client
+
+    def get_with(self, response, **kwargs):
+        from unittest.mock import patch
+        from scripts import salesforce_review_server as srv
+
+        client = self.make_client()
+        with patch.object(srv.RestClient, "_get", return_value=response):
+            return client.get_json("/x", **kwargs)
+
+    def assert_rejected(self, response, code: str, **kwargs):
+        from unittest.mock import patch
+        from scripts import salesforce_review_server as srv
+
+        client = self.make_client()
+        with patch.object(srv.RestClient, "_get", return_value=response):
+            with self.assertRaises(srv.ReviewError) as ctx:
+                client.get_json("/x", **kwargs)
+        self.assertEqual(ctx.exception.code, code)
+        self.assertTrue(response.closed, "the response must be closed on every exit path")
+        return ctx.exception
+
+    def test_body_exactly_at_the_bound_succeeds(self) -> None:
+        body = json.dumps({"pad": "y" * 480}).encode()
+        response = FakeStreamResponse(body, chunk_size=100)
+        parsed = self.get_with(response, max_payload_bytes=len(body), operation="object-describe")
+        self.assertEqual(parsed["pad"], "y" * 480)
+        self.assertTrue(response.closed)
+
+    def test_body_at_bound_plus_one_is_rejected_and_stops_consuming(self) -> None:
+        import io
+        from unittest.mock import patch
+        from scripts import salesforce_review_server as srv
+
+        body = json.dumps({"pad": "y" * 100_000}).encode()
+        response = FakeStreamResponse(body, chunk_size=1000)
+        captured = io.StringIO()
+        with patch.object(srv.sys, "stderr", captured):
+            error = self.assert_rejected(response, "REST_PAYLOAD_TOO_LARGE", max_payload_bytes=len(body) - 1)
+        self.assertEqual(error.status, "INCOMPLETE")
+        # Overflow is detected on the crossing chunk; nothing further is consumed.
+        self.assertEqual(response.chunks_yielded, len(body) // 1000 + (1 if len(body) % 1000 else 0))
+        diagnostic = captured.getvalue()
+        self.assertIn("operation=generic", diagnostic)
+        self.assertIn(f"limit={len(body) - 1}", diagnostic)
+        self.assertNotIn("Bearer", diagnostic)
+        self.assertNotIn("/x", diagnostic)
+        self.assertNotIn("pad", diagnostic, "no body fragment may reach the diagnostic")
+
+    def test_overflow_early_in_a_large_body_stops_at_the_boundary(self) -> None:
+        body = b"[" + b"1," * 200_000 + b"1]"
+        response = FakeStreamResponse(body, chunk_size=1000)
+        self.assert_rejected(response, "REST_PAYLOAD_TOO_LARGE", max_payload_bytes=10_000)
+        self.assertLessEqual(response.chunks_yielded, 11, "consumption must stop at limit + 1, not read the tail")
+
+    def test_honest_identity_content_length_rejects_without_reading(self) -> None:
+        body = json.dumps({"pad": "y" * 5000}).encode()
+        response = FakeStreamResponse(body, headers={"Content-Length": str(len(body))})
+        self.assert_rejected(response, "REST_PAYLOAD_TOO_LARGE", max_payload_bytes=1000)
+        self.assertEqual(response.chunks_yielded, 0, "an honest oversized header must reject before any body chunk")
+
+    def test_encoded_content_length_is_ignored_for_admission(self) -> None:
+        # A gzip transfer's Content-Length describes compressed bytes; admission must
+        # come from counting the decoded stream, so a small decoded body passes even
+        # under a huge header, and an oversized decoded body still fails.
+        body = json.dumps({"pad": "ok"}).encode()
+        response = FakeStreamResponse(body, headers={"Content-Length": "999999999", "Content-Encoding": "gzip"})
+        parsed = self.get_with(response, max_payload_bytes=1000)
+        self.assertEqual(parsed["pad"], "ok")
+        oversized = FakeStreamResponse(json.dumps({"pad": "z" * 5000}).encode(), headers={"Content-Length": "10", "Content-Encoding": "gzip"})
+        self.assert_rejected(oversized, "REST_PAYLOAD_TOO_LARGE", max_payload_bytes=1000)
+
+    def test_missing_malformed_or_lying_content_length_still_counts_the_stream(self) -> None:
+        for headers in (None, {"Content-Length": "abc"}, {"Content-Length": "10"}):
+            oversized = FakeStreamResponse(json.dumps({"pad": "z" * 5000}).encode(), headers=headers)
+            self.assert_rejected(oversized, "REST_PAYLOAD_TOO_LARGE", max_payload_bytes=1000)
+
+    def test_default_bound_is_the_generic_policy_cap(self) -> None:
+        oversized_default = FakeStreamResponse(json.dumps({"pad": "z" * 1_100_000}).encode(), chunk_size=65_536)
+        self.assert_rejected(oversized_default, "REST_PAYLOAD_TOO_LARGE")
+
+    def test_invalid_utf8_below_the_bound_is_a_schema_failure(self) -> None:
+        response = FakeStreamResponse(b'{"pad": "\xff\xfe"}')
+        self.assert_rejected(response, "REST_SCHEMA_MISMATCH", max_payload_bytes=1000)
+
+    def test_invalid_json_and_non_object_top_level_are_schema_failures(self) -> None:
+        self.assert_rejected(FakeStreamResponse(b'{"pad": '), "REST_SCHEMA_MISMATCH", max_payload_bytes=1000)
+        self.assert_rejected(FakeStreamResponse(b"[1, 2, 3]"), "REST_SCHEMA_MISMATCH", max_payload_bytes=1000)
+
+    def test_http_errors_under_the_bound_keep_their_classification(self) -> None:
+        body = json.dumps([{"errorCode": "UNKNOWN_EXCEPTION"}]).encode()
+        self.assert_rejected(FakeStreamResponse(body, status_code=500), "REST_SCHEMA_MISMATCH", max_payload_bytes=64 * 1024 * 1024)
+        self.assert_rejected(FakeStreamResponse(body, status_code=404), "REST_NOT_FOUND", max_payload_bytes=64 * 1024 * 1024)
+
+    def test_unexpected_mid_body_exception_still_closes_the_response(self) -> None:
+        from unittest.mock import patch
+        from scripts import salesforce_review_server as srv
+
+        client = self.make_client()
+        response = FakeStreamResponse(b"x" * 5000, chunk_size=1000, explode_after=2)
+        with patch.object(srv.RestClient, "_get", return_value=response):
+            with self.assertRaises(RuntimeError):
+                client.get_json("/x", max_payload_bytes=1_000_000)
+        self.assertTrue(response.closed)
+
+    def test_401_short_circuits_closed_without_consuming_the_body(self) -> None:
+        from unittest.mock import patch
+        from scripts import salesforce_review_server as srv
+
+        client = self.make_client()
+        response = FakeStreamResponse(b'{"never": "read"}', status_code=401)
+        with patch.object(srv.RestClient, "_get", return_value=response):
+            status, body = client._fetch_bounded("/x", None, 30, 1000, "generic")
+        self.assertEqual((status, body), (401, b""))
+        self.assertEqual(response.chunks_yielded, 0)
+        self.assertTrue(response.closed)
+
+    def test_connection_error_rebuilds_the_pool_and_retries_exactly_once(self) -> None:
+        from unittest.mock import patch
+        from scripts import salesforce_review_server as srv
+
+        ok = FakeStreamResponse(json.dumps({"pad": "ok"}).encode())
+        with patch.object(
+            srv.RestClient, "_get", side_effect=[srv.requests.exceptions.ConnectionError("dead pool"), ok]
+        ) as mocked:
+            client = self.make_client()
+            self.assertEqual(client.get_json("/x")["pad"], "ok")
+        self.assertEqual(mocked.call_count, 2)
+        with patch.object(
+            srv.RestClient,
+            "_get",
+            side_effect=[srv.requests.exceptions.ConnectionError("a"), srv.requests.exceptions.ConnectionError("b")],
+        ) as mocked:
+            client = self.make_client()
+            with self.assertRaises(srv.ReviewError) as ctx:
+                client.get_json("/x")
+        self.assertEqual(ctx.exception.code, "REST_UNAVAILABLE")
+        self.assertEqual(mocked.call_count, 2, "the pool rebuild retry stays bounded to one replay")
+
+    def test_read_timeout_is_never_retried(self) -> None:
+        from unittest.mock import patch
+        from scripts import salesforce_review_server as srv
+
+        with patch.object(srv.RestClient, "_get", side_effect=srv.requests.exceptions.ReadTimeout("slow")) as mocked:
+            client = self.make_client()
+            with self.assertRaises(srv.ReviewError) as ctx:
+                client.get_json("/x")
+        self.assertEqual(ctx.exception.code, "REST_TIMEOUT")
+        self.assertEqual(mocked.call_count, 1)
+
+
+class ScaledBoundsConstants(unittest.TestCase):
+    """D1/D2/D9/D10/D11: the exact production constants, pinned in isolation."""
+
+    def test_endpoint_specific_constants_are_exact(self) -> None:
+        from scripts import salesforce_review_server as srv
+
+        self.assertEqual(srv.MAX_DESCRIBE_PAYLOAD_BYTES, 64 * 1024 * 1024)
+        self.assertEqual(srv.MAX_OBJECT_FIELDS_PAYLOAD_BYTES, 16 * 1024 * 1024)
+
+    def test_generic_policy_and_output_caps_are_unchanged(self) -> None:
+        from scripts import salesforce_review_server as srv
+
+        policy = json.loads((ROOT / "config" / "salesforce-review-policy.json").read_text(encoding="utf-8"))
+        self.assertEqual(policy["maxVendorPayloadBytes"], 1_048_576)
+        schema = json.loads((ROOT / "schemas" / "salesforce-review-policy.schema.json").read_text(encoding="utf-8"))
+        self.assertEqual(schema["properties"]["maxVendorPayloadBytes"]["maximum"], 1_048_576)
+        self.assertEqual(srv.MAX_RESULT_BYTES, 480_000)
+        self.assertEqual(srv.MAX_OUTER_MESSAGE_BYTES, 1_048_576)
+
+    def test_server_version_is_bumped_for_stale_process_detection(self) -> None:
+        from scripts import salesforce_review_server as srv
+
+        self.assertEqual(srv.SERVER_VERSION, "2.1.0")
+
+    def test_field_query_limit_sentinel_is_fixed(self) -> None:
+        from scripts import salesforce_review_server as srv
+
+        self.assertTrue(srv.EXPECTED_QUERIES["objectFields"].endswith("LIMIT 501"))
+
+
+class StubRest:
+    """Duck-typed RestClient stand-in recording every bound/operation it receives."""
+
+    def __init__(self, field_rows=None, describe=None):
+        self.calls: "list[dict]" = []
+        self.field_rows = field_rows or []
+        self.describe = describe if describe is not None else {"fields": []}
+        self.describe_started = threading.Event()
+        self.describe_hold: "threading.Event | None" = None
+        self.describe_delay = 0.0
+        self.describe_windows: "list[tuple[float, float]]" = []
+        self.fail_query_with: "Exception | None" = None
+        self._lock = threading.Lock()
+
+    def query(self, soql, use_tooling, budget_seconds=45, max_rows=2000, *, max_payload_bytes=None, operation="generic"):
+        with self._lock:
+            self.calls.append({"kind": "query", "soql": soql, "max_payload_bytes": max_payload_bytes, "operation": operation})
+        if self.fail_query_with is not None:
+            raise self.fail_query_with
+        if "FROM EntityDefinition" in soql:
+            return {"records": [{"QualifiedApiName": "Account"}], "truncated": False}
+        return {"records": list(self.field_rows), "truncated": False}
+
+    def get_json(self, path, params=None, read_timeout=30, *, max_payload_bytes=None, operation="generic"):
+        with self._lock:
+            self.calls.append({"kind": "get_json", "path": path, "max_payload_bytes": max_payload_bytes, "operation": operation})
+        if "/describe/" in path:
+            start = time.monotonic()
+            self.describe_started.set()
+            if self.describe_hold is not None:
+                self.describe_hold.wait(timeout=10)
+            if self.describe_delay:
+                time.sleep(self.describe_delay)
+            with self._lock:
+                self.describe_windows.append((start, time.monotonic()))
+            return json.loads(json.dumps(self.describe))
+        return {"DailyApiRequests": {"Max": 100000, "Remaining": 99999}}
+
+
+class ObjectContractWiringAndConcurrency(unittest.TestCase):
+    """D6/D7/D8 at the handler level: exact bound wiring, one-at-a-time raw describe,
+    and immediate compaction of describe rows to the consumed trait set."""
+
+    def make_server(self, stub: StubRest):
+        from scripts import salesforce_review_server as srv
+
+        runtime = {
+            "alias": "devsb",
+            "entry": {"environment": "development"},
+            "review": {"apiVersion": "64.0", "maxFieldsPerObject": 500},
+            "allowed_objects": {"*"},
+            "allowed_namespaces": {"*"},
+            "policy": {"maxVendorPayloadBytes": 1_048_576},
+        }
+        server = srv.Server(runtime)
+        server.rest = stub
+        server.proof = {"expectedHostMatched": True, "expectedOrgIdMatched": True, "isSandbox": True, "nonProduction": True}
+        server.cli_source = {"kind": "salesforce-cli", "version": "@salesforce/cli/2.146.3", "complete": True, "retrievedAt": "2026-08-18T00:00:00Z"}
+        return srv, server
+
+    def tooling_row(self, name: str) -> dict:
+        return {"QualifiedApiName": name, "DataType": "Text(255)", "IsNillable": True, "IsCalculated": False, "RelationshipName": None, "ReferenceTo": None, "Length": 255, "Precision": None, "Scale": None, "IsIndexed": False}
+
+    def test_only_the_two_fixed_object_calls_use_the_enlarged_bounds(self) -> None:
+        stub = StubRest(
+            field_rows=[self.tooling_row("Name")],
+            describe={"fields": [{"name": "Name", "type": "string", "nillable": True, "calculated": False, "relationshipName": None, "referenceTo": [], "length": 255, "precision": None, "scale": None, "unique": False, "externalId": False, "createable": True, "updateable": True, "picklistValues": [{"value": "raw-must-not-leak"}], "childRelationships": ["raw"]}]},
+        )
+        srv, server = self.make_server(stub)
+        envelope = srv.review_object_contract(server, {"objectApiName": "Account"})
+        self.assertEqual(envelope["status"], "VERIFIED")
+        by_kind = {}
+        for call in stub.calls:
+            if call["kind"] == "query" and "FROM EntityDefinition" in call["soql"]:
+                by_kind["entity"] = call
+            elif call["kind"] == "query":
+                by_kind["fields"] = call
+            else:
+                by_kind["describe"] = call
+        self.assertIsNone(by_kind["entity"]["max_payload_bytes"], "the entity lookup stays generic")
+        self.assertEqual(by_kind["entity"]["operation"], "generic")
+        self.assertEqual(by_kind["fields"]["max_payload_bytes"], srv.MAX_OBJECT_FIELDS_PAYLOAD_BYTES)
+        self.assertEqual(by_kind["fields"]["operation"], "object-fields")
+        self.assertEqual(by_kind["describe"]["max_payload_bytes"], srv.MAX_DESCRIBE_PAYLOAD_BYTES)
+        self.assertEqual(by_kind["describe"]["operation"], "object-describe")
+        serialized = json.dumps(envelope)
+        self.assertNotIn("raw-must-not-leak", serialized)
+        self.assertNotIn("picklistValues", serialized)
+        self.assertNotIn("childRelationships", serialized)
+
+    def test_query_propagates_the_bound_to_every_pagination_page(self) -> None:
+        from scripts import salesforce_review_server as srv
+
+        client = srv.RestClient.__new__(srv.RestClient)
+        client.api_version = "64.0"
+        pages = [
+            {"records": [{"n": 1}], "done": False, "nextRecordsUrl": "/services/data/v64.0/query/01g-1"},
+            {"records": [{"n": 2}], "done": True},
+        ]
+        calls = []
+
+        def fake_get_json(path, params=None, read_timeout=30, *, max_payload_bytes=None, operation="generic"):
+            calls.append({"path": path, "max_payload_bytes": max_payload_bytes, "operation": operation})
+            return pages[len(calls) - 1]
+
+        client.get_json = fake_get_json
+        result = srv.RestClient.query(
+            client, "SELECT X FROM Y", True, max_payload_bytes=srv.MAX_OBJECT_FIELDS_PAYLOAD_BYTES, operation="object-fields"
+        )
+        self.assertEqual(len(result["records"]), 2)
+        self.assertEqual(len(calls), 2, "initial page plus one nextRecordsUrl page")
+        for call in calls:
+            self.assertEqual(call["max_payload_bytes"], srv.MAX_OBJECT_FIELDS_PAYLOAD_BYTES)
+            self.assertEqual(call["operation"], "object-fields")
+        calls.clear()
+        pages[0] = {"records": [{"n": 1}], "done": True}
+        srv.RestClient.query(client, "SELECT X FROM Y", True)
+        self.assertEqual(calls, [{"path": "/services/data/v64.0/tooling/query/", "max_payload_bytes": None, "operation": "generic"}])
+
+    def test_compaction_projects_exactly_the_consumed_traits(self) -> None:
+        from scripts import salesforce_review_server as srv
+
+        raw = {
+            "name": "Load__c",
+            "type": "picklist",
+            "nillable": True,
+            "calculated": False,
+            "relationshipName": None,
+            "referenceTo": [],
+            "length": 255,
+            "precision": None,
+            "scale": None,
+            "unique": False,
+            "externalId": False,
+            "createable": True,
+            "updateable": True,
+            "picklistValues": [{"value": "x"} for _ in range(1000)],
+            "label": "unused",
+            "inlineHelpText": "unused",
+        }
+        compact = srv.compact_describe_field(raw)
+        self.assertEqual(
+            set(compact),
+            {"typeFamily", "nillable", "calculated", "relationshipName", "referenceTo", "length", "precision", "scale", "unique", "externalId", "createable", "updateable", "dataType"},
+        )
+        self.assertEqual(compact["typeFamily"], "picklist")
+        self.assertEqual(compact["dataType"], "picklist")
+
+    def test_two_object_contracts_never_overlap_the_high_memory_section(self) -> None:
+        stub = StubRest(field_rows=[self.tooling_row("Name")], describe={"fields": []})
+        stub.describe_delay = 0.25
+        srv, server = self.make_server(stub)
+        results = []
+
+        def worker():
+            results.append(srv.review_object_contract(server, {"objectApiName": "Account"}))
+
+        threads = [threading.Thread(target=worker) for _ in range(2)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=15)
+        self.assertEqual(len(results), 2)
+        self.assertEqual({envelope["status"] for envelope in results}, {"VERIFIED"})
+        (a_start, a_end), (b_start, b_end) = sorted(stub.describe_windows)
+        self.assertGreaterEqual(b_start, a_end, "raw describe sections must be serialized, never concurrent")
+
+    def test_exception_releases_the_object_contract_lock(self) -> None:
+        from scripts import salesforce_review_server as srv
+
+        stub = StubRest()
+        stub.fail_query_with = srv.ReviewError("REST_TIMEOUT", "INCOMPLETE")
+        _, server = self.make_server(stub)
+        with self.assertRaises(srv.ReviewError):
+            srv.review_object_contract(server, {"objectApiName": "Account"})
+        acquired = server.object_contract_lock.acquire(timeout=1)
+        self.assertTrue(acquired, "a failing contract must release the serialization lock")
+        server.object_contract_lock.release()
+
+    def test_non_object_tools_run_while_a_contract_holds_the_lock(self) -> None:
+        stub = StubRest(field_rows=[self.tooling_row("Name")], describe={"fields": []})
+        stub.describe_hold = threading.Event()
+        srv, server = self.make_server(stub)
+        contract_thread = threading.Thread(target=srv.review_object_contract, args=(server, {"objectApiName": "Account"}))
+        contract_thread.start()
+        try:
+            self.assertTrue(stub.describe_started.wait(timeout=5))
+            limits = srv.org_limits(server)
+            self.assertEqual(limits["limits"]["DailyApiRequests"]["Remaining"], 99999)
+            self.assertTrue(contract_thread.is_alive(), "org_limits completed while the contract still held its lock")
+        finally:
+            stub.describe_hold.set()
+            contract_thread.join(timeout=10)
+        self.assertFalse(contract_thread.is_alive())
 
 
 if __name__ == "__main__":

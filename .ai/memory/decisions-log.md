@@ -1554,3 +1554,35 @@ Gate: 690 unit tests OK in ~87 s, 43 safety evals PASS, validate_harness coheren
   may still yield `CLI_OUTPUT_TOO_LARGE`).
 - Approved by: owner (frozen decisions D1–D7, 2026-08-11,
   MASTER-PLAN-FIX-LARGE-OBJECT-CONTRACT-DESCRIBE.md)
+
+## 2026-08-18 — object-contract inbound bounds scaled to 64/16 MiB with bounded streaming
+
+- Decision: the full sObject describe bound scales from 8 MiB to a code-owned
+  `MAX_DESCRIBE_PAYLOAD_BYTES = 64 MiB`, and the Tooling `FieldDefinition` query used by
+  `review_object_contract` gets its own `MAX_OBJECT_FIELDS_PAYLOAD_BYTES = 16 MiB` applied
+  to the initial page and every `nextRecordsUrl` page. Response bodies are now acquired by
+  a bounded streaming read (`RestClient._fetch_bounded`): decoded bytes are counted, at
+  most limit+1 bytes accumulate, an identity-encoded `Content-Length` above the limit
+  rejects early (encoded transfers ignore the header for admission), and the response is
+  closed on every exit path. `review_object_contract` construction is serialized by a
+  server-owned lock so at most ONE raw multi-MiB describe exists at a time (other tools
+  keep pool concurrency), and describe fields are compacted immediately to the consumed
+  trait set (`compact_describe_field`) with the raw document released before envelope
+  construction. `SERVER_VERSION` 2.0.0 → 2.1.0 so stale MCP processes are visible.
+- Unchanged on purpose: generic `maxVendorPayloadBytes` 1,048,576 (policy + schema
+  maximum), `MAX_RESULT_BYTES` 480,000, `MAX_OUTER_MESSAGE_BYTES` 1,048,576,
+  `maxFieldsPerObject` 500 with the fixed `LIMIT 501` sentinel, tool surface/schemas,
+  retry semantics (single 401 refresh + re-proof, single pool rebuild, no timeout retry),
+  and warning classification (overflow is `REST_PAYLOAD_TOO_LARGE`, never
+  `REST_SCHEMA_MISMATCH`; downstream `RESULT_TRUNCATED`/`CLI_OUTPUT_TOO_LARGE` keep their
+  meanings). No config key, cache, field paging, selectors, or new tool.
+- Why: very large objects can exceed 8 MiB for describe-only structures the contract
+  discards (picklists, relationships), and the field query inherited the generic 1 MiB
+  cap despite belonging to the same bounded operation. Diagnostic gate 2026-08-18: the
+  live `devmp` Account fixture returned `VERIFIED` on the checked-out 2.0.0 server (the
+  original size defect did NOT reproduce); the enhancement is capacity, not a live fix.
+  Live pilot on 2.1.0: `VERIFIED`, describe 2,102,565 decoded bytes under the 64 MiB
+  bound, one object-fields page of 25,894 bytes under 16 MiB, 96 fields, 33,148-byte
+  envelope, tool time ~1.1 s — byte-identical facts to the 2.0.0 run.
+- Approved by: owner (fixed decisions D1–D12, 2026-08-17,
+  MASTER-PLAN-SCALE-LARGE-OBJECT-CONTRACT-64-16.md)

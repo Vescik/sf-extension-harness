@@ -86,19 +86,24 @@ POLICY_PATH = (
 )
 
 PROTOCOL_VERSION = "2025-06-18"
-SERVER_VERSION = "2.0.0"
+SERVER_VERSION = "2.1.0"
 SCHEMA_VERSION = 2
 
 MAX_OUTER_MESSAGE_BYTES = 1_048_576
 # Below half the outer cap: an envelope is embedded twice in a tools/call response
 # (content[0].text and structuredContent) and must fit twice plus framing.
 MAX_RESULT_BYTES = 480_000
-# Endpoint-specific inbound bound for the full sObject describe supplement only (owner
-# decision 2026-08-11): a real Account describe measured 2,102,565 bytes while its
-# normalized contract was 33 KiB, so the generic maxVendorPayloadBytes policy cap stays
-# authoritative for every other REST call. Code-owned on purpose — not a config key.
-# Worst-case raw buffer exposure is THREAD_POOL_SIZE * this value before parse overhead.
-MAX_DESCRIBE_PAYLOAD_BYTES = 8 * 1024 * 1024
+# Endpoint-specific INBOUND bounds for the two fixed object-contract reads only (owner
+# decision 2026-08-11, scaled 2026-08-18): a real Account describe measured 2,102,565
+# bytes while its normalized contract was 33 KiB — large raw input never authorizes a
+# larger agent-facing result (MAX_RESULT_BYTES / MAX_OUTER_MESSAGE_BYTES are fixed
+# output caps and stay unchanged). The generic maxVendorPayloadBytes policy cap stays
+# authoritative for every other REST call. Code-owned on purpose — not config keys.
+# These are ceilings, not buffers: the body is streamed and counted, at most limit+1
+# bytes accumulate, and only ONE object-contract build may hold a raw describe at a
+# time (see Server._object_contract_lock), so worst-case raw exposure is one document.
+MAX_DESCRIBE_PAYLOAD_BYTES = 64 * 1024 * 1024
+MAX_OBJECT_FIELDS_PAYLOAD_BYTES = 16 * 1024 * 1024
 CONNECT_TIMEOUT_SECONDS = 10
 READ_TIMEOUT_SECONDS = 30
 CLI_TIMEOUT_SECONDS = 60
@@ -424,14 +429,72 @@ class RestClient:
         session.mount("http://", adapter)
         return session
 
-    def _get(self, path: str, params: "dict | None", read_timeout: int) -> requests.Response:
+    def _get(
+        self, path: str, params: "dict | None", read_timeout: int, *, stream: bool = False
+    ) -> requests.Response:
         url = path if path.startswith("http") else f"{self.base}{path}"
         return self._session.get(
             url,
             params=params,
             headers={"Authorization": f"Bearer {self.token}", "Accept": "application/json"},
             timeout=(CONNECT_TIMEOUT_SECONDS, read_timeout),
+            stream=stream,
         )
+
+    def _fetch_bounded(
+        self, path: str, params: "dict | None", read_timeout: int, limit: int, operation: str
+    ) -> "tuple[int, bytes]":
+        """Issue one GET and stream at most `limit + 1` DECODED body bytes.
+
+        The bound counts bytes made available for JSON decoding (after HTTP content
+        decoding), so Content-Length is only an early-rejection hint and only when the
+        response carries no Content-Encoding — for gzip/deflate the header describes the
+        transfer, not the representation being counted. The response is closed on every
+        exit path. Diagnostics carry ONLY the fixed operation label, byte counts, the
+        selected limit, and the HTTP status — never bodies, headers, URLs, or identity.
+
+        Returns (status_code, decoded_body). A 401 short-circuits with an empty body so
+        the caller owns the single refresh/replay decision; overflow raises
+        REST_PAYLOAD_TOO_LARGE before further chunks are consumed. Size is checked
+        before the 404/HTTP-error classification, matching the pre-streaming order.
+        """
+        response = self._get(path, params, read_timeout, stream=True)
+        try:
+            if response.status_code == 401:
+                return 401, b""
+            declared = str(response.headers.get("Content-Length") or "")
+            if not response.headers.get("Content-Encoding") and declared.isdigit() and int(declared) > limit:
+                log(
+                    f"rest payload too large: operation={operation} "
+                    f"bytes={int(declared)} limit={limit} http={response.status_code}"
+                )
+                raise ReviewError("REST_PAYLOAD_TOO_LARGE", "INCOMPLETE")
+            chunks: "list[bytes]" = []
+            received = 0
+            for chunk in response.iter_content(chunk_size=65_536):
+                if not chunk:
+                    continue
+                keep = limit + 1 - received
+                chunks.append(chunk[:keep])
+                received += min(len(chunk), keep)
+                if received > limit:
+                    log(
+                        f"rest payload too large: operation={operation} "
+                        f"bytes={received} limit={limit} http={response.status_code}"
+                    )
+                    raise ReviewError("REST_PAYLOAD_TOO_LARGE", "INCOMPLETE")
+            if response.status_code == 404:
+                raise ReviewError("REST_NOT_FOUND", "INCOMPLETE")
+            if response.status_code >= 400:
+                raise ReviewError("REST_SCHEMA_MISMATCH", "INCOMPLETE")
+            if operation != "generic":
+                log(
+                    f"rest payload: operation={operation} "
+                    f"bytes={received} limit={limit} http={response.status_code}"
+                )
+            return response.status_code, b"".join(chunks)
+        finally:
+            response.close()
 
     def get_json(
         self,
@@ -444,13 +507,18 @@ class RestClient:
     ) -> dict:
         if self.fail_closed:
             raise ReviewError("IDENTITY_ORG_ID_MISMATCH")
+        limit = max_payload_bytes or self.runtime["policy"]["maxVendorPayloadBytes"]
         attempt = 0
         while True:
             attempt += 1
             session_used = self._session
             token_used = self.token
             try:
-                response = self._get(path, params, read_timeout)
+                # Body streaming happens inside the same try: with preloading removed,
+                # mid-body failures surface from iter_content wrapped in the SAME
+                # requests exception classes send() used to raise, so classification
+                # and the single connection-rebuild retry are unchanged.
+                status, body = self._fetch_bounded(path, params, read_timeout, limit, operation)
             except requests.exceptions.ConnectTimeout:
                 raise ReviewError("REST_UNAVAILABLE", "INCOMPLETE")
             except requests.exceptions.ReadTimeout:
@@ -471,27 +539,16 @@ class RestClient:
                 continue
             except requests.exceptions.RequestException:
                 raise ReviewError("REST_UNAVAILABLE", "INCOMPLETE")
-            if response.status_code == 401:
+            if status == 401:
                 if attempt > 1:
                     raise ReviewError("REST_UNAVAILABLE", "INCOMPLETE")
                 self._refresh_token_and_reprove(token_used)
                 continue
-            limit = max_payload_bytes or self.runtime["policy"]["maxVendorPayloadBytes"]
-            if len(response.content) > limit:
-                # Sanitized on purpose: fixed operation label and byte counts only —
-                # never headers, bodies, URLs, org ids, or tokens.
-                log(
-                    f"rest payload too large: operation={operation} "
-                    f"bytes={len(response.content)} limit={limit} http={response.status_code}"
-                )
-                raise ReviewError("REST_PAYLOAD_TOO_LARGE", "INCOMPLETE")
-            if response.status_code == 404:
-                raise ReviewError("REST_NOT_FOUND", "INCOMPLETE")
-            if response.status_code >= 400:
-                raise ReviewError("REST_SCHEMA_MISMATCH", "INCOMPLETE")
             try:
-                parsed = response.json()
-            except ValueError:
+                parsed = json.loads(body.decode("utf-8"))
+            except (UnicodeDecodeError, ValueError):
+                raise ReviewError("REST_SCHEMA_MISMATCH", "INCOMPLETE")
+            if not isinstance(parsed, dict):
                 raise ReviewError("REST_SCHEMA_MISMATCH", "INCOMPLETE")
             return parsed
 
@@ -556,6 +613,9 @@ class RestClient:
         use_tooling: bool,
         budget_seconds: int = 45,
         max_rows: int = MAX_SOQL_ROWS,
+        *,
+        max_payload_bytes: "int | None" = None,
+        operation: str = "generic",
     ) -> dict:
         # One cumulative deadline for the WHOLE call, pagination included: giving each
         # nextRecordsUrl page a fresh read budget would let two slow pages blow the
@@ -569,15 +629,23 @@ class RestClient:
             return min(left, READ_TIMEOUT_SECONDS + 10)
 
         prefix = "tooling/" if use_tooling else ""
+        # An explicit per-response-page bound (only the fixed object-field profile sets
+        # one) applies identically to the initial page and every nextRecordsUrl page.
         payload = self.get_json(
-            f"/services/data/v{self.api_version}/{prefix}query/", {"q": soql}, remaining()
+            f"/services/data/v{self.api_version}/{prefix}query/",
+            {"q": soql},
+            remaining(),
+            max_payload_bytes=max_payload_bytes,
+            operation=operation,
         )
         records = list(payload.get("records") or [])
         # Strictly-less-than: a page landing exactly on the cap with done=false already
         # proves truncation - fetching one more page would be provably redundant work.
         while payload.get("done") is False and payload.get("nextRecordsUrl") and len(records) < max_rows:
             next_path = str(payload["nextRecordsUrl"])
-            payload = self.get_json(next_path, None, remaining())
+            payload = self.get_json(
+                next_path, None, remaining(), max_payload_bytes=max_payload_bytes, operation=operation
+            )
             records.extend(payload.get("records") or [])
         truncated = payload.get("done") is False or len(records) > max_rows
         return {"records": records[:max_rows], "truncated": truncated}
@@ -897,12 +965,45 @@ def review_installed_packages(server: "Server") -> dict:
     )
 
 
+def compact_describe_field(row: dict) -> dict:
+    """Project one raw describe field to ONLY the traits the contract consumes.
+
+    Applied to each field the moment the describe document is parsed so the raw rows
+    (giant picklistValues arrays, child relationships, labels, URLs, help text, ...)
+    become unreachable before any further construction — the raw describe is never
+    retained beyond this projection."""
+    return {
+        "typeFamily": describe_type_family(row.get("type")) if row.get("type") else None,
+        "nillable": bool_or_null(row.get("nillable")),
+        "calculated": bool_or_null(row.get("calculated")),
+        "relationshipName": safe_string(row["relationshipName"], 80) if row.get("relationshipName") else None,
+        "referenceTo": reference_list(row.get("referenceTo")),
+        "length": int_or_null(row.get("length")),
+        "precision": int_or_null(row.get("precision")),
+        "scale": int_or_null(row.get("scale")),
+        "unique": bool_or_null(row.get("unique")),
+        "externalId": bool_or_null(row.get("externalId")),
+        "createable": bool_or_null(row.get("createable")),
+        "updateable": bool_or_null(row.get("updateable")),
+        "dataType": safe_string(row.get("type"), 80) if row.get("type") else None,
+    }
+
+
 def review_object_contract(server: "Server", tool_input: dict) -> dict:
     runtime = server.runtime
     requested = tool_input.get("objectApiName")
     allowed = "*" in runtime["allowed_objects"] or requested in runtime["allowed_objects"]
     if not OBJECT_API_NAME.match(str(requested or "")) or not allowed:
         return make_envelope(runtime, "object-contract", "BLOCKED", warnings=["OBJECT_NOT_ALLOWLISTED"])
+    # One object contract at a time (2026-08-18): this is the only path allowed to hold
+    # a raw multi-MiB describe, and serializing it keeps worst-case raw exposure to ONE
+    # document instead of THREAD_POOL_SIZE of them. Every other tool stays on the
+    # thread pool untouched; the lock is never held waiting on anything but the org.
+    with server.object_contract_lock:
+        return _build_object_contract(server, runtime, requested)
+
+
+def _build_object_contract(server: "Server", runtime: dict, requested: str) -> dict:
     retrieved = now_iso()
     entity = server.rest.query(
         EXPECTED_QUERIES["objectEntity"].replace("${OBJECT_API_NAME}", requested), True
@@ -916,7 +1017,10 @@ def review_object_contract(server: "Server", tool_input: dict) -> dict:
         if entity["records"][0].get("QualifiedApiName") != requested:
             raise ReviewError("REST_SCHEMA_MISMATCH", "INCOMPLETE")
         tooling_rows = server.rest.query(
-            EXPECTED_QUERIES["objectFields"].replace("${OBJECT_API_NAME}", requested), True
+            EXPECTED_QUERIES["objectFields"].replace("${OBJECT_API_NAME}", requested),
+            True,
+            max_payload_bytes=MAX_OBJECT_FIELDS_PAYLOAD_BYTES,
+            operation="object-fields",
         )["records"]
         if len(tooling_rows) > runtime["review"]["maxFieldsPerObject"]:
             raise ReviewError("RESULT_TRUNCATED", "INCOMPLETE")
@@ -929,7 +1033,12 @@ def review_object_contract(server: "Server", tool_input: dict) -> dict:
                 max_payload_bytes=MAX_DESCRIBE_PAYLOAD_BYTES,
                 operation="object-describe",
             )
-            describe_fields = {f.get("name"): f for f in describe.get("fields") or [] if isinstance(f, dict)}
+            describe_fields = {
+                row["name"]: compact_describe_field(row)
+                for row in describe.get("fields") or []
+                if isinstance(row, dict) and isinstance(row.get("name"), str) and row["name"]
+            }
+            del describe  # release the raw document before any envelope construction
         except ReviewError as err:
             if err.code != "REST_NOT_FOUND":
                 raise
@@ -951,24 +1060,8 @@ def review_object_contract(server: "Server", tool_input: dict) -> dict:
                     "dataType": safe_string(row.get("DataType"), 160) if row.get("DataType") else None,
                 }
             }
-        for name, row in describe_fields.items():
-            if not isinstance(name, str) or not name:
-                continue
-            by_name.setdefault(name, {})["describe"] = {
-                "typeFamily": describe_type_family(row.get("type")) if row.get("type") else None,
-                "nillable": bool_or_null(row.get("nillable")),
-                "calculated": bool_or_null(row.get("calculated")),
-                "relationshipName": safe_string(row["relationshipName"], 80) if row.get("relationshipName") else None,
-                "referenceTo": reference_list(row.get("referenceTo")),
-                "length": int_or_null(row.get("length")),
-                "precision": int_or_null(row.get("precision")),
-                "scale": int_or_null(row.get("scale")),
-                "unique": bool_or_null(row.get("unique")),
-                "externalId": bool_or_null(row.get("externalId")),
-                "createable": bool_or_null(row.get("createable")),
-                "updateable": bool_or_null(row.get("updateable")),
-                "dataType": safe_string(row.get("type"), 80) if row.get("type") else None,
-            }
+        for name, compact in describe_fields.items():
+            by_name.setdefault(name, {})["describe"] = compact
         for name in sorted(by_name):
             legs = by_name[name]
             tooling = legs.get("tooling") or {}
@@ -1290,6 +1383,9 @@ class Server:
         self.cli_source: "dict | None" = None
         self.rest: "RestClient | None" = None
         self._stdout_lock = threading.Lock()
+        # Serializes ONLY review_object_contract's high-memory section (raw describe
+        # transfer/parse/compaction); all other tools keep full pool concurrency.
+        self.object_contract_lock = threading.Lock()
         self._cancelled: "set[str]" = set()
         self._cancelled_lock = threading.Lock()
         self._stdout = sys.stdout.buffer
