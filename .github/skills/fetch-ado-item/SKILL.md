@@ -133,13 +133,97 @@ section, and never state the requirement is approved or implementable.
 
 **Report and stop.** Return the context path, item identity, revision, `retrievedAt`,
 completeness, warnings, and the tracked-file result (`created`/`updated`/`unchanged`), then end
-with the single next action by root type: for a concrete non-container item,
+with the next action by root type: for a concrete non-container item,
 `git-agent: start work item <ID>`; for a Feature, `/prepare-delivery-feature itemId=<ID>`; for an
-Epic, no command — explain that v1 prepares one Feature at a time and ask the human to pick the
-child Feature. Never auto-invoke the next command: the human copies it, keeping Feature
+Epic fetched in `hierarchy` mode, the zero-to-many navigation candidate commands defined in
+`Epic navigation` below; for an Epic explicitly fetched with `mode=single`, exactly one recovery
+command — `/fetch-ado-item itemId=<Epic ID> mode=hierarchy` — because no direct-child
+enumeration was requested, navigation coverage is unavailable, and the hierarchy fetch is never
+performed automatically. Concrete-item and Feature roots keep exactly one next action; the Epic
+hierarchy case is the deliberate exception where the candidate commands are alternatives, not a
+sequence. Never auto-invoke a displayed command: the human copies it, keeping Feature
 activation intentional. The git-agent bootstrap returns `/solution-design itemId=<ID>` after it
 has created the item branch and committed the exact intake files locally. If a `design.md`
 exists and its recorded requirement baseline is older than the refreshed context, say the design needs
 reconciliation (name old/new revisions when readable) — do not edit `design.md`, `tasks.md`, or
 `decisions.md`, and do not append to `decisions.md`: a requirement change precedes
 implementation-deviation classification.
+
+## Epic navigation
+
+Applies only when the fetched root type is exactly `Epic`. The navigation list is rendered from
+the normalized result already obtained by this fetch — no additional MCP call, no refetch of a
+child body, no grandchildren or recursion, and no cache, schema, artifact, or tracked write
+beyond the Epic's existing `ado-context.md`. This is navigation, not activation: v1 still
+prepares one Feature at a time, and the agent never selects, ranks, prepares, designs, branches,
+or implements a Feature during the Epic fetch turn.
+
+**Candidate rule — relation ownership, not result membership.** A direct child Feature candidate
+is admitted only when all of the following are established from normalized data:
+
+1. the fetched root ID equals the Epic ID;
+2. a direct child relation connects that root Epic to the candidate;
+3. the relation direction identifies the root Epic as the parent/source and the candidate as the
+   child/target, or the normalized relation model provides a materially equivalent unambiguous
+   identity;
+4. the candidate's exact normalized Work Item type is `Feature` — never an alias such as
+   `Capability`, `Sub-Feature`, `Feature Group`, `Epic`, `Initiative`, or `Unknown`; when a
+   downstream process uses another backlog level name, disclose the actual type and leave any
+   compatibility change to the owner;
+5. the candidate's positive numeric ID is established.
+
+Never select candidates by scanning every returned item for `type == Feature`: hierarchy mode
+also contains the parent's other children, and a sibling container's Feature must never be shown
+as a direct child of the root Epic. A missing type or unresolved relation is never treated as a
+verified Feature.
+
+**Ordering and deduplication.** Deduplicate verified candidates by exact numeric Work Item ID.
+When identical direct-child relations repeat with compatible identity and type, show one
+candidate; when duplicate evidence conflicts on type, identity, or direction, mark that
+candidate unresolved, disclose the conflict, and emit no command for it. Sort candidates by
+ascending numeric ID — never by state, priority, relation order, title, or model preference, and
+never recommend one candidate over another.
+
+**Rendering.** Show each verified candidate's ID, safely rendered title, state, and per-item
+completeness when available, followed by exactly one copyable command:
+
+```text
+/prepare-delivery-feature itemId=<ID>
+```
+
+`<ID>` is the validated positive numeric ID only. Title, state, tags, area, iteration, and every
+other untrusted ADO value are display-only after the existing safe normalization and never enter
+command text or Markdown link destinations. Displayed commands are never invoked automatically.
+
+**Completeness stays visible**, on two dimensions — the direct-child enumeration and each
+candidate's identity/type/title/state:
+
+- complete enumeration with complete candidates → state that the direct Feature list is complete;
+- partial enumeration → state prominently that more direct Features may exist; individually
+  verified candidates may still be displayed with commands (the Feature preparation procedure
+  re-verifies with its own fresh completeness and type gates), but never claim the list is
+  complete;
+- a candidate with incomplete identity/type → disclose it under `Unresolved direct children` and
+  emit no command for it;
+- a failed child read names the failed child ID when known and is never treated as absent;
+- unresolved pagination keeps the list partial and never becomes a claim of zero Features;
+- relations unavailable → no candidate commands; explain that navigation could not be
+  established.
+
+**Zero results.** For a complete enumeration with zero exact Features, report
+`No direct child Features were found for this Epic.` For a partial or unavailable enumeration
+with zero verified Features, report that no direct child Feature was confirmed from the
+available evidence and that the partial result does not prove the Epic has no child Features.
+Never collapse these two cases into the same message.
+
+**Non-Feature direct children** with an established non-Feature type are disclosed separately
+under `Other direct children` (ID, type, title, state) and receive no
+`/prepare-delivery-feature` command and no other workflow command — this enhancement is
+Epic-to-Feature navigation, not a hierarchy command router. Unknown or incomplete children stay
+under `Unresolved direct children`, never mixed with verified non-Features.
+
+**Close.** Every Epic navigation result with candidates states that no Feature was selected or
+prepared and asks the human to choose one command if they want to prepare that Feature for
+delivery. Epic navigation writes no child folder, Epic map, design, task, decision, or branch,
+adds no Epic context to any Feature or Story, and changes nothing in the Feature preparation
+procedure or its gates.
