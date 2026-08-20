@@ -500,6 +500,7 @@ action — supply it, or stop the work.
 |---|---|
 | Start from an ADO item | `/fetch-ado-item itemId=<ID>`, then `git-agent: start work item <ID>`, then `/solution-design itemId=<ID>` |
 | Deliver one ADO Feature through several child Stories | `/prepare-delivery-feature itemId=<Feature ID>` once, then choose: independent per-Story delivery, or `git-agent: start feature <Feature ID>` for one combined Feature branch |
+| Navigate an ADO Epic to a child Feature | `/fetch-ado-item itemId=<Epic ID>`, then choose one emitted `/prepare-delivery-feature itemId=<ID>` command |
 | Start from a written requirement | `/solution-design <requirement>` |
 | Review a persisted design or implementation | `/check-against-principles itemId=<ID> scope=design` (or `scope=implementation`) |
 | Apply a small diagnosed fix | `/adhoc-fix component=<Type:Name> org=<alias>` plus the diagnosis |

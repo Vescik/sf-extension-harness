@@ -556,6 +556,145 @@ class TestSolutionDesignDeliveryMapRouting(unittest.TestCase):
         self.assertIn("never invoked automatically", self.fetch_prompt)
 
 
+class TestFetchEpicNavigation(unittest.TestCase):
+    """P0 Epic-to-Feature navigation (plan 2026-08-18).
+
+    An Epic fetched in hierarchy mode lists verified direct child Features with
+    one copyable /prepare-delivery-feature command per candidate — rendered from
+    the already-fetched normalized result, invoking nothing and writing nothing
+    beyond the existing Epic ado-context.md. Pins semantic markers, not whole
+    prose files."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.skill_raw = (ROOT / ".github/skills/fetch-ado-item/SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        cls.skill = squash(cls.skill_raw)
+        cls.prompt = squash(
+            (ROOT / ".github/prompts/fetch-ado-item.prompt.md").read_text(encoding="utf-8")
+        )
+        cls.git_skill = squash(
+            (ROOT / ".github/skills/git-workflow/SKILL.md").read_text(encoding="utf-8")
+        )
+        cls.design_skill = squash(
+            (ROOT / ".github/skills/solution-design/SKILL.md").read_text(encoding="utf-8")
+        )
+
+    def test_epic_navigation_exists_in_skill_and_prompt(self) -> None:
+        self.assertIn("## Epic navigation", self.skill_raw)
+        self.assertIn("direct child Feature", self.skill)
+        self.assertIn("Epic navigation", self.prompt)
+        self.assertIn("direct child Features", self.prompt)
+
+    def test_old_epic_no_command_behavior_is_gone(self) -> None:
+        self.assertNotIn("for an Epic, no command", self.skill)
+        self.assertNotIn("name no command", self.prompt)
+
+    def test_candidate_command_is_prepare_delivery_feature(self) -> None:
+        self.assertIn("/prepare-delivery-feature itemId=<ID>", self.skill)
+        self.assertIn("/prepare-delivery-feature itemId=<ID>", self.prompt)
+
+    def test_no_automatic_invocation_in_both_contracts(self) -> None:
+        self.assertIn("Never auto-invoke a displayed command", self.skill)
+        self.assertIn("never invoked automatically", self.skill)
+        self.assertIn("select and invoke none", self.prompt)
+        self.assertIn("no Feature was selected or prepared", self.skill)
+
+    def test_relation_must_belong_to_the_fetched_root_epic(self) -> None:
+        self.assertIn("relation ownership, not result membership", self.skill)
+        self.assertIn("the fetched root ID equals the Epic ID", self.skill)
+        self.assertIn(
+            "a direct child relation connects that root Epic to the candidate", self.skill
+        )
+        self.assertIn("root Epic as the parent/source", self.skill)
+        self.assertIn("root Epic's own relations", self.prompt)
+
+    def test_sibling_features_are_excluded(self) -> None:
+        self.assertIn(
+            "Never select candidates by scanning every returned item for `type == Feature`",
+            self.skill,
+        )
+        self.assertIn(
+            "sibling container's Feature must never be shown as a direct child", self.skill
+        )
+
+    def test_only_exact_type_feature_gets_a_command(self) -> None:
+        self.assertIn("exact normalized Work Item type is `Feature`", self.skill)
+        self.assertIn("`Capability`", self.skill)
+        self.assertIn("`Sub-Feature`", self.skill)
+        self.assertIn(
+            "never treated as a verified Feature",
+            self.skill,
+        )
+        self.assertIn("exact type `Feature` only", self.prompt)
+
+    def test_ordering_and_deduplication_are_deterministic(self) -> None:
+        self.assertIn("Sort candidates by ascending numeric ID", self.skill)
+        self.assertIn(
+            "never by state, priority, relation order, title, or model preference", self.skill
+        )
+        self.assertIn("Deduplicate verified candidates by exact numeric Work Item ID", self.skill)
+        self.assertIn("never recommend one candidate over another", self.skill)
+
+    def test_command_text_admits_only_validated_numeric_ids(self) -> None:
+        self.assertIn("validated positive numeric ID only", self.skill)
+        self.assertIn("never enter command text or Markdown link destinations", self.skill)
+        self.assertIn("validated numeric ID only", self.prompt)
+
+    def test_partial_enumeration_never_claims_completeness(self) -> None:
+        self.assertIn("more direct Features may exist", self.skill)
+        self.assertIn("never claim the list is complete", self.skill)
+        self.assertIn("partial hierarchy evidence is disclosed as partial", self.prompt)
+
+    def test_verified_candidates_may_show_while_list_is_partial(self) -> None:
+        self.assertIn(
+            "individually verified candidates may still be displayed with commands", self.skill
+        )
+
+    def test_complete_zero_result_wording(self) -> None:
+        self.assertIn("No direct child Features were found for this Epic.", self.skill)
+
+    def test_partial_zero_result_cannot_claim_none_exist(self) -> None:
+        self.assertIn("does not prove the Epic has no child Features", self.skill)
+        self.assertIn("Never collapse these two cases", self.skill)
+        self.assertIn("never becomes a claim of zero Features", self.skill)
+
+    def test_non_feature_children_are_separated_without_commands(self) -> None:
+        self.assertIn("Other direct children", self.skill)
+        self.assertIn("Unresolved direct children", self.skill)
+        self.assertIn("never mixed with verified non-Features", self.skill)
+        self.assertIn("no other workflow command", self.skill)
+
+    def test_single_mode_returns_the_hierarchy_recovery_command(self) -> None:
+        self.assertIn("/fetch-ado-item itemId=<Epic ID> mode=hierarchy", self.skill)
+        self.assertIn("/fetch-ado-item itemId=<Epic ID> mode=hierarchy", self.prompt)
+        self.assertIn("the hierarchy fetch is never performed automatically", self.skill)
+        self.assertIn("do not run it automatically", self.prompt)
+
+    def test_navigation_adds_no_write_or_fetch_surface(self) -> None:
+        self.assertIn("no additional MCP call", self.skill)
+        self.assertIn(
+            "no cache, schema, artifact, or tracked write beyond the Epic's existing "
+            "`ado-context.md`",
+            self.skill,
+        )
+        self.assertIn("writes no child folder, Epic map, design", self.skill)
+        self.assertIn("no child folder is written", self.prompt)
+
+    def test_non_epic_routes_are_unchanged(self) -> None:
+        self.assertIn("`git-agent: start work item <ID>`", self.skill)
+        self.assertIn("git-agent: start work item <ID>", self.prompt)
+        self.assertIn(
+            "for a Feature, `/prepare-delivery-feature itemId=<ID>`", self.skill
+        )
+        self.assertIn("exactly one next action", self.skill)
+
+    def test_epic_stays_undeliverable_downstream(self) -> None:
+        self.assertIn("an Epic gets no branch at all", self.git_skill)
+        self.assertIn("Epic gets a request for a concrete child Feature/Work Item", self.design_skill)
+
+
 class TestFeatureHealthStaysDecoupled(unittest.TestCase):
     """Feature Health is explicit and never edits guarded work-item folders."""
 
