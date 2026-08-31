@@ -383,8 +383,10 @@ design, branch, PR, and validation.
 ### Handoff
 
 The remote branch and Draft PR are the handoff vehicle. Durable state lives in `design.md`,
-tasks/decisions, validation evidence, and PR text. The recipient fetches, verifies the declared
-base and ADO revision, synchronizes, and reruns proportional validation before editing.
+tasks/decisions, any canonical `org-changes.md`, validation evidence, and PR text. The recipient
+fetches, verifies the declared base and ADO revision, synchronizes, rechecks material logged org
+state, and reruns proportional validation before editing. The org-change log is an operational
+claim and pointer, not approval or independent evidence.
 
 ### Resume
 
@@ -469,6 +471,7 @@ feature/5000-<slug> → final PR to main: AB#5000 + included AB#5001, AB#5002, A
 
 - [ ] Work is at a coherent checkpoint
 - [ ] Proportional checks and their real results recorded
+- [ ] Every qualifying Salesforce mutation has one canonical sanitized org-change entry, or the PR says none ran
 - [ ] Commits pushed; no meaningful local-only stash/untracked work
 - [ ] Draft PR describes current scope, blockers, validation, and next action
 - [ ] Branch compared with its correct base
@@ -487,7 +490,9 @@ attribution (`commit work item <ID>`), approved push, and copyable PR handoff. I
 - choose or change a Feature delivery mode — the human selects combined vs independent;
 - fetch ADO or edit `ado-context.md`/`delivery-map.md`;
 - create a PR automatically;
-- merge, deploy, release, force-push, or silently resolve conflicts.
+- merge, release, force-push, or silently resolve conflicts; the Git Agent never deploys, while
+  the Developer may deploy only through its separate confirmation and logging contract.
 
-Those steps remain human-managed in the current workspace version. Automating them would require a
-separate runtime change and validation; this document alone enables nothing.
+The listed Git operations remain outside the Git Agent. Human decisions still govern merge and
+release, while Developer org execution follows its own contract; this document alone enables
+nothing.

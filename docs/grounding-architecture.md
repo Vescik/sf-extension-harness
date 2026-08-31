@@ -104,7 +104,10 @@ Each work item has one directory, `work-items/<id>-<slug>/`: for ADO-backed work
 `ado-context.md` carries the source-faithful requirement snapshot plus a clearly unapproved AI
 understanding (written by `/fetch-ado-item`, which stops there); `design.md` carries the intent
 and scope and names its requirement baseline (context path and ADO revision); `tasks.md` the
-execution plan; `decisions.md` the append-only log of deviations. Those files are the state:
+execution plan; `decisions.md` the append-only log of deviations; and, when qualifying Salesforce
+mutations were executed, `org-changes.md` the append-only operational history. The org-change log
+is an agent report and pointer for re-verification, not approval, Knowledge, QA evidence, or a
+current-state guarantee. Those files are the state:
 durability comes from the repository, the commit, and the pull request where a human reviews them
 next to the metadata they govern. A new chat resumes from those files, never from chat
 scrollback — the persisted context replaces re-fetching ADO for requirement text, while its

@@ -17,6 +17,12 @@ Files appear by lifecycle stage — nothing creates empty placeholders for later
 - `tasks.md`     — progress checklist; the checkboxes are the entire state
 - `decisions.md` — APPEND-ONLY log of deviations and rulings made during development;
   never edit backwards, always append
+- `org-changes.md` — OPTIONAL, lazy-created, APPEND-ONLY operational history of qualifying
+  Salesforce org mutations executed for this Work Item. The Development skill owns its trigger,
+  redaction, and entry procedure. It is an agent report, never deployment approval, Knowledge,
+  release authority, QA evidence, or proof of current org state. A prepared Feature may own this
+  file only for one combined Feature operation; standalone work with no Work Item/Feature uses
+  `docs/org-changes/` instead.
 - `qa-test-plan.md` — OPTIONAL human-executable QA handoff, created or refreshed only by
   `/prepare-qa-test-plan itemId=<ID>` (Test Strategist) for delivery work being handed to
   QA. It explains the feature to a tester and carries the executable Test Cases with
@@ -37,8 +43,10 @@ Files appear by lifecycle stage — nothing creates empty placeholders for later
   selected for combined delivery, and `commit work item <ID>` on that branch is valid only for
   IDs the map currently lists as `included`. Preparing a Feature never creates or
   edits child folders, and the other lifecycle files above remain per concrete Work Item:
-  there is no Feature-level `design.md`, `tasks.md`, `decisions.md`, or `qa-test-plan.md`,
-  and no nested folders — the layout stays flat, one sibling directory per Work Item.
+  there is no Feature-level `design.md`, `tasks.md`, `decisions.md`, or `qa-test-plan.md`.
+  `org-changes.md` is the sole exception and exists there only when one operation spans the
+  prepared Feature's included Work Items. There are no nested folders — the layout stays flat,
+  one sibling directory per Work Item.
 
 Requirement intake and solution design are separate steps: `/fetch-ado-item`
 persists `ado-context.md` and stops; `git-agent: start work item <ID>` creates the
@@ -54,6 +62,6 @@ route back to Solution Design and reconcile the design first.
 The folder name is stable by ID: it is never renamed when the ADO title
 changes; the current title lives in `ado-context.md` and Git history.
 
-After a work item closes: review `decisions.md` — lessons promote to
+After a work item closes: review `decisions.md` and any `org-changes.md` — lessons promote to
 `docs/package-constraints.md` or `docs/package-concept.md`; the folder stays as the
 archive.

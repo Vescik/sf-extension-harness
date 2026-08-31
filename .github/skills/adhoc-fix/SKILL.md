@@ -67,7 +67,11 @@ confirmation rule.
    verification performed, the proposed deploy command and component list, and the rollback path.
 7. If a real deploy is in scope, state the target and scope, warn that changes will be deployed to
    the org, and ask `Should I run this deployment?` Run the exact command only after an
-   unambiguous answer. Record the job and verify org state. Recommend an
+   unambiguous answer. Record the job and verify org state. After the result, append the
+   operation once to the canonical durable log using the
+   [Development skill](../development/SKILL.md) — the applicable Work Item/Feature log when one
+   exists, otherwise `docs/org-changes/<yyyy-mm-dd>-<slug>.md`. Link that path from the ignored
+   fix note; never duplicate the entry or leave the fix note as the sole durable record. Recommend an
    after-the-fact guardrail review — the human opens the reviewer role on the fix note
    and changed files; record the verdict by appending a `Review outcome` section to the note.
 8. If the defect or its fix reveals durable facts worth keeping (error surface, config meaning),
@@ -78,7 +82,8 @@ confirmation rule.
 - Never run a real deploy without fresh confirmation for that exact target, scope, and command.
 - Never fix more than the diagnosed defect in one pass — no drive-by refactors, no "while I'm
   here" cleanups, no scope growth past the bounded-fix entry condition.
-- Never edit outside `force-app/`, `manifest/`, `tests/e2e/`, and the fix note; approvals,
+- Never edit outside `force-app/`, `manifest/`, `tests/e2e/`, the fix note, and the single
+  canonical org-change log; approvals,
   Knowledge, Principles, and records remain out of reach.
 - Never present the repository edit as deployed, fixed-in-org, or verified-in-org without a
   successful deploy receipt and explicit verification.
@@ -88,4 +93,5 @@ confirmation rule.
 Return the fix note path; the diagnosis summary; files changed with the before → after of the
 defective element; local verification performed; the proposed or executed deploy command and
 component list; deployment receipt and org verification when run; the rollback path; and the
+canonical org-change-log path (or `none — no qualifying org mutation executed`); and the
 recommendation to run the after-the-fact guardrail review.

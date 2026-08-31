@@ -17,6 +17,10 @@ Apply the [shared execution contract](../../../.ai/contracts/execution-contract.
   recorded deviation when describing implemented state; unless current pull-request evidence
   establishes review, report its review status as unverified. Without a design, this is
   standalone documentation of existing state — a valid lane, named as such in the output.
+- When the Work Item, prepared Feature, or standalone change has a canonical `org-changes.md`,
+  read it as agent-authored operational history and link it from the draft. It can describe what
+  command was reported and what was verified; it cannot prove current org state, approval,
+  release readiness, or QA execution. Re-verify material current claims or mark them unverified.
 - The workspace root (labeled `brain-core` in VS Code — a workspace label, not the
   repository name), which is also the SFDX root; optional manifest path defaults from
   local config.
@@ -66,8 +70,10 @@ large or heterogeneous. Do not infer which manifest members belong to the work i
    design exists but contains no complete verification plan, mark section 9
    `MISSING — design verification plan unavailable`, list only formally linked Test Cases,
    and report the gap. Never infer assertions, pass criteria, evidence, or execution stages.
-6. Ask the human for non-metadata deployment steps with `vscode/askQuestions`; record explicit
-   `None` when confirmed. Never infer activation/data-fix steps from absence in the manifest.
+6. Reconcile non-metadata deployment steps against the canonical org-change log when one exists.
+   Ask the human with `vscode/askQuestions` only for steps that remain missing or planned; record
+   explicit `None` when confirmed. Never infer activation/data-fix steps from absence in the
+   manifest or treat the log as proof that a step remains current.
 7. Fill every section of the technical-documentation template and common output envelope,
    including the work-item/design reference (when one exists) plus rule/entry references
    and any drifted premise, carried as a visible caveat.
@@ -94,5 +100,6 @@ what would make it groundable — never retry with a different ref shape.
 
 Return the `itemId` and design reference (when one exists), draft path, component counts,
 missing/ambiguous components, source freshness/completeness, manual-step status,
-suggested-test status, checks performed, and publication next step. ADO wiki
+suggested-test status, canonical org-change-log path (or the reason none applies), checks
+performed, and publication next step. ADO wiki
 publication remains human-controlled.

@@ -54,3 +54,9 @@ deploy, or redeploy requires a fresh question. If the target comes from the proj
 say that explicitly. Dry runs, retrieve, report/status, resume, cancel, and data mutations do not
 require this deploy-specific confirmation. Never claim a deploy occurred until the CLI result
 proves it, and report the target, scope, job ID, status, tests, and remaining verification.
+
+After every qualifying Salesforce mutation returns a result, follow the Development skill's
+durable org-change procedure and append one sanitized entry to the canonical log. This is
+post-action traceability, not a new confirmation gate. Never put record values, query literals,
+inline Apex, raw CLI JSON, credentials, or other sensitive business data in the log, and never
+present the entry itself as approval or independent proof.

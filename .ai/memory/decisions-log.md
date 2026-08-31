@@ -1613,3 +1613,31 @@ Gate: 690 unit tests OK in ~87 s, 43 safety evals PASS, validate_harness coheren
   cutover commit; do not maintain parallel old/new policy modes.
 - Approved by: workspace owner directive, 2026-08-31, based on
   `MASTER-PLAN-SALESFORCE-AGENT-DEPLOY-DATA-AUTONOMY.md`.
+
+## 2026-08-31 — Qualifying Salesforce mutations gain one lightweight durable org-change log
+
+- Decision: after a qualifying Salesforce mutation returns a result, the Developer appends one
+  bounded, sanitized entry to a canonical `org-changes.md`. Use the concrete Work Item folder;
+  use a prepared Feature folder only for one combined Feature operation; when neither exists,
+  use `docs/org-changes/<yyyy-mm-dd>-<slug>.md`. Create the file lazily and never backfill old
+  operations automatically.
+- Trigger boundary: real, quick, or destructive deployment accepted for processing; record CRUD,
+  bulk, or import mutation; Apex execution that may perform DML; package lifecycle; permission
+  assignment/removal; and org lifecycle. Reads, retrieve, dry-run/validation, tests, local edits,
+  and commands blocked before execution do not create entries. Status/report calls only append
+  the outcome to an existing asynchronous operation entry.
+- Authority boundary: the entry is an agent-authored operational claim and pointer for scoped
+  re-verification. It is not deploy consent, independent evidence, Knowledge, an approval ledger,
+  a release record, QA execution evidence, or proof of current org state. PRs, documentation, and
+  chat link or summarize the canonical entry without creating a second ledger.
+- Runtime: direct CLI remains the write path. No Deployment Agent, write MCP, wrapper, executor,
+  schema, automatic interception, state machine, configuration, or dependency is added. Missing
+  post-action logging is a completion/review finding, never a pre-execution denial. The only role
+  guard change is an exact dated-path Developer grant for the standalone `docs/org-changes/`
+  fallback, while its README remains outside Developer edit authority.
+- Narrows the 2026-08-31 autonomy decision: its rejection of a persistent approval ledger,
+  receipt, and deployment workflow state machine remains in force; the new Markdown history is
+  deliberately neither. The existing per-invocation real-deploy chat confirmation is unchanged,
+  and no confirmation is added for data or other non-deploy mutations.
+- Approved by: workspace owner directive, 2026-08-31, based on
+  `MASTER-PLAN-SALESFORCE-ORG-CHANGE-LOG.md`.
