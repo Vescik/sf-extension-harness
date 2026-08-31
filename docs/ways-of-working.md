@@ -21,12 +21,15 @@ authoritative source. If you have not installed the workspace yet, start with
 | Business intent and acceptance criteria | Evidence collection and structured design |
 | Vendor guarantees not established by evidence | Repository review and read-only non-production org review |
 | Approval of scope, designs, and Knowledge | Drafting, comparison, and traceable artifacts |
-| Deployment, merge, release, and any production action | Repository edits within the selected role |
+| Merge and release decisions; confirmation of each exact real deploy | Repository edits and in-scope Salesforce CLI execution within the Developer role |
 
 Four points hold across every path:
 
-- Agents do not deploy. They edit repository files; getting a change into an org is your action.
-- Org review is read-only and non-production, through the guarded Salesforce facade.
+- The Developer may deploy or mutate an org with direct Salesforce CLI. Every exact real deploy
+  first requires your chat confirmation of its target and bounded scope; data and other
+  non-deploy mutations do not use that deploy-specific gate.
+- Structured org review remains read-only through the guarded Salesforce facade; direct CLI
+  execution is a separate Developer capability and may target production when the task requires it.
 - You decide whether a proposed design, scope, or Knowledge approval proceeds.
 - Durable work belongs in repository artifacts (`work-items/`, `output/`, `.ai/knowledge/`),
   not in chat memory. A conversation is not a record.
@@ -95,10 +98,11 @@ From a written requirement:
 4. You resolve business questions, vendor guarantees, and unapproved choices it surfaces.
 5. A reviewer can challenge the persisted design with `/check-against-principles`.
 6. After you accept the design, the developer implements against it and keeps `tasks.md` and
-   `decisions.md` current. For deployable Salesforce changes it completes by proving
-   deployability with a check-only dry-run validation against your project-local development
-   org, ending in a pass, a named blocker, or an exact in-progress job ID — never in a claim
-   that untested work is ready. That validation is never a deployment and never a QA result.
+   `decisions.md` current. It validates proportionally and, when a real deployment is in scope,
+   tells you that changes will be deployed to the selected org, identifies target and scope, and
+   asks for confirmation for that exact invocation. After any qualifying org mutation returns a
+   result, it writes one sanitized entry to the canonical `org-changes.md`. A dry run is never
+   described as deployed, and an org-change entry is never a QA result or release approval.
 7. Verification follows the design; the test-strategist agent is the entry point when a QA
    coverage decision is needed. When the item is being handed to a QA engineer,
    `/prepare-qa-test-plan itemId=<ID>` writes `work-items/<id>-<slug>/qa-test-plan.md` — a
@@ -112,8 +116,8 @@ From a written requirement:
 8. The git-agent can prepare later commits and PR work. It asks before every push; after a push
    it actually completes successfully, it returns a suggested title, the fully completed
    repository PR template for copying, and a direct GitHub creation link when the remote can be
-   identified. It does not need GitHub CLI and does not create the PR. Merge, release, and
-   deployment remain yours under the repository's current rules.
+   identified. It does not need GitHub CLI and does not create the PR. Merge and release decisions
+   remain yours; the Developer's real deploy still requires your exact-invocation confirmation.
 9. Changes to the workspace itself — prompts, skills, instructions, scripts, schemas, tests,
    docs, tracked configuration — go through the **workspace-maintainer** agent, not a
    delivery agent. Files that define permissions or external capability (the safety
@@ -148,6 +152,7 @@ See [work-items/README.md](../work-items/README.md) for what each durable file m
 - scope and design are persisted and accepted;
 - the implementation matches the design, or deviations are recorded in `decisions.md`;
 - planned verification has an explicit result;
+- every qualifying org mutation has one canonical sanitized `org-changes.md` entry;
 - unresolved gaps are visible, not hidden;
 - you have what you need to decide merge and deployment.
 
@@ -264,7 +269,8 @@ configured non-production review alias.)
 - make the smallest coherent repository edit in `force-app/`;
 - verify what can be verified locally;
 - write a fix note under `output/documentation/adhoc-fixes/`;
-- ask for single-use chat confirmation if a real deploy is needed, then deploy and verify it.
+- ask for single-use chat confirmation if a real deploy is needed, then deploy, verify it, and
+  link the canonical durable org-change entry from the ignored fix note.
 
 ### What you decide
 
@@ -277,7 +283,8 @@ configured non-production review alias.)
 ### Done here means
 
 The bounded repository fix and its fix note are ready for review. If a real deploy was confirmed
-and executed, the outcome must include org verification; otherwise the org remains unchanged.
+and executed, the outcome must include org verification and one durable sanitized org-change
+entry; otherwise no deployment occurred.
 
 ### Common pitfalls
 
@@ -351,8 +358,9 @@ boundary are visible in the persisted design and carried through implementation 
 1. **Salesforce declarative metadata** in customer-owned `force-app` source — a Flow, permission
    set, layout, or Custom Metadata Type definition. **This playbook applies.**
 2. **Configuration/reference records stored as org data** — statuses, settings, routing tables.
-   The workspace can investigate them read-only through the governed lane, but agents do not
-   write records to an org.
+   The workspace can investigate them read-only through the governed lane; the Developer may
+   also perform an explicitly scoped record mutation through Salesforce CLI when the task asks
+   for it, without the metadata-deploy confirmation gate, and must log the result durably.
 3. **Harness/local configuration** — `config/`, environment variables, MCP setup, VS Code
    settings. This playbook does not authorize those changes; use the relevant setup or
    maintenance procedure instead.
@@ -390,20 +398,22 @@ data change. (Object name and alias are fictional; the object must be on the rev
 - keep scope proportional to a declarative change;
 - record behavioral, access, package, activation, verification, and rollback implications;
 - edit only authorized repository metadata, after design acceptance;
-- never deploy, and never mutate configuration records in an org.
+- when requested, execute bounded deployments or record mutations through the Developer lane and
+  persist one sanitized post-action org-change entry.
 
 ### What you decide
 
 - confirm the desired business behavior and the affected users;
 - decide activation timing and any data or configuration migration steps;
 - approve access and permission implications;
-- perform deployment and any manual org-data changes;
+- confirm each exact real metadata deployment proposed by the Developer;
 - verify the result in your intended non-production and release process.
 
 ### Done here means
 
 The repository metadata change and the design's verification and rollback information are ready
-for your release action, with org-data steps separated out and named as yours.
+for release review. Any executed org-data or deployment step is separated and linked through the
+canonical org-change log.
 
 ### Common pitfalls
 
@@ -475,7 +485,9 @@ reviewing impact across a curated feature boundary. For the governing detail, se
 | `work-items/<id>-<slug>/design.md` | Accepted intent, scope, trade-offs, verification, and rollback |
 | `work-items/<id>-<slug>/tasks.md` | Current execution checklist |
 | `work-items/<id>-<slug>/decisions.md` | Append-only deviations and rulings |
+| `work-items/<id>-<slug>/org-changes.md` | Optional append-only operational history of qualifying Salesforce mutations; an agent report, not approval/evidence |
 | `work-items/<feature-id>-<slug>/delivery-map.md` | Explicit membership and order of an actively prepared ADO Feature's delivery — coordination only (Feature folders only) |
+| `docs/org-changes/**` | Standalone org-change history only when no Work Item or prepared Feature applies |
 | `output/**` | Draft and review artifacts — not automatically authoritative |
 | `.ai/knowledge/**` | Governed Knowledge, written only through its existing lanes |
 
@@ -487,9 +499,9 @@ durable state; if it matters, it belongs in one of these artifacts.
 
 - approve their own Knowledge or your business decisions;
 - invent vendor guarantees or package internals;
-- really deploy or mutate Salesforce orgs (the Developer's check-only dry-run validation
-  proves deployability but deploys nothing);
-- operate against production;
+- run a real deployment without your fresh confirmation of that exact target and scope;
+- treat a mutation log, CLI result, or dry run as release approval, QA evidence, Knowledge, or
+  proof that the org still has that state;
 - silently merge, release, or resolve ownership decisions;
 - convert incomplete evidence into certainty.
 

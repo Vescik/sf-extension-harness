@@ -67,6 +67,7 @@ Included local contexts: `work-items/<id>-<slug>/`, `work-items/<id>-<slug>/`
 
 - Metadata / Apex / Flow impact: <...>
 - Deployment, permissions, or rollback consideration: <...>
+- Org change log: <path or `None — no qualifying org mutation executed`>
 
 ## Package namespace impact
 

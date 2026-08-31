@@ -33,6 +33,12 @@ cases, cases inconsistent with the design or recorded decisions, package/custom 
 mistakes, missing executable prerequisites, hidden assumptions or unsupported vendor
 claims, and plan steps that do not match the implementation.
 
+When Salesforce mutation is claimed or visible, read the canonical `org-changes.md` using the
+check-against-principles procedure. Treat missing, duplicated, inconsistent, or unsanitized
+post-action traceability as a finding and recheck material current state where possible. The log
+is an agent-authored claim, never deploy consent, independent proof, release approval, QA
+evidence, Knowledge, or a reason to issue `SAFE`.
+
 Report findings as a list ordered by severity, each with the rule it violates and the
 concrete failure it invites. What you could not verify, say so explicitly — an unchecked
 claim is a finding of its own kind, never a silent pass.

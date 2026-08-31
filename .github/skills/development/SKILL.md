@@ -93,6 +93,120 @@ lifecycle commands may be performed without this deployment-specific confirmatio
 inside the task scope. Report every material org mutation and its verification. Deployment results
 never become QA records: `qa-test-plan.md` keeps its own authority.
 
+## Durable org-change log
+
+After a qualifying command returns a result, append one entry to the canonical operational log.
+This is the procedure owner; other agents and documents link here instead of inventing a second
+format or ledger.
+
+### What creates an entry
+
+Log these operations when Salesforce accepted or processed the command, including failed,
+partial, canceled, and still-running results:
+
+- real, quick, or destructive metadata deployment;
+- record create, update, upsert, delete, bulk mutation, or data import;
+- anonymous or scripted Apex that may perform DML;
+- package install, upgrade, uninstall, promote, or version lifecycle;
+- permission-set or permission-set-group assignment/removal; and
+- scratch-org, sandbox, or other org lifecycle mutation.
+
+Do not create an entry for reads, retrieves, dry runs/validation-only deploys, tests, local edits,
+or commands denied before execution. A deploy report/status/resume/cancel call creates no separate
+entry: append its material outcome to the original asynchronous operation entry. If a command was
+submitted but the final outcome is not yet available, write `IN PROGRESS` after submission and
+append a timestamped status update when the outcome becomes known. Never rewrite an earlier result.
+
+### Where the single entry lives
+
+1. Use `work-items/<id>-<slug>/org-changes.md` for one concrete Work Item.
+2. Use the prepared Feature's `work-items/<feature-id>-<slug>/org-changes.md` only when the one
+   command intentionally spans included Work Items in that Feature's `delivery-map.md`.
+3. With no applicable Work Item or prepared Feature, use
+   `docs/org-changes/<yyyy-mm-dd>-<short-safe-slug>.md` and follow its README.
+
+Create the file lazily after the first qualifying result. Never copy the entry into another log.
+PRs, technical documentation, fix notes, and chat may link it and give a bounded summary.
+
+### Entry content
+
+Use readable Markdown, not a new schema. Each entry records enough detail to identify and
+re-verify the operation without persisting business payloads:
+
+- UTC execution time and operation type;
+- Work Item or prepared Feature reference, or `standalone`;
+- target as a safe alias or non-sensitive org key and whether it was explicit or CLI default;
+- current Git commit, clean/dirty state, and the participating changed paths (or why Git does not
+  apply); never imply a dirty tree equals the deployed content;
+- sanitized `sf`/`sfdx` command and bounded logical/source scope;
+- result: `IN PROGRESS`, `SUCCEEDED`, `FAILED`, `PARTIAL`, or `CANCELED`;
+- job/request ID when Salesforce returned one;
+- deploy test policy and bounded test outcome when applicable;
+- bounded affected-record/component counts when available without exposing payloads;
+- verification actually performed and its result;
+- rollback, cleanup, or recovery action performed or still available; and
+- explicit unverified limits and next action.
+
+Start a new file with a short authority/redaction preamble, then use these compact shapes. Omit no
+field; write `unavailable`, `not applicable`, or `None` truthfully instead of guessing.
+
+```markdown
+# Salesforce org changes
+
+Append-only agent-reported operational history. This is not deployment consent, release approval,
+QA evidence, Knowledge, or independent proof. Re-establish current scope, target, and required
+confirmation before reusing a command. Never store secrets or sensitive business payloads.
+
+## <UTC timestamp> — Metadata deployment
+
+- Delivery scope: <Work Item / prepared Feature / standalone>
+- Target: <safe alias or org key> (<explicit | CLI default>)
+- Operation: <real deploy | quick deploy | destructive deploy>
+- Source: commit <SHA>; working tree <clean | dirty: bounded participating paths>
+- Command: `<sanitized command>`
+- Scope: <manifest/source paths/logical components/destructive manifests>
+- Result: <IN PROGRESS | SUCCEEDED | FAILED | CANCELED>
+- Job ID: <ID or unavailable>
+- Test policy / outcome: <bounded factual value>
+- Verification: <check and observed result>
+- Rollback / cleanup: <bounded path and status>
+- Unverified / next action: <limits or None>
+
+## <UTC timestamp> — <Data, Apex, package, permission, or org-lifecycle operation>
+
+- Delivery scope: <Work Item / prepared Feature / standalone>
+- Target: <safe alias or org key> (<explicit | CLI default>)
+- Operation / surface: <bounded operation class and object/package/org identity>
+- Source: <commit and bounded paths | Not source-backed>
+- Selection / input: <field names and bounded shape; no values, rows, IDs, or raw content>
+- Command: `<sanitized command shape>`
+- Result: <IN PROGRESS | SUCCEEDED | FAILED | PARTIAL | CANCELED>
+- Job ID: <ID or unavailable>
+- Requested / succeeded / failed / unprocessed: <counts or unavailable>
+- Verification: <check and observed result>
+- Rollback / cleanup: <bounded path and status>
+- Unverified / next action: <limits or None>
+```
+
+An asynchronous entry gets append-only `Status update` subsections with UTC, observed state,
+verification, and next action. A new submission or retry is a new entry because it is a new
+Salesforce operation and, for a real deploy, required a new chat confirmation.
+
+### Sanitization and authority
+
+A metadata deployment command may be recorded closely after sanitizing local paths and target
+identity. For data and Apex operations, record the command shape and bounded scope only. Redact
+record values, selector values, SOQL literals, Salesforce record IDs, usernames, inline Apex,
+business data, raw input-file content, raw CLI JSON, access/refresh tokens, auth URLs, and all
+credentials. When unsure, omit the value and describe its category.
+
+The log is an agent-authored claim about an observed command result. It is not deployment consent,
+Knowledge, independent evidence, a release or approval ledger, QA execution evidence, or proof of
+current org state. A Reviewer rechecks material current state and job status through scoped tools.
+If the log cannot be written after a qualifying mutation, report delivery as incomplete and repair
+the artifact as soon as possible; do not pretend the missing entry means the org mutation did not
+happen, and do not turn logging into a pre-execution gate.
+
 ## Done means verified
 
 Before calling the item complete: tests written and passing, `tasks.md` checked off,
@@ -110,6 +224,7 @@ Latest job ID: <ID or none>
 Iterations: <count>
 Result/failure summary: <bounded factual summary>
 Org mutations: <none or bounded list with verification>
+Org change log: <canonical path or none — no qualifying org mutation executed>
 Unverified: <remaining limits>
 ```
 

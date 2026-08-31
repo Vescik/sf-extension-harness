@@ -172,7 +172,10 @@ the PR, not a formality.
 
 The description is adaptive, not boilerplate. Write `Summary`, `Changes`, `Validation`,
 and `Review focus` from the actual staged/PR diff, the linked work-item context, and the
-commands actually run — never invent a passing result. Keep a conditional section
+commands actually run — never invent a passing result. When a qualifying Salesforce mutation
+was executed, use the single canonical `org-changes.md` as the traceability source and link it in
+the Salesforce impact section; never copy it into PR prose or treat it as proof/approval. When no
+qualifying mutation ran, say so explicitly. Keep a conditional section
 (Salesforce impact, package namespace, QA handoff, harness changes) only when its subject
 appears in the diff or is a real delivery concern; delete the rest instead of filling
 them with repeated "N/A".

@@ -25,6 +25,12 @@ paraphrase or the unapproved AI understanding), and confirm the design's require
 baseline names the context's current ADO revision — a newer context revision is a finding,
 not something to absorb.
 
+When `org-changes.md` exists for the reviewed Work Item or prepared Feature, read it as
+operational history. Its absence is normal when no qualifying Salesforce mutation was executed.
+For standalone mutations in scope, require the linked `docs/org-changes/...` path. The log is
+never approval or independent evidence, so current material claims still require scoped
+re-verification.
+
 ### The exact implementation review subject
 
 An implementation review is of one Work Item's exact diff, never a guessed one.
@@ -140,6 +146,24 @@ compare the aggregate planned child surfaces with the final Feature diff, and tr
 coordination files separately from Story implementation. Missing or ambiguous child evidence is
 reported (`Scope alignment: INCOMPLETE`), never replaced by invented attribution — and no
 Feature-level `design.md`, scope file, or decisions log exists or is requested.
+
+## Org-change traceability (implementation review)
+
+When the reviewed delivery claims or otherwise shows that Salesforce was mutated:
+
+1. require exactly one canonical entry at the placement defined by the Development skill;
+2. reconcile target, bounded scope, operation type, Git state/paths, result, job/request ID,
+   tests, verification, rollback/cleanup, and unverified limits with the exact review subject;
+3. report a missing, duplicated, prematurely written, internally inconsistent, or unsanitized
+   entry as a finding; missing post-action logging never retroactively blocks the command;
+4. recheck material current job/org state with scoped tools where available and disclose any
+   drift, staleness, unavailable evidence, or unverified assertion; and
+5. refuse evidence laundering: an entry cannot establish deploy consent, current org state,
+   release approval, QA execution, Knowledge, or `SAFE` by itself.
+
+Reads, retrieves, dry runs, tests, local edits, and commands blocked before execution require no
+entry. An asynchronous status call should update the original operation entry rather than create
+a second ledger item.
 
 ## Output
 

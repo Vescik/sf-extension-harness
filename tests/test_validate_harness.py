@@ -1185,5 +1185,81 @@ class TestSalesforcePrettierScope(unittest.TestCase):
             self.assertNotIn(bypass, self.ci_text)
 
 
+class TestOrgChangeLogContract(unittest.TestCase):
+    """Pins one lightweight post-action log without adding a deployment runtime."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.development = (ROOT / ".github/skills/development/SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        cls.execution = (ROOT / ".ai/contracts/execution-contract.md").read_text(
+            encoding="utf-8"
+        )
+        cls.review = (
+            ROOT / ".github/skills/check-against-principles/SKILL.md"
+        ).read_text(encoding="utf-8")
+        cls.git_workflow = (ROOT / ".github/skills/git-workflow/SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        cls.work_items = (ROOT / "work-items/README.md").read_text(encoding="utf-8")
+        cls.standalone = (ROOT / "docs/org-changes/README.md").read_text(encoding="utf-8")
+        cls.development_squashed = squash(cls.development)
+        cls.execution_squashed = squash(cls.execution)
+        cls.review_squashed = squash(cls.review)
+        cls.standalone_squashed = squash(cls.standalone)
+
+    def test_log_is_lazy_append_only_and_post_action(self) -> None:
+        self.assertIn("Create the file lazily after the first qualifying result", self.development)
+        self.assertIn("append-only", self.development.lower())
+        self.assertIn("not a pre-execution denial", self.execution_squashed)
+        self.assertIn("## <UTC timestamp> — Metadata deployment", self.development)
+        self.assertIn("Requested / succeeded / failed / unprocessed", self.development)
+
+    def test_single_canonical_placement_has_bounded_fallback(self) -> None:
+        self.assertIn("work-items/<id>-<slug>/org-changes.md", self.development)
+        self.assertIn("docs/org-changes/<yyyy-mm-dd>-<short-safe-slug>.md", self.development)
+        self.assertIn("Do not copy Work Item or Feature entries here", self.standalone_squashed)
+        self.assertIn("sole exception", self.work_items)
+
+    def test_trigger_and_non_trigger_boundaries_are_explicit(self) -> None:
+        for operation in (
+            "destructive metadata deployment",
+            "record create, update, upsert, delete",
+            "Apex that may perform DML",
+            "package install, upgrade, uninstall",
+            "permission-set or permission-set-group assignment/removal",
+            "org lifecycle mutation",
+        ):
+            self.assertIn(operation, self.development)
+        self.assertIn(
+            "reads, retrieves, dry runs/validation-only deploys, tests, local edits",
+            self.development,
+        )
+
+    def test_sensitive_payloads_are_forbidden(self) -> None:
+        for forbidden in (
+            "record values",
+            "SOQL literals",
+            "Salesforce record IDs",
+            "inline Apex",
+            "raw CLI JSON",
+            "credentials",
+        ):
+            self.assertIn(forbidden, self.development)
+
+    def test_log_cannot_launder_evidence_or_approval(self) -> None:
+        self.assertIn("agent-authored claim", self.development)
+        self.assertIn("refuse evidence laundering", self.review_squashed)
+        self.assertIn("cannot establish deploy consent", self.review_squashed)
+        self.assertIn("never copy it into PR prose", self.git_workflow)
+
+    def test_no_new_executor_or_capture_runtime_is_implied(self) -> None:
+        self.assertIn(
+            "No wrapper, executor, schema, state machine, or automatic capture service",
+            self.execution_squashed,
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

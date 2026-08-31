@@ -1099,6 +1099,62 @@ class RoleGuardTests(unittest.TestCase):
         )
         self.assertEqual(hook_decision(output), "continue")
 
+    def test_org_change_log_write_authority_is_bounded(self) -> None:
+        developer_paths = (
+            "work-items/242850-approval-notifications/org-changes.md",
+            "docs/org-changes/2026-08-31-standalone-maintenance.md",
+        )
+        for path in developer_paths:
+            with self.subTest(role="developer", path=path):
+                output = run_hook(
+                    "copilot_role_guard.py",
+                    {
+                        "cwd": str(ROOT),
+                        "tool_name": "edit/editFiles",
+                        "tool_input": {"path": path},
+                    },
+                    "--role",
+                    "developer",
+                )
+                self.assertEqual(hook_decision(output), "continue")
+
+        denied_paths = (
+            "work-items/242850-approval-notifications/org-changes.md",
+            "docs/org-changes/2026-08-31-standalone-maintenance.md",
+        )
+        for role in ("designer", "reviewer", "config-investigator", "test-strategist"):
+            for path in denied_paths:
+                with self.subTest(role=role, path=path):
+                    output = run_hook(
+                        "copilot_role_guard.py",
+                        {
+                            "cwd": str(ROOT),
+                            "tool_name": "edit/editFiles",
+                            "tool_input": {"path": path},
+                        },
+                        "--role",
+                        role,
+                    )
+                    self.assertEqual(hook_decision(output), "deny")
+
+        for path in (
+            "docs/org-changes/README.md",
+            "docs/org-changes/standalone.md",
+            "docs/org-changes/2026-08-31-.md",
+        ):
+            with self.subTest(role="developer", path=path):
+                output = run_hook(
+                    "copilot_role_guard.py",
+                    {
+                        "cwd": str(ROOT),
+                        "tool_name": "edit/editFiles",
+                        "tool_input": {"path": path},
+                    },
+                    "--role",
+                    "developer",
+                )
+                self.assertEqual(hook_decision(output), "deny")
+
     def test_developer_can_write_ado_cache_but_not_test_cache(self) -> None:
         allowed = run_hook(
             "copilot_role_guard.py",

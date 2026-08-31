@@ -417,6 +417,14 @@ def maintainer_terminal_command_allowed(parts: list[str], root: Path) -> bool:
 # normalize_path resolves `..` before matching, and a spelling variant simply doesn't match.
 QA_TEST_PLAN_PATTERN = re.compile(r"work-items/[1-9][0-9]*-[^/]+/qa-test-plan\.md")
 QA_TEST_PLAN_ROLES = frozenset({"test-strategist"})
+# Operational org-change history has one role owner and one bounded standalone fallback.
+# The README remains policy documentation, not a Developer-write target.
+WORK_ITEM_ORG_CHANGE_LOG_PATTERN = re.compile(
+    r"work-items/[1-9][0-9]*-[^/]+/org-changes\.md"
+)
+STANDALONE_ORG_CHANGE_LOG_PATTERN = re.compile(
+    r"docs/org-changes/[0-9]{4}-[0-9]{2}-[0-9]{2}-[a-z0-9][a-z0-9-]*\.md"
+)
 
 
 PATH_KEYS = {
@@ -741,6 +749,8 @@ def development_edit_allowed(raw: str, resolution_root: Path, role: str = "devel
         return True
     if is_governed_record_path(brain_relative):
         return False
+    if STANDALONE_ORG_CHANGE_LOG_PATTERN.fullmatch(brain_relative):
+        return role == "developer"
     return allowed(brain_relative, ALLOWED_PREFIXES[role])
 
 
@@ -792,6 +802,10 @@ def allowed(relative_path: str, prefixes: tuple[str, ...]) -> bool:
 
 
 def role_path_allowed(relative_path: str, role: str) -> bool:
+    if WORK_ITEM_ORG_CHANGE_LOG_PATTERN.fullmatch(relative_path):
+        return role == "developer"
+    if STANDALONE_ORG_CHANGE_LOG_PATTERN.fullmatch(relative_path):
+        return role == "developer"
     if role in QA_TEST_PLAN_ROLES and QA_TEST_PLAN_PATTERN.fullmatch(relative_path):
         return True
     return allowed(relative_path, ALLOWED_PREFIXES[role])
