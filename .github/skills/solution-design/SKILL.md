@@ -176,16 +176,15 @@ The design declares its intended logical change surface in one compact table:
 - **Ownership** is Subscriber / Package / Platform, from the existing evidence rules — the
   org's object contract, not assumption.
 - **Planned action** is `Create`, `Modify`, `Remove`, or `Read dependency only`.
-  `Read dependency only` names a material dependency the solution relies on but must not
-  modify — a package-owned surface normally appears only this way. A rename/replacement is
-  `Remove` old + `Create` new, linked by a short note.
+  `Read dependency only` names a material dependency the solution relies on without changing.
+  Package ownership does not force this action; record the action the task actually requires.
+  A rename/replacement is `Remove` old + `Create` new, linked by a short note.
 - **Conditional scope is visible, not committed.** When an unresolved decision changes the
   component set, prefix the action with a marker such as
   `[conditional — decision: retry policy] Create`; the decision itself stays
   `[niezatwierdzona]`.
 - **Material exclusions are prose, not an inventory.** An optional short `Explicit
-  exclusions` list after the table may name likely scope-creep non-goals (e.g. "No
-  modification to `VendorNS__` permission sets"). Do not enumerate every out-of-scope
+  exclusions` list after the table may name likely scope-creep non-goals. Do not enumerate every out-of-scope
   component, and do not add confidence percentages, digests, state IDs, timestamps, or
   mandatory evidence IDs to the table.
 - **Reconciliation updates current intent.** When a newer requirement revision routes back

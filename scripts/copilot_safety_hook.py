@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Workspace PreToolUse hook blocking production and destructive agent operations."""
+"""Workspace PreToolUse hook for destructive actions and real Salesforce deploy consent."""
 
 from __future__ import annotations
 
@@ -7,9 +7,8 @@ import json
 import os
 import re
 import shlex
-import subprocess
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from urllib.parse import unquote, urlparse
@@ -24,7 +23,6 @@ DESTRUCTIVE_PATTERNS = (
     # safer for humans, but for an agent it is still a remote-history rewrite — when a
     # lease push is genuinely needed, a human runs it by hand (owner decision 2026-08-07).
     re.compile(r"\bgit\s+push\b[^\n]*(?:\s--force(?:-with-lease)?\b|\s-f\b)", re.IGNORECASE),
-    re.compile(r"\bsf\s+org\s+delete\b", re.IGNORECASE),
     re.compile(r"\bDROP\s+(TABLE|DATABASE)\b", re.IGNORECASE),
     re.compile(r"\bDELETE\s+FROM\b", re.IGNORECASE),
     # cmd.exe / PowerShell spellings of the recursive deletions above (W-1,
@@ -35,22 +33,6 @@ DESTRUCTIVE_PATTERNS = (
     re.compile(r"\b(?:rd|rmdir)\b[^\n]*\s/s\b", re.IGNORECASE),
     re.compile(r"\bdel\b[^\n]*\s/s\b", re.IGNORECASE),
     re.compile(r"\bremove-item\b[^\n]*\s-recurse\b", re.IGNORECASE),
-)
-
-PRODUCTION_PATTERNS = (
-    re.compile(r"(^|[^a-z])(prod|production)([^a-z]|$)", re.IGNORECASE),
-    re.compile(r"https://login\.salesforce\.com", re.IGNORECASE),
-)
-
-SENSITIVE_TOOL_TOKENS = (
-    "terminal",
-    "execute",
-    "web",
-    "fetch",
-    "browser",
-    "salesforce",
-    "deploy",
-    "mcp",
 )
 
 SANDBOX_HOST = re.compile(
@@ -65,12 +47,6 @@ SCRATCH_HOST = re.compile(
 DEV_EDITION_HOST = re.compile(
     r"^[a-z0-9][a-z0-9-]*\.develop\.my\.salesforce\.com$",
     re.IGNORECASE,
-)
-
-SALESFORCE_HOST_SUFFIXES = (
-    ".salesforce.com",
-    ".force.com",
-    ".my.site.com",
 )
 
 FILESYSTEM_KEYS = {
@@ -111,10 +87,6 @@ SALESFORCE_REVIEW_TOOLS = {
     "explain_query",
 }
 
-# Receipt-bounded efficiency toggles (config safety.*, default off). A receipt only ever REPLACES
-# a confirmation the human already gave through a governed executor; it never unlocks an operation
-# class that is denied outright (production, destructive, org writes, self-approval).
-RECEIPTS_DIR = HARNESS_ROOT / ".cache" / "receipts"
 # The browser automation lane was removed (2026-08-05): no guard script, no origin allowlist,
 # no session receipts. Browser-automation-shaped tools and commands are denied outright so the
 # old hard deny can never degrade into the fail-closed "ask" backstop (MCP names) or into
@@ -142,46 +114,6 @@ def safety_toggle(config: dict[str, Any] | None, name: str) -> bool:
     return config.get("safety", {}).get(name) is True
 
 
-def load_json_receipt(path: Path) -> dict[str, Any] | None:
-    try:
-        loaded = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return None
-    return loaded if isinstance(loaded, dict) else None
-
-
-def receipt_is_fresh(receipt: dict[str, Any], ttl_minutes: int, key: str) -> bool:
-    try:
-        issued = datetime.fromisoformat(str(receipt[key]))
-    except (KeyError, TypeError, ValueError):
-        return False
-    if issued.tzinfo is None:
-        return False
-    age = datetime.now(timezone.utc) - issued
-    return timedelta() <= age <= timedelta(minutes=ttl_minutes)
-
-
-def force_app_is_clean() -> bool:
-    completed = subprocess.run(
-        ["git", "status", "--porcelain", "--", "force-app"],
-        cwd=HARNESS_ROOT,
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-    return completed.returncode == 0 and not completed.stdout.strip()
-
-
-def retrieve_auto_approved(config: dict[str, Any] | None) -> bool:
-    """Retrieve is read-direction (org -> repository). Owner decision 2026-08-07: an
-    approved retrieve against a configured non-production alias flows WITHOUT a
-    per-invocation click — the receipt/toggle ceremony is retired. The one remaining
-    hold is a dirty force-app tree, because a retrieve over uncommitted work destroys
-    it silently; that case asks instead of denying."""
-
-    return force_app_is_clean()
-
-
 # MCP tool classification. VS Code may hand the hook either a "server/tool" name or a BARE "tool"
 # name (observed live: `core_list_orgs`). Server-prefix matching alone therefore leaks — classify by
 # the unqualified tool token too, and fail-closed on unrecognized MCP-shaped tools.
@@ -194,7 +126,7 @@ SALESFORCE_DEV_TOOL_TOKENS = frozenset({
     "run_soql_query", "list_all_orgs", "deploy_metadata", "retrieve_metadata",
     "run_apex_test", "run_apex_tests", "run_agent_test", "resume_tool_operation",
     "create_scratch_org", "delete_org", "assign_permission_set", "run_code_analyzer",
-    "get_username", "deploy", "retrieve",
+    "get_username", "deploy", "quick_deploy", "quick_deploy_metadata", "retrieve",
 })
 # Built-in editor/agent tools that are safe to pass through (edits are governed by the role guard;
 # terminal/sf commands and browser-automation shapes are handled by the dedicated checks below).
@@ -227,7 +159,7 @@ SALESFORCE_OBJECT_API_NAME = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,79}$")
 # or path mentioning the repository directory was denied as a "wrapped Salesforce command"
 # (observed live on the Windows pilot). Exclude word/`.`/`-` neighbours on both sides while still
 # matching `sf`, `sf.cmd`, `sf.exe`, `./sf`, `/usr/local/bin/sf`, and de-spliced `s''f`.
-SF_TOKEN = re.compile(r"(?<![\w.-])sf(?:\.cmd|\.exe)?(?![\w.-])", re.IGNORECASE)
+SF_TOKEN = re.compile(r"(?<![\w.-])(?:sf|sfdx)(?:\.cmd|\.exe)?(?![\w.-])", re.IGNORECASE)
 COMMAND_SEPARATORS = re.compile(r"[;&|\n\r]")
 
 
@@ -362,13 +294,6 @@ def is_salesforce_sandbox_origin(origin: str) -> bool:
     return _origin_matches(origin, (SANDBOX_HOST, SCRATCH_HOST))
 
 
-def sandbox_write_approved(config: dict[str, Any]) -> bool:
-    safety = config.get("safety", {})
-    return safety.get("sharedSandboxWritesApproved") is True and bool(
-        str(safety.get("sharedSandboxApprovalRef", "")).strip()
-    )
-
-
 def salesforce_review_tool_error(
     config: dict[str, Any] | None,
     tool_name: str,
@@ -425,21 +350,11 @@ def salesforce_review_tool_error(
     return None
 
 
-def development_tool_requires_confirmation(tool_name: str) -> bool:
-    lowered = tool_name.lower()
-    return any(
-        token in lowered
-        for token in (
-            "deploy",
-            "retrieve",
-            "delete",
-            "create",
-            "update",
-            "assign",
-            "activate",
-            "resume",
-        )
-    )
+def is_real_deploy_tool(tool_name: str) -> bool:
+    """Return whether an MCP tool starts a real deploy rather than inspecting one."""
+
+    bare = tool_name.rsplit("/", 1)[-1].lower()
+    return bare in {"deploy", "deploy_metadata", "quick_deploy", "quick_deploy_metadata"}
 
 
 def extract_urls(text: str) -> list[str]:
@@ -484,41 +399,11 @@ def is_terminal_tool(tool_name: str) -> bool:
 def target_orgs(parts: list[str]) -> list[str]:
     targets: list[str] = []
     for index, part in enumerate(parts):
-        if part in ("--target-org", "-o") and index + 1 < len(parts):
+        if part in ("--target-org", "-o", "--targetusername", "-u") and index + 1 < len(parts):
             targets.append(parts[index + 1])
-        if part.startswith("--target-org="):
+        if part.startswith(("--target-org=", "--targetusername=")):
             targets.append(part.split("=", 1)[1])
     return targets
-
-
-def approved_retrieve_command(parts: list[str], config: dict[str, Any] | None) -> bool:
-    """True when the direct CLI command is exactly `sf project retrieve start …` against one
-    configured read-allowed non-production alias.
-
-    Retrieve is the only raw Salesforce CLI surface agents may run; it is read-direction
-    (org → repository) and auto-approves against configured non-production aliases (owner
-    decision 2026-08-07). Deploys, queries, logins, and every other raw subcommand stay
-    denied; production aliases never auto-approve.
-    """
-
-    if [part.lower() for part in parts[1:4]] != ["project", "retrieve", "start"]:
-        return False
-    targets = target_orgs(parts)
-    if len(targets) != 1 or config is None:
-        return False
-    alias = targets[0]
-    if PRODUCTION_PATTERNS[0].search(alias):
-        return False
-    # Owner decision 2026-08-04: a configured non-production entry is the allowance —
-    # the per-alias allowAgent* grants were retired with the read-anywhere convention.
-    for org in config.get("salesforce", {}).get("orgs", []):
-        if org.get("alias") == alias and str(org.get("environment", "")).lower() in {
-            "development",
-            "qa",
-            "uat",
-        }:
-            return True
-    return False
 
 
 def direct_sf_command(command: str) -> list[str] | None:
@@ -533,9 +418,81 @@ def direct_sf_command(command: str) -> list[str] | None:
         parts = shlex.split(command)
     except ValueError as exc:
         raise ValueError(f"Salesforce command could not be parsed: {exc}") from exc
-    if not parts or Path(parts[0]).name.lower() not in {"sf", "sf.cmd", "sf.exe"}:
+    if not parts or Path(parts[0]).name.lower() not in {
+        "sf", "sf.cmd", "sf.exe", "sfdx", "sfdx.cmd", "sfdx.exe"
+    }:
         raise ValueError("Salesforce CLI must be invoked directly, without a shell or environment wrapper")
     return parts
+
+
+def _flag_enabled(parts: list[str], *flags: str) -> bool:
+    lowered = [part.lower() for part in parts]
+    for part in lowered:
+        if part in flags:
+            return True
+        for flag in flags:
+            if part.startswith(f"{flag}="):
+                return part.split("=", 1)[1] not in {"false", "0", "no"}
+    return False
+
+
+def is_real_deploy_command(parts: list[str]) -> bool:
+    """Classify current `sf` and legacy `sfdx` commands that initiate an org deployment."""
+
+    lowered = [part.lower() for part in parts]
+    executable = Path(lowered[0]).name.removesuffix(".exe").removesuffix(".cmd")
+    args = lowered[1:]
+    if executable == "sf":
+        if args[:3] == ["project", "deploy", "start"] or args[:2] == ["deploy", "metadata"]:
+            return not _flag_enabled(args, "--dry-run")
+        return args[:3] == ["project", "deploy", "quick"]
+    if executable == "sfdx" and args and args[0] in {"force:source:deploy", "force:mdapi:deploy"}:
+        return not _flag_enabled(args, "--checkonly", "-c")
+    return False
+
+
+def deploy_target(parts: list[str], tool_input: Any | None = None) -> str:
+    targets = target_orgs(parts)
+    if targets:
+        return targets[-1]
+    if isinstance(tool_input, dict):
+        values = collect_named_values(
+            tool_input,
+            {"target_org", "targetorg", "org", "username", "alias"},
+        )
+        if values:
+            return values[-1]
+    return "the project/default target-org context"
+
+
+def deploy_scope(parts: list[str], tool_input: Any | None = None) -> str:
+    scope_flags = {
+        "--source-dir", "-d", "--manifest", "-x", "--metadata", "-m",
+        "--metadata-dir", "--pre-destructive-changes", "--post-destructive-changes",
+        "--job-id", "--validated-deploy-request-id", "--sourcepath", "-p", "--deploydir",
+    }
+    values: list[str] = []
+    for index, part in enumerate(parts):
+        lowered = part.lower()
+        if lowered in scope_flags and index + 1 < len(parts):
+            values.append(f"{part} {parts[index + 1]}")
+        elif any(lowered.startswith(f"{flag}=") for flag in scope_flags):
+            values.append(part)
+    if not values and isinstance(tool_input, dict):
+        values = collect_filesystem_paths(tool_input)
+    summary = ", ".join(values[:6]) if values else "the command-selected deployment scope"
+    return summary[:800]
+
+
+def real_deploy_confirmation_reason(
+    parts: list[str], tool_input: Any | None = None
+) -> str:
+    return (
+        "This will be a real deployment of changes to Salesforce org "
+        f"{deploy_target(parts, tool_input)}. Scope: {deploy_scope(parts, tool_input)}. "
+        "Should I run this deployment? Confirmation applies only to this exact invocation; "
+        "a new deploy, quick deploy, or redeploy requires fresh confirmation."
+    )
 
 
 def collect_filesystem_paths(value: Any) -> list[str]:
@@ -695,11 +652,6 @@ def main() -> int:
         print(json.dumps(hook_response("deny", "Destructive operation blocked by SAFE-ROLE-001.")))
         return 0
 
-    if any(token in lowered_name for token in SENSITIVE_TOOL_TOKENS):
-        if any(pattern.search(text) for pattern in PRODUCTION_PATTERNS):
-            print(json.dumps(hook_response("deny", "Production target blocked by SAFE-ENV-001.")))
-            return 0
-
     config = load_config(root)
     if bare_tool in ENUMERATION_TOOLS:
         print(json.dumps(hook_response("deny", "Org/project enumeration is disabled; the harness is bound to one org.")))
@@ -724,43 +676,9 @@ def main() -> int:
                 )
             )
             return 0
-    for raw_url in extract_urls(text):
-        parsed_url = urlparse(raw_url.rstrip(".,);]"))
-        hostname = (parsed_url.hostname or "").lower()
-        if hostname.endswith(SALESFORCE_HOST_SUFFIXES) and not is_non_production_salesforce_origin(
-            f"{parsed_url.scheme}://{parsed_url.netloc}"
-        ):
-            print(json.dumps(hook_response("deny", "Non-sandbox Salesforce URL blocked by SAFE-ENV-001.")))
-            return 0
     if is_sf_dev:
-        if any(token in bare_tool for token in ("run_soql_query", "list_all_orgs")):
-            print(
-                json.dumps(
-                    hook_response(
-                        "deny",
-                        "Raw Salesforce query/org enumeration is disabled; use the review facade.",
-                    )
-                )
-            )
-            return 0
-        if config is None or not sandbox_write_approved(config):
-            print(json.dumps(hook_response("deny", "Salesforce development blocked: shared-sandbox approval is missing.")))
-            return 0
-        metadata_root = root
-        paths = collect_filesystem_paths(tool_input)
-        filesystem_tool = any(token in lowered_name for token in ("deploy_metadata", "retrieve_metadata"))
-        if filesystem_tool and not paths:
-            print(json.dumps(hook_response("deny", "Salesforce metadata tool must declare a root project source path.")))
-            return 0
-        outside = [path for path in paths if not within_salesforce_source(path, metadata_root)]
-        if outside:
-            print(json.dumps(hook_response("deny", "Salesforce development path is outside root force-app/manifest/tests/e2e source.")))
-            return 0
-        if development_tool_requires_confirmation(lowered_name):
-            # Per-invocation ask, always: the batch-receipt shortcut was retired 2026-08-04
-            # (the dev lane is human-started, macOS-only — one extra click per call is the
-            # whole cost of dropping the receipt/digest/TTL machinery).
-            print(json.dumps(hook_response("ask", "SAFE-HUMAN-001 requires confirmation for this approved non-production mutation.")))
+        if is_real_deploy_tool(tool_name):
+            print(json.dumps(hook_response("ask", real_deploy_confirmation_reason([], tool_input))))
             return 0
     try:
         sf_parts = direct_sf_command(command)
@@ -768,21 +686,14 @@ def main() -> int:
         print(json.dumps(hook_response("deny", f"Salesforce command blocked: {exc}.")))
         return 0
     if sf_parts is not None:
-        targets = target_orgs(sf_parts)
-        if len(targets) != 1:
-            print(json.dumps(hook_response("deny", "Salesforce command must specify exactly one allowlisted --target-org; defaults and multiple targets are forbidden.")))
+        if is_real_deploy_command(sf_parts):
+            print(json.dumps(hook_response("ask", real_deploy_confirmation_reason(sf_parts))))
             return 0
-        if approved_retrieve_command(sf_parts, config):
-            if retrieve_auto_approved(config):
-                print(json.dumps(hook_response()))
-                return 0
-            print(json.dumps(hook_response("ask", "force-app has uncommitted changes a retrieve would clobber; commit or stash first (SAFE-HUMAN-001).")))
-            return 0
-        print(json.dumps(hook_response("deny", "Direct Salesforce CLI is disabled except human-approved `sf project retrieve start`; use the guarded read tools.")))
+        print(json.dumps(hook_response()))
         return 0
 
-    if re.search(r"(?:@salesforce/mcp|ALLOW_ALL_ORGS|DEFAULT_TARGET_ORG|\bsfdx\b)", command, re.IGNORECASE):
-        print(json.dumps(hook_response("deny", "An unguarded Salesforce runtime/default target is forbidden.")))
+    if re.search(r"(?:@salesforce/mcp|ALLOW_ALL_ORGS|DEFAULT_TARGET_ORG)", command, re.IGNORECASE):
+        print(json.dumps(hook_response("deny", "An unguarded Salesforce runtime wrapper is forbidden; invoke sf or sfdx directly.")))
         return 0
 
     is_browser_named = (

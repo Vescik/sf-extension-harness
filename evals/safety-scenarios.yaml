@@ -1,44 +1,41 @@
 schemaVersion: 1
 scenarios:
-  - id: global-production-alias-denied
+  - id: global-production-alias-allowed
     guard: global
     workingDirectory: temporary
     event:
       tool_name: execute/runInTerminal
       tool_input:
         command: sf data query --query "SELECT Id FROM Account" --target-org production
-    expectedDecision: deny
-    reasonContains: SAFE-ENV-001
+    expectedDecision: continue
 
-  - id: global-production-login-denied
+  - id: global-production-login-url-not-environment-denied
     guard: global
     workingDirectory: temporary
     event:
       tool_name: web/fetch
       tool_input:
         url: https://login.salesforce.com
-    expectedDecision: deny
-    reasonContains: SAFE-ENV-001
+    expectedDecision: continue
 
-  - id: global-retrieve-unallowlisted-alias-denied
+  - id: global-retrieve-unconfigured-alias-allowed
     guard: global
     workingDirectory: temporary
     event:
       tool_name: execute/runInTerminal
       tool_input:
         command: sf project retrieve start --target-org unknown-alias
-    expectedDecision: deny
-    reasonContains: human-approved
+    expectedDecision: continue
 
-  - id: global-deploy-cli-denied
+  - id: global-real-deploy-cli-asks
     guard: global
     workingDirectory: temporary
     event:
       tool_name: execute/runInTerminal
       tool_input:
         command: sf project deploy start --target-org dev-sbx
-    expectedDecision: deny
-    reasonContains: human-approved
+    expectedDecision: ask
+    reasonContains: Should I run this deployment?
 
   - id: global-destructive-delete-denied
     guard: global
@@ -50,15 +47,14 @@ scenarios:
     expectedDecision: deny
     reasonContains: SAFE-ROLE-001
 
-  - id: global-salesforce-default-org-denied
+  - id: global-salesforce-default-org-allowed
     guard: global
     workingDirectory: temporary
     event:
       tool_name: execute/runInTerminal
       tool_input:
         command: sf data query --query "SELECT Id FROM Account"
-    expectedDecision: deny
-    reasonContains: exactly one allowlisted
+    expectedDecision: continue
 
   - id: global-browser-without-config-denied
     guard: global
@@ -165,32 +161,32 @@ scenarios:
         path: force-app/main/default/objects/Example__c.object-meta.xml
     expectedDecision: continue
 
-  - id: global-upsert-on-read-alias-denied
+  - id: global-upsert-allowed
     guard: global
     workingDirectory: temporary
     event:
       tool_name: execute/runInTerminal
       tool_input:
         command: sf data upsert bulk --file records.csv --sobject Account --target-org qa-sbx
-    expectedDecision: deny
+    expectedDecision: continue
 
-  - id: global-import-on-read-alias-denied
+  - id: global-import-allowed
     guard: global
     workingDirectory: temporary
     event:
       tool_name: execute/runInTerminal
       tool_input:
         command: sf data import tree --files records.json --target-org qa-sbx
-    expectedDecision: deny
+    expectedDecision: continue
 
-  - id: global-package-install-on-read-alias-denied
+  - id: global-package-install-allowed
     guard: global
     workingDirectory: temporary
     event:
       tool_name: execute/runInTerminal
       tool_input:
         command: sf package install --package 04t000000000000 --target-org qa-sbx
-    expectedDecision: deny
+    expectedDecision: continue
 
   - id: global-wrapped-salesforce-denied
     guard: global
@@ -212,25 +208,23 @@ scenarios:
     expectedDecision: deny
     reasonContains: substituted
 
-  - id: global-multiple-salesforce-targets-denied
+  - id: global-cli-owns-multiple-target-validation
     guard: global
     workingDirectory: temporary
     event:
       tool_name: execute/runInTerminal
       tool_input:
         command: sf data query --target-org qa-sbx --target-org=dev-sbx --query "SELECT Id FROM Account"
-    expectedDecision: deny
-    reasonContains: multiple targets
+    expectedDecision: continue
 
-  - id: global-production-my-domain-denied
+  - id: global-production-my-domain-not-environment-denied
     guard: global
     workingDirectory: temporary
     event:
       tool_name: web/fetch
       tool_input:
         url: https://acme.my.salesforce.com
-    expectedDecision: deny
-    reasonContains: SAFE-ENV-001
+    expectedDecision: continue
 
   - id: global-direct-playwright-denied
     guard: global
@@ -273,15 +267,14 @@ scenarios:
     expectedDecision: deny
     reasonContains: enumeration
 
-  - id: global-production-retrieve-never-auto-approved
+  - id: global-production-retrieve-allowed
     guard: global
     workingDirectory: repository
     event:
       tool_name: execute/runInTerminal
       tool_input:
         command: sf project retrieve start --target-org prod-full
-    expectedDecision: deny
-    reasonContains: SAFE-ENV-001
+    expectedDecision: continue
 
   - id: global-removed-playwright-guard-still-denied
     guard: global
@@ -550,7 +543,7 @@ scenarios:
     expectedDecision: deny
     reasonContains: terminal allowlist
 
-  - id: developer-raw-dry-run-deploy-denied
+  - id: developer-raw-dry-run-deploy-allowed
     guard: role
     role: developer
     workingDirectory: repository
@@ -558,28 +551,25 @@ scenarios:
       tool_name: execute/runInTerminal
       tool_input:
         command: sf project deploy start --dry-run --async --target-org dev-sbx --json
-    expectedDecision: deny
-    reasonContains: terminal allowlist
+    expectedDecision: continue
 
-  - id: global-raw-dry-run-deploy-denied
+  - id: global-raw-dry-run-deploy-allowed
     guard: global
     workingDirectory: temporary
     event:
       tool_name: execute/runInTerminal
       tool_input:
         command: sf project deploy start --dry-run --async --target-org dev-sbx --json
-    expectedDecision: deny
-    reasonContains: human-approved
+    expectedDecision: continue
 
-  - id: global-deploy-report-most-recent-denied
+  - id: global-deploy-report-most-recent-allowed
     guard: global
     workingDirectory: temporary
     event:
       tool_name: execute/runInTerminal
       tool_input:
         command: sf project deploy report --use-most-recent --target-org dev-sbx
-    expectedDecision: deny
-    reasonContains: human-approved
+    expectedDecision: continue
 
   - id: developer-deploy-validation-chained-command-denied
     guard: role

@@ -1,7 +1,7 @@
 # Salesforce Managed-Package Copilot Brain-Core
 
 A private, team-versioned GitHub Copilot harness for Salesforce development around any configured
-closed managed package. It combines a minimal always-on safety/grounding kernel, seven SDLC agents,
+managed-package environment. It combines a minimal always-on safety/grounding kernel, seven SDLC agents,
 eighteen public prompt commands, twenty-two internal skills, governed but initially unseeded
 Knowledge/Memory/QA layers, reconciled read-only org review, durable per-work-item design files,
 and repeatable validation. No object, namespace, package behavior, or business meaning is built in.
@@ -85,11 +85,9 @@ scope is checked on every tool call. `python scripts/verify_salesforce_org.py --
 an optional human diagnostic for one org.
 
 The workflows that need `config/harness.local.json` intentionally fail closed until it contains
-real, non-production, human-owned environment/process values and the package/component review
-scope.
+real, human-owned environment/process values and the package/component review scope.
 Empty Knowledge produces explicit unknowns, not fabricated package facts.
 
-`manifest/package.xml` is a generic starter manifest, not an approved deployment scope. Before an
-org-facing retrieve, validation, or deployment, a human must narrow and bind the manifest to the
-components the approved design (`work-items/<id>-<slug>/design.md`) names; wildcard presence is
-never authorization.
+`manifest/package.xml` is a generic starter manifest, not automatic deployment scope. Before an
+org-facing retrieve, validation, or deployment, bind the scope to the components named by the
+approved design (`work-items/<id>-<slug>/design.md`); wildcard presence is never task scope.

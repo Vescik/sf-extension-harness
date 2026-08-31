@@ -1,6 +1,6 @@
 ---
 name: development
-description: How to implement a designed work item under VendorPkg — extension points only, deviations recorded, Apex coverage and Flow test plans as first-class deliverables.
+description: Implement a designed Salesforce work item, validate it, and execute required org changes with per-deploy chat confirmation.
 user-invocable: false
 ---
 
@@ -43,21 +43,19 @@ have, not a gap to fill silently.
    fired unexpectedly) is worth more than the work item: propose it as a
    `docs/package-constraints.md` entry immediately.
 
-## VendorPkg specifics
+## Salesforce and VendorPkg specifics
 
-- Extensions go through official extension points only; `VendorNS__` metadata is never
-  edited (MP-NS-001). If the design's extension point does not behave as documented,
-  stop and record the deviation — do not improvise around the package.
+- Treat package ownership and namespace as evidence context, not as an edit or deployment deny.
+  If observed package behavior differs from the design, record the deviation before changing
+  the implementation.
 - Apex follows `apex.instructions.md` (loaded automatically for `.cls` files); Flows
   follow `flows.instructions.md`. Both demand tests: outcome assertions for Apex,
   a scenario/bulk/fault test plan for Flows, tied to the work item's acceptance
   criteria.
-- Org reads for verification go through the read-only review tools; the only raw
-  Salesforce CLI command is `sf project retrieve start` against a configured
-  non-production alias. Real deploys are human, always — the deploy-validation wrapper
-  below is a check-only dry run, never a deployment.
+- Prefer the read-only review tools for structured evidence. Use direct `sf`/`sfdx` for any
+  Salesforce CLI operation needed by the task, including deployment and record mutation.
 
-## Deploy validation — the completion gate for deployable changes
+## Deployment and org-change loop
 
 When the work item changed deployable Salesforce source under `force-app/**` or
 `manifest/**`, run this loop after local checks pass. Content-only work (docs, work-item
@@ -68,54 +66,50 @@ artifacts, agent configuration, tooling) never triggers it.
    classes. Pass one scope form only: one or more `--source-dir` paths under
    `force-app/`, or one `--manifest` under `manifest/`. Never validate all of
    `force-app` merely because it is convenient.
-2. **Tests**: when the scope contains Apex, supply the relevant test classes with
-   `--test` (from the accepted design, changed test classes, and the development test
-   contract). The wrapper derives the honest level itself: no Apex → `NoTestRun`
-   (deployability only — never call it "tests passed"); Apex with your `--test` list →
-   `RunSpecifiedTests`; Apex without one → `RunLocalTests`.
-3. **Start**: `python scripts/validate_salesforce_deploy.py start --source-dir <path> …`
-   (or `--manifest <path>`). The wrapper resolves the project-local VS Code target-org,
-   requires it to be configured `development`, proves its live non-production identity,
-   and submits a check-only `--dry-run --async` job. It returns the exact job ID and the
-   exact status command — there is nothing to configure and no raw `sf` to type.
-4. **Check**: run the returned
-   `python scripts/validate_salesforce_deploy.py status --job-id <ID> --org <alias>`.
-   One call is one status read; there is no wait and no polling daemon. `IN_PROGRESS` is
-   never success — check again later in the session, or hand over the job ID, alias,
-   state, and status command if the session ends first.
+2. **Tests**: choose the Salesforce test level and named tests proportionally to the change.
+   A dry run is useful but optional unless the work item requires it.
+3. **Confirm a real deploy**: immediately before `sf project deploy start` without
+   `--dry-run`, `sf project deploy quick`, equivalent `sf deploy metadata`, or a legacy
+   `sfdx` deploy, state: `This will be a real deployment of changes to Salesforce org
+   <target>. Scope: <scope>. Should I run this deployment?` Wait for an unambiguous answer.
+   The confirmation binds only the exact invocation. Ask again for every retry or redeploy.
+4. **Execute and check**: run the exact confirmed command. Use deploy report/status/resume/cancel
+   as needed; these status-management calls do not need a new deploy confirmation. Preserve the
+   job ID and verify the resulting org state.
 5. **Fix**: on `FAILED`, name the normalized component/test failure you are addressing,
    fix only authorized in-scope implementation defects, rerun the proportional local
    checks your change affects, then start a new job. A missing dependency that is
    already a planned/read dependency joins the next attempt; a material new surface
    needs a `decisions.md` Scope Delta entry first; changed business intent routes back
-   to Solution Design; package-owned edits, org mutation, or credentials are blockers,
-   not fixes.
+   to Solution Design; credentials remain a blocker, not a workaround opportunity.
 6. **Progress, not churn**: iterate as many times as real corrections require, but
    never resubmit an unchanged failure — if the same normalized failure repeats without
    a new local diff or corrected scope, stop retrying, diagnose deeper, and either make
    a materially relevant correction or return a named blocker. `BLOCKED`/`INCOMPLETE`
    results are environment/transport findings, never deploy failures and never passes.
 
-Deployment results never become QA records: `qa-test-plan.md` keeps its own authority
-and a successful dry run is deployability validation, not QA execution.
+Data create/update/upsert/delete, bulk operations, Apex execution, package operations, and org
+lifecycle commands may be performed without this deployment-specific confirmation when they are
+inside the task scope. Report every material org mutation and its verification. Deployment results
+never become QA records: `qa-test-plan.md` keeps its own authority.
 
 ## Done means verified
 
 Before calling the item complete: tests written and passing, `tasks.md` checked off,
 `decisions.md` complete, and the PR prepared per the
 [git-workflow skill](../git-workflow/SKILL.md) with the template filled in. For
-deployable Salesforce changes, also report the validation outcome in exactly this
-shape — pending is never presented as pass, and a dry run is never described as
-"deployed":
+deployable Salesforce changes, report the outcome in this shape. Pending is never presented as a
+pass, and a dry run is never described as deployed:
 
 ```text
-Deploy validation: PASSED | BLOCKED | IN PROGRESS
+Deployment: NOT RUN | DRY RUN | SUCCEEDED | FAILED | IN PROGRESS | BLOCKED
 Org alias: <alias or unavailable>
 Scope: <manifest or logical/source components>
 Test policy: NoTestRun | RunSpecifiedTests | RunLocalTests
 Latest job ID: <ID or none>
 Iterations: <count>
 Result/failure summary: <bounded factual summary>
+Org mutations: <none or bounded list with verification>
 Unverified: <remaining limits>
 ```
 

@@ -186,12 +186,8 @@ KNOWLEDGE_STORE_VALUELESS_FLAGS: frozenset[str] = frozenset(
 )
 
 
-# Guarded check-only deploy validation (Developer completion gate, 2026-08-17). The
-# executor scripts/validate_salesforce_deploy.py is the ONLY deploy-shaped surface any
-# role may reach: it constructs `sf project deploy start --dry-run --async` itself and
-# proves the project-local development org first. Direct `sf project deploy ...` stays
-# denied for every role by the global safety hook — including commands that carry
-# --dry-run, because a raw command's flags are model-controlled and this grammar is not.
+# Legacy check-only deploy validation remains available during migration, but it is no longer
+# the Developer's exclusive Salesforce execution path.
 VALIDATE_DEPLOY_ROLES = frozenset({"developer"})
 VALIDATE_DEPLOY_COMMAND_FLAGS = {
     "start": frozenset({"--source-dir", "--manifest", "--test"}),
@@ -682,14 +678,11 @@ def allowed_role_command(command: str, root: Path, role: str) -> bool:
     if role == MAINTAINER_ROLE and maintainer_terminal_command_allowed(parts, root):
         return True
     executable = Path(parts[0]).name.lower()
-    if (
-        role == "developer"
-        and executable.removesuffix(".exe").removesuffix(".cmd") == "sf"
-        and [part.lower() for part in parts[1:4]] == ["project", "retrieve", "start"]
-    ):
-        # Read-direction org → repository retrieve. The global safety hook still requires exactly
-        # one allowlisted --target-org and per-invocation human confirmation (SAFE-HUMAN-001);
-        # deploys and all other raw Salesforce CLI subcommands remain denied.
+    if role == "developer" and executable.removesuffix(".exe").removesuffix(".cmd") in {
+        "sf", "sfdx"
+    }:
+        # The global safety hook independently asks before each exact real-deploy invocation.
+        # Dry runs, reads, data mutations, package/org lifecycle, and status commands pass through.
         return True
     if executable not in {"python", "python3", "py", "python.exe", "python3.exe", "py.exe"}:
         return False

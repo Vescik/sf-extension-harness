@@ -151,7 +151,8 @@ See [work-items/README.md](../work-items/README.md) for what each durable file m
 - unresolved gaps are visible, not hidden;
 - you have what you need to decide merge and deployment.
 
-"The agent finished" is not "deployed" or "released" — those are separate human actions.
+"The agent finished" is not automatically "deployed" or "released". A deploy is proven only by
+its CLI result; release remains a separate decision.
 
 ### Common pitfalls
 
@@ -232,7 +233,7 @@ Use it only when all of these are true:
 - expected and actual behavior are known;
 - the target component is named;
 - the smallest coherent fix is narrow;
-- the target is customer-owned metadata, not managed-package internals.
+- package ownership and namespace impact are understood and recorded.
 
 ### When not to use it
 
@@ -258,32 +259,32 @@ configured non-production review alias.)
 ### What the agent will do
 
 - confirm the bounded entry conditions hold;
-- retrieve and read the current non-production source through the allowed read-only lane;
+- retrieve and read the current org source through the appropriate evidence or CLI lane;
 - check relevant Knowledge and dependencies;
 - make the smallest coherent repository edit in `force-app/`;
 - verify what can be verified locally;
 - write a fix note under `output/documentation/adhoc-fixes/`;
-- hand you an explicit deployment and verification recommendation.
+- ask for single-use chat confirmation if a real deploy is needed, then deploy and verify it.
 
 ### What you decide
 
 - confirm the diagnosis and component ownership;
 - decide whether the express lane is still appropriate as facts emerge;
 - review the exact change;
-- perform or authorize deployment outside the agent lane;
+- confirm the exact target and scope when the agent proposes a real deployment;
 - decide whether the finding should become durable Knowledge.
 
 ### Done here means
 
-The bounded repository fix and its fix note are ready for your review. It does not mean the
-org is fixed — deployment and org verification are yours.
+The bounded repository fix and its fix note are ready for review. If a real deploy was confirmed
+and executed, the outcome must include org verification; otherwise the org remains unchanged.
 
 ### Common pitfalls
 
 - using the express lane to skip design for a broad change;
 - expanding scope with drive-by refactors;
-- editing managed-package internals;
-- claiming success before human deployment and org verification.
+- treating namespace or package ownership as a substitute for evidence and impact analysis;
+- claiming success before deployment and org verification are proven.
 
 ## Playbook 3 — Managed-package namespace work
 
@@ -315,11 +316,12 @@ citable Knowledge by itself.
 ### What the workspace will do
 
 - establish component ownership and the installed-package context;
-- consult effective Knowledge and allowed non-production evidence;
+- consult effective Knowledge and the available evidence sources;
 - keep package impact explicit in the design, in its own right — not buried in a paragraph;
-- place implementation only in subscriber-owned extension surfaces;
-- stop, or expose the gap, when package internals, vendor guarantees, or a supported extension
-  point cannot be established from evidence.
+- record the actual ownership and impact of every changed surface without applying a
+  namespace-based deny;
+- stop, or expose the gap, when required package behavior or vendor guarantees cannot be
+  established from evidence.
 
 ### What you decide
 

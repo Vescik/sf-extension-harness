@@ -1,11 +1,10 @@
 # Windows Setup & MCP Fix — Step by Step
 
 This is the practical runbook for running the brain-core harness on **Windows** in VS Code + GitHub
-Copilot. The MCP surface is **read-only on every platform**: the read-only Salesforce facade and
-ADO reads work in full; agents never perform a real deploy (the Developer's guarded
-`validate_salesforce_deploy.py` wrapper runs only check-only `--dry-run` validations against the
-project-local development org). The only raw Salesforce CLI an agent may request is
-`sf project retrieve start`, which always stops for your approval.
+Copilot. The configured MCP surface is read-only on every platform. The Developer uses direct
+`sf`/`sfdx` for Salesforce deployments and org mutations. Every real deploy stops for a fresh
+chat confirmation that names the target and scope and warns that changes will be deployed to the
+org; dry runs, retrieve, status/report/resume/cancel, and data mutations do not use that gate.
 
 > The single most common failure ("Blocked by Pre-Tool Use hook" / "Organization name is required")
 > is **not** a config-file problem — it's a missing **`ADO_ORGANIZATION` environment variable**.

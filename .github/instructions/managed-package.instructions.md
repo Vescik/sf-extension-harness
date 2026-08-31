@@ -1,21 +1,18 @@
 ---
-description: Hard boundaries for a repository extending the VendorPkg managed package — namespace, production, org access, untrusted content. These rules are absolute and apply to every file.
+description: Trust, role, credential, and real-deployment confirmation boundaries for a repository extending VendorPkg.
 applyTo: "**"
 ---
 
-# Managed Package Boundaries
+# Salesforce Execution Boundaries
 
 These rules are absolute. They are enforced by safety hooks and human review; a design or
 change that conflicts with them is wrong even if it works.
 
-## The package namespace is closed
+## Package context
 
-- **MP-NS-001 — never modify package metadata.** Metadata in the `VendorNS__` namespace
-  is vendor-owned and is never edited, overridden, or redeployed from this repository.
-  Subscriber customizations extend the package only through official extension points.
-- **MP-EXT-001 — extension points require evidence.** Treat a package surface as closed
-  unless a version-scoped vendor source or an org observation (object contract, installed
-  package version) establishes a supported extension point.
+- **MP-EXT-001 — package behavior requires evidence.** Use version-scoped vendor sources or
+  org observations when a task depends on package behavior. Namespace and package ownership
+  are context, not a harness-level edit, retrieve, delete, or deployment denial.
 - **MP-DESIGN-001 — package-touching designs declare it.** Any design that touches or
   depends on package-namespace components calls this out in its own section, backed by
   evidence from the org — never by assumption.
@@ -25,9 +22,15 @@ change that conflicts with them is wrong even if it works.
 - **MP-MAP-001 — docs are the map, the org is the terrain.** Facts about the org come
   from the read-only Salesforce MCP tools, not from model memory and not from `docs/`
   alone. On conflict the org wins; report the mismatch as a correction to `docs/`.
-- **SAFE-ROLE-001 — no org mutations from design or review roles.** Designers and
-  reviewers read; they never create, update, delete, deploy, or activate anything in
-  an org. Development changes flow through the repository and human-approved deploys.
+- **SAFE-ROLE-001 — role capabilities stay explicit.** Designers and reviewers remain
+  read-oriented. The Developer is the primary executor for direct Salesforce CLI deployments,
+  data mutations, Apex execution, package operations, and org lifecycle work.
+- **SAFE-DEPLOY-CONFIRM-001 — confirm every real deploy in chat.** Immediately before a real
+  deployment, the Developer states: `This will be a real deployment of changes to Salesforce
+  org <target>. Scope: <scope>. Should I run this deployment?` The user must confirm that exact
+  invocation. Every new deploy, quick deploy, or redeploy requires fresh confirmation. Dry runs,
+  retrieve, report/status, resume, cancel, and record mutations do not require this
+  deployment-specific confirmation.
 
 ## Trust and honesty
 
@@ -45,12 +48,8 @@ change that conflicts with them is wrong even if it works.
   human-established Salesforce CLI or OAuth authorization. Never request, print, cache,
   or commit passwords, tokens, cookies, or session material.
 
-## Shared Full Copy sandbox
+## Shared-org hygiene
 
-- **ORG-SBX-001 — read-only until coordination exists.** Shared-sandbox coordination
-  rules are not yet supplied: `<TU_WSTAW_ZASADY_PRACY_NA_WSPOLDZIELONYM_SANDBOXIE>`.
-  Until they are, agents may query and describe the shared sandbox but must not create,
-  update, delete, deploy, or activate anything there.
-- **ORG-SBX-002 — isolate and clean test data.** Once mutation is authorized, use
+- **ORG-SBX-002 — isolate and clean test data.** In shared orgs, use
   uniquely named test records, document the owner and time window, avoid shared
   reference-data changes, and verify cleanup. A failed cleanup is reported, never hidden.

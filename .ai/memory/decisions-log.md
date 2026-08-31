@@ -1586,3 +1586,30 @@ Gate: 690 unit tests OK in ~87 s, 43 safety evals PASS, validate_harness coheren
   envelope, tool time ~1.1 s — byte-identical facts to the 2.0.0 run.
 - Approved by: owner (fixed decisions D1–D12, 2026-08-17,
   MASTER-PLAN-SCALE-LARGE-OBJECT-CONTRACT-64-16.md)
+
+## 2026-08-31 — Developer owns Salesforce deploy and data execution with per-deploy chat consent
+
+- Decision: the Developer may use direct `sf`/`sfdx` commands for metadata retrieve, dry runs,
+  real and quick deployments, destructive deployments, record create/update/upsert/delete and
+  bulk operations, Apex execution/testing, package operations, and org lifecycle work. Targets
+  may be development, QA, UAT, production, scratch orgs, or Developer Edition and may be explicit
+  or resolved through the normal project/default CLI context. Namespace and package ownership do
+  not create a harness-level edit, retrieve, delete, or deployment denial.
+- Real-deploy gate: before every exact invocation that starts a real deployment, the Developer
+  states `This will be a real deployment of changes to Salesforce org <target>. Scope: <scope>.
+  Should I run this deployment?` and waits for unambiguous chat confirmation. A new deploy, quick
+  deploy, retry, or redeploy requires a fresh confirmation. Dry runs, retrieve, report/status,
+  resume, cancel, and data mutations do not use this deployment-specific gate.
+- Architecture: direct CLI is the canonical write path. The existing Salesforce MCP facade stays
+  read-only and evidence-oriented. No Deployment Agent, write MCP, write-mode configuration
+  toggle, persistent approval ledger, receipt, or deployment workflow state machine is added.
+  The legacy check-only deploy helper remains optional during transition.
+- Supersedes: the org-mutation and raw-CLI denials in `2026-07-14 - MCP is read-only; org mutation
+  is not an agent capability`; the retired write-lane restrictions recorded on 2026-08-04; the
+  2026-08-17 wrapper-only/dry-run-only completion gate; `MP-NS-001`; and the shared-sandbox
+  read-only gate `ORG-SBX-001`. Trust, credential, role, and generic destructive filesystem/Git
+  safeguards remain in force.
+- Cutover and rollback: this repository change is the cutover. Roll back with a Git revert of the
+  cutover commit; do not maintain parallel old/new policy modes.
+- Approved by: workspace owner directive, 2026-08-31, based on
+  `MASTER-PLAN-SALESFORCE-AGENT-DEPLOY-DATA-AUTONOMY.md`.

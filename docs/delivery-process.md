@@ -80,7 +80,8 @@ Commit delivery work as:
 
 Feature coordination commits use `[FEATURE-<feature-id>] … — AB#<feature-id>`. The raw `AB#`
 gives ADO its native commit link once pushed. Do not use `Fixes`, `Resolves`, or `Closes` to
-transition ADO state. ADO state, merge, deployment, and release remain human decisions.
+transition ADO state. ADO state, merge, and release remain human decisions. A real deployment may
+be executed by the Developer only after the user confirms that exact target and scope in chat.
 
 ## How often to push and synchronize
 

@@ -70,8 +70,8 @@ Included local contexts: `work-items/<id>-<slug>/`, `work-items/<id>-<slug>/`
 
 ## Package namespace impact
 
-- [ ] No changes touching `VendorNS__`
-- [ ] Impact and evidence recorded in `design.md`
+- [ ] Namespace/package ownership and impact are recorded in `design.md`
+- [ ] Required evidence, verification, and rollback are recorded
 
 ## QA handoff
 

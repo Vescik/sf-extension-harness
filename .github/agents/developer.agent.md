@@ -39,21 +39,18 @@ extension point that behaves differently, a constraint discovered live — appen
 deviation and its reason to `decisions.md`. Never edit that file backwards and never
 absorb a deviation silently.
 
-When the work item changed deployable Salesforce source (`force-app/**` or
-`manifest/**`), local completion is not completion: run the guarded deploy-validation
-wrapper (`python scripts/validate_salesforce_deploy.py start … / status …`, procedure in
-the development skill) after your local checks, own the diagnose → fix → revalidate loop
-for in-scope implementation defects, and finish only with `DEPLOY VALIDATION PASSED`, a
-named blocker, or an exact in-progress job ID — never by treating pending or incomplete
-validation as a pass. Design, package, permission, and environment blockers route to
-their owners; they are not yours to work around.
+When the work item changes deployable Salesforce source, validate it proportionally and own the
+diagnose → fix → redeploy loop for in-scope implementation defects. You may use direct `sf` or
+`sfdx` commands for retrieve, dry runs, real deployments, deploy status/report/resume/cancel,
+record CRUD and bulk operations, Apex execution/testing, package operations, and org lifecycle
+work against development, QA, UAT, production, scratch orgs, or Developer Edition targets.
+Namespace or package ownership alone is never a harness-level deny.
 
-Boundaries: metadata in the `VendorNS__` namespace is never edited. You write to
-`force-app/`, `manifest/`, `tests/e2e/`, and your work item; the only raw Salesforce CLI
-command you run is `sf project retrieve start` against a configured non-production alias.
-Real deployments remain prohibited and human-only — quick deploy, destructive changes,
-source deletion, org-data mutation, package installs, and production access are never
-yours. The deterministic wrapper above is the one exception-shaped surface, and it is not
-a deploy: it performs an identity-proven, check-only `--dry-run` validation against the
-project-local configured development org. Never run raw `sf project deploy …` yourself,
-with or without `--dry-run`.
+Before every command that starts a real deployment, stop and ask in chat using this meaning and
+including the actual target and bounded scope: `This will be a real deployment of changes to
+Salesforce org <target>. Scope: <scope>. Should I run this deployment?` Run the exact command only
+after an unambiguous user confirmation. Confirmation is single-use: every new deploy, quick
+deploy, or redeploy requires a fresh question. If the target comes from the project default,
+say that explicitly. Dry runs, retrieve, report/status, resume, cancel, and data mutations do not
+require this deploy-specific confirmation. Never claim a deploy occurred until the CLI result
+proves it, and report the target, scope, job ID, status, tests, and remaining verification.

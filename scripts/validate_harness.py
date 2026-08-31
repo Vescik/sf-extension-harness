@@ -119,12 +119,9 @@ REQUIRED_SETTINGS = (
     "chat.useCustomAgentHooks",
     "chat.useCustomizationsInParentRepositories",
 )
-# Phase 1 of the context-first rebuild: the naming-convention, code-review, and
-# decision-format placeholders left with organization-principles and re-enter with
-# docs/design-guides.md in phase 2. Only the shared-sandbox rule remains always-on.
-EXPECTED_HUMAN_PLACEHOLDERS = {
-    "<TU_WSTAW_ZASADY_PRACY_NA_WSPOLDZIELONYM_SANDBOXIE>",
-}
+# All always-on policy placeholders have been retired; operational policy is executable or
+# explicit English contract text.
+EXPECTED_HUMAN_PLACEHOLDERS: set[str] = set()
 
 
 class Audit:
@@ -531,8 +528,10 @@ def check_settings_and_mcp(audit: Audit) -> None:
         )
         audit.require(isinstance(auto, dict), "chat.tools.terminal.autoApprove must be an object")
         if isinstance(auto, dict):
-            for denied in ("sf", "sfdx", "rm", "del"):
+            for denied in ("rm", "del"):
                 audit.require(auto.get(denied) is False, f"terminal auto-approve must deny '{denied}'")
+            audit.require(auto.get("sf") is True, "terminal auto-approve must admit 'sf'")
+            audit.require(auto.get("sfdx") is True, "terminal auto-approve must admit 'sfdx'")
     workspace_folders = workspace.get("folders", []) if isinstance(workspace, dict) else []
     folders = {
         (item.get("name"), item.get("path"))
@@ -1041,9 +1040,12 @@ def check_grounding_contracts(audit: Audit) -> None:
     # Context-first phase 1: the kernel is orientation-only; the non-negotiable rules
     # moved to managed-package.instructions.md, whose applyTo "**" keeps them always-on.
     boundaries = required_text(ROOT / ".github/instructions/managed-package.instructions.md", audit)
-    # SAFE-ENV-001 prose was removed 2026-08-08 (owner decision): the production block
-    # is hook-enforced (copilot_safety_hook denies with that label); prose no longer duplicates it.
-    for marker in ("MP-NS-001", "SAFE-UNTRUST-001", "SAFE-TOOL-001", "SAFE-HUMAN-001"):
+    for marker in (
+        "SAFE-DEPLOY-CONFIRM-001",
+        "SAFE-UNTRUST-001",
+        "SAFE-TOOL-001",
+        "SAFE-HUMAN-001",
+    ):
         audit.require(marker in boundaries, f"always-on boundary rule is missing: {marker}")
 
     principle_paths = [ROOT / ".github/copilot-instructions.md"] + sorted(
@@ -1319,89 +1321,61 @@ def check_retired_surfaces(audit: Audit, root: Path = ROOT) -> None:
 
 
 def check_deploy_validation_wiring(audit: Audit) -> None:
-    """Guarded check-only deploy validation (2026-08-17): executor, role/agent/skill/
-    contract/settings wiring present, and the direct-deploy denial unchanged."""
-
-    executor = required_text(ROOT / "scripts/validate_salesforce_deploy.py", audit)
-    audit.require('"--dry-run"' in executor, "deploy validation executor must hard-code --dry-run")
-    audit.require('"--async"' in executor, "deploy validation executor must hard-code --async")
-    # Forbidden child flags (--wait, --use-most-recent, destructive/ignore flags) are proven
-    # unconstructible behaviorally in tests/test_validate_salesforce_deploy.py; here we pin
-    # that the fixed report shape is the only status path.
-    audit.require(
-        '"report",' in executor and '"resume"' not in executor,
-        "deploy validation status must read `deploy report` and never resume",
-    )
+    """Direct Salesforce execution and per-invocation real-deploy consent stay aligned."""
 
     guard = required_text(ROOT / "scripts/copilot_role_guard.py", audit)
     audit.require(
-        'VALIDATE_DEPLOY_ROLES = frozenset({"developer"})' in guard,
-        "deploy validation wrapper must be admitted for the developer role only",
-    )
-    audit.require(
-        "validate_salesforce_deploy.py" in guard,
-        "role guard must route the deploy validation wrapper",
+        '"sf", "sfdx"' in guard,
+        "Developer role guard must admit direct sf and sfdx commands",
     )
 
     hook = required_text(ROOT / "scripts/copilot_safety_hook.py", audit)
-    audit.require(
-        "retrieve" in hook and "deploy" in hook.lower(),
-        "safety hook must keep classifying deploy-shaped surfaces",
+    required_prompt = (
+        "This will be a real deployment of changes to Salesforce org "
     )
+    audit.require(required_prompt in hook, "safety hook must carry the real-deploy warning")
     audit.require(
-        "except human-approved `sf project retrieve start`" in hook,
-        "direct Salesforce CLI denial (deploys included) must remain the hook's terminal rule",
+        "is_real_deploy_command" in hook and "is_real_deploy_tool" in hook,
+        "safety hook must classify both CLI and MCP real-deploy surfaces",
     )
 
     agent = required_text(ROOT / ".github/agents/developer.agent.md", audit)
     audit.require(
-        "validate_salesforce_deploy.py" in agent,
-        "developer agent must name the guarded deploy-validation wrapper",
+        "This will be a real deployment" in agent
+        and "Should I run this deployment?" in agent
+        and "Confirmation is single-use" in agent,
+        "Developer agent must require a fresh chat confirmation for every real deploy",
     )
     audit.require(
-        "Real deployments remain prohibited and human-only" in agent,
-        "developer agent must keep real deployment human-only",
-    )
-    audit.require(
-        "You never deploy — deploys are human." not in agent,
-        "developer agent must not keep the absolute pre-wrapper deploy sentence",
+        "Namespace or package ownership alone is never a harness-level deny" in agent,
+        "Developer agent must not impose a namespace-based execution denial",
     )
 
     skill = required_text(ROOT / ".github/skills/development/SKILL.md", audit)
     audit.require(
-        "Deploy validation: PASSED | BLOCKED | IN PROGRESS" in skill,
-        "development skill must pin the completion-language block",
-    )
-    audit.require(
-        "validate_salesforce_deploy.py start" in skill,
-        "development skill must carry the wrapper procedure",
+        "This will be a real deployment" in skill
+        and "Should I run this deployment?" in skill
+        and "Ask again for every retry or redeploy" in skill,
+        "development skill must carry the per-invocation deploy confirmation procedure",
     )
 
     capabilities = required_text(ROOT / ".ai/contracts/tool-capabilities.md", audit)
     audit.require(
-        "validate_salesforce_deploy.py" in capabilities,
-        "tool capability map must record the check-only wrapper",
+        "Record create/update/upsert/delete" in capabilities,
+        "tool capability map must record Salesforce data mutation capability",
     )
     contract = required_text(ROOT / ".ai/contracts/execution-contract.md", audit)
     audit.require(
-        "validate_salesforce_deploy.py" in contract,
-        "execution contract must list the guarded deploy-validation executor",
+        "direct `sf`/`sfdx` commands" in contract,
+        "execution contract must list direct Salesforce CLI capability",
     )
 
     settings = load_jsonc(ROOT / ".vscode/settings.json", audit)
     auto = settings.get("chat.tools.terminal.autoApprove", {})
-    wrapper_keys = [key for key in auto if "validate_salesforce_deploy" in key]
     audit.require(
-        len(wrapper_keys) == 1,
-        "settings must auto-approve exactly one anchored deploy-validation wrapper shape",
+        auto.get("sf") is True and auto.get("sfdx") is True,
+        "sf/sfdx terminal commands must reach the safety hook without a blanket settings deny",
     )
-    for key in wrapper_keys:
-        audit.require(
-            key.startswith("/^") and key.endswith("$/") and "(?:start|status)" in key,
-            "wrapper auto-approval must stay anchored to the start/status shapes",
-        )
-    audit.require(auto.get("sf") is False and auto.get("sfdx") is False,
-                  "raw sf/sfdx must stay denied in terminal auto-approval")
 
 
 def check_contracts_match_mcp(audit: Audit) -> None:

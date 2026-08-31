@@ -18,12 +18,17 @@ those customizations; the package itself is vendor-owned and closed.
   of deviations).
 - Salesforce DX source lives in `force-app/`; the repository root is the only SFDX root.
 
-## Non-negotiable boundary
+## Salesforce execution boundary
 
-Metadata in the `VendorNS__` namespace is never edited. The full rule, with everything
-else that is absolute — org mutations, untrusted content, human-only approvals — is in
-`.github/instructions/managed-package.instructions.md`, which applies to every file in
-this repository.
+Namespace or package ownership does not create a harness-level edit or deployment denial.
+The Developer may use direct `sf`/`sfdx` commands for deployments, record mutations, Apex,
+package operations, and org lifecycle work when the task requires them. Before every real
+deployment, tell the user that changes will be deployed to the selected Salesforce org,
+identify the target and scope, and obtain chat confirmation for that exact invocation. A new
+deploy, quick deploy, or redeploy requires a new confirmation. Dry runs, retrieve, deploy
+status/report/cancel, and data mutations do not use this deploy-specific confirmation gate.
+The complete trust, credentials, role, and confirmation rules are in
+`.github/instructions/managed-package.instructions.md`.
 
 ## How to work
 

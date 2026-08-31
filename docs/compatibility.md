@@ -8,7 +8,7 @@ Last verified against vendor documentation: 2026-07-10
 
 | Component | Supported baseline | Notes |
 |---|---|---|
-| VS Code | 1.112+; certify current stable before rollout | Windows is the primary platform. The configured MCP surface is read-only on every platform. |
+| VS Code | 1.112+; certify current stable before rollout | Windows is the primary platform. The configured MCP surface is read-only; Developer writes use direct CLI. |
 | GitHub Copilot | Consolidated `GitHub.copilot` extension bundled/supported by the chosen VS Code release | The old separate Copilot Chat prerequisite is not used. |
 | Python | 3.11+ | Runs validation, safety hooks, and tests using the standard library plus the dev requirement below. |
 | PyYAML | `>=6,<7`; CI uses the lock file | Frontmatter and evaluation validation. |
@@ -38,16 +38,13 @@ Customizations** and **Chat Diagnostics** on each supported platform and record:
 - no unresolved tool, handoff, frontmatter, hook, or MCP diagnostic;
 - one successful harmless read call through each configured external server.
 
-Since the 2026-07-14 decision the harness configures no write-mode Salesforce MCP server and no
-OS-level MCP sandbox keys (the fleet runs Windows, where VS Code cannot sandbox MCP): both
-configured servers are read-only by construction, org mutation is not an agent capability, and
-the guarded wrapper, review facade, safety hook, and role guards are the enforcement layers.
-Under the 2026-07-30 and 2026-08-04 decisions composed read-only SOQL runs verbatim through
-the governed facade's `review_soql_query` tool (facade REST transport, statement
-blockade removed); raw CLI and raw vendor MCP stay denied.
-Agents may request `sf project retrieve start` against a configured alias; the safety hook stops
-each invocation for human confirmation. Deploys ship through the human-run release process
-outside Copilot. Browser automation tooling is denied outright (lane removed 2026-08-05).
+The harness configures no write-mode Salesforce MCP server in the first cutover. The Developer
+uses direct `sf`/`sfdx` for deployments, record mutations, Apex, package operations, and org
+lifecycle. The global hook asks before every real deploy and includes target, scope, and a clear
+warning that changes will be deployed to the org. Each invocation requires fresh confirmation;
+dry runs, retrieve, status/report/resume/cancel, and data mutations do not. The configured facade
+remains read-only and is preferred for structured evidence. Browser automation tooling remains
+denied outright.
 
 The certified external-work surface is limited to the six repository custom agents in a dedicated
 pilot environment with no production authorization or browser session. Built-in/default Agent and

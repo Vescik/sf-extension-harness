@@ -41,9 +41,6 @@
     }
   },
   "safety": {
-    "sharedSandboxWritesApproved": false,
-    "sharedSandboxApprovalRef": "",
-    "autoApproveRetrieveWithReceipt": false,
     "allowScopedEnumeration": false
   },
   "workspace": {
