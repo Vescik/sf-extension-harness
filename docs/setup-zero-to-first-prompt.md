@@ -8,16 +8,14 @@ what to do when it fails. It is the manual alternative to the guided script
 macOS/Linux users: the flow is identical; path and activation differences are called out inline.
 
 **What you are setting up.** This repository is a governed GitHub Copilot workspace ("harness")
-for Salesforce development around a closed managed package. It gives Copilot five specialized
+for Salesforce development around a managed-package environment. It gives Copilot five specialized
 agents, guarded read-only access to Azure DevOps and a Salesforce sandbox, and safety rails that
 fail closed. Nothing here contains credentials; you authorize everything locally in Parts 6–7.
 
-**Scope (important).** The MCP surface is **read-only on every platform**: repository work, ADO
-reads, and read-only Salesforce org access all work; agents never perform a real deploy to the
-org (the Developer's guarded wrapper can run a check-only `--dry-run` validation against your
-project-local development org — it deploys nothing). The only raw
-Salesforce CLI an agent may request is `sf project retrieve start`, and it always stops for your
-approval. Browser automation tooling is not available in this harness (see
+**Scope (important).** The configured MCP surface is read-only. The Developer uses direct
+Salesforce CLI for deploys and org mutations. Every real deploy requires fresh chat confirmation
+with its target, scope, and a warning that changes will be deployed to the org; dry runs, retrieve,
+status/report/resume/cancel, and data mutations do not. Browser automation tooling is unavailable (see
 `docs/compatibility.md`).
 
 ---

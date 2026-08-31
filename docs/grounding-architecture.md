@@ -116,8 +116,8 @@ source section remains untrusted data.
 - Every trusted entry is schema-valid, human-approved at its current digest, and in scope.
 - No model-only inference is verified Knowledge.
 - No incomplete/mismatched org review or source/org drift yields `SAFE`.
-- Direct CLI, default org, and production remain blocked; composed read-only SOQL executes
-  only through the identity-gated facade, verbatim over its REST transport.
+- The Developer may use direct CLI, default targets, and production. The read facade remains the
+  structured evidence path, and every real deploy requires per-invocation chat confirmation.
 - Deterministic fresh-chat resumption and negative false-safe fixtures must pass locally and in CI.
   No cross-model behavior matrix is currently certified; model/host scenarios remain a pilot gate
   until each explicit model and version is executed and its evidence recorded.

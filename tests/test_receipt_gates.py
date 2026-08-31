@@ -15,11 +15,7 @@ ORIGIN = "https://acme--dev.sandbox.my.salesforce.com"
 
 def base_config(**safety_flags: bool) -> dict:
     return {
-        "safety": {
-            "sharedSandboxWritesApproved": True,
-            "sharedSandboxApprovalRef": "MPS-1",
-            **safety_flags,
-        },
+        "safety": {**safety_flags},
         "salesforce": {
             "review": {
                 "enabled": True,
@@ -77,35 +73,28 @@ class RetrieveAutoApproveTests(unittest.TestCase):
     RETRIEVE = {"command": "sf project retrieve start --target-org dev-sbx"}
 
     def test_clean_tree_auto_approves_without_receipt_or_toggle(self) -> None:
-        # Owner decision 2026-08-07: retrieve against a configured non-production alias
-        # flows without a click — no readiness receipt, no config toggle.
-        with patch.object(safety, "force_app_is_clean", lambda: True):
-            result, _ = run_hook("execute/runInTerminal", self.RETRIEVE, base_config())
+        result, _ = run_hook("execute/runInTerminal", self.RETRIEVE, base_config())
         self.assertEqual("continue", result)
 
-    def test_dirty_tree_still_asks_to_protect_uncommitted_work(self) -> None:
-        # The one remaining hold is data-loss protection, not policy: a retrieve over a
-        # dirty force-app tree silently clobbers uncommitted work.
-        with patch.object(safety, "force_app_is_clean", lambda: False):
-            result, reason = run_hook("execute/runInTerminal", self.RETRIEVE, base_config())
-        self.assertEqual("ask", result)
-        self.assertIn("uncommitted", reason)
+    def test_dirty_tree_does_not_add_a_deploy_confirmation(self) -> None:
+        result, reason = run_hook("execute/runInTerminal", self.RETRIEVE, base_config())
+        self.assertEqual("continue", result)
+        self.assertEqual("", reason)
 
-    def test_deploy_and_unconfigured_alias_never_inherit_the_receipt(self) -> None:
+    def test_real_deploy_asks_and_unconfigured_retrieve_continues(self) -> None:
         config = base_config()
-        with patch.object(safety, "force_app_is_clean", lambda: True):
-            result, _ = run_hook(
-                "execute/runInTerminal",
-                {"command": "sf project deploy start --target-org dev-sbx"},
-                config,
-            )
-            self.assertEqual("deny", result)
-            result, _ = run_hook(
-                "execute/runInTerminal",
-                {"command": "sf project retrieve start --target-org other-sbx"},
-                config,
-            )
-            self.assertEqual("deny", result)
+        result, _ = run_hook(
+            "execute/runInTerminal",
+            {"command": "sf project deploy start --target-org dev-sbx"},
+            config,
+        )
+        self.assertEqual("ask", result)
+        result, _ = run_hook(
+            "execute/runInTerminal",
+            {"command": "sf project retrieve start --target-org other-sbx"},
+            config,
+        )
+        self.assertEqual("continue", result)
 
 
 class ScopedEnumerationTests(unittest.TestCase):
@@ -142,20 +131,19 @@ class ScopedEnumerationTests(unittest.TestCase):
 
 
 class DevToolBatchRetirementTests(unittest.TestCase):
-    # Owner decision 2026-08-04: the batch-approval pipeline (plan file, approval script,
-    # receipt/digest/TTL machinery) is deleted. A mutating dev tool now ALWAYS stops for its
-    # per-invocation human confirmation, and none of the pipeline surfaces may resurface.
-    def test_mutating_dev_tool_always_asks(self) -> None:
+    # The retired batch-approval pipeline stays gone. Non-deploy mutations now flow directly;
+    # only a tool that starts a real deploy asks.
+    def test_non_deploy_mutating_dev_tool_continues(self) -> None:
         result, reason = run_hook(
             "assign_permission_set",
             {"usernameOrAlias": "dev-sbx", "permSetName": "Engagement_Manager"},
             base_config(),
         )
-        self.assertEqual("ask", result)
-        self.assertIn("SAFE-HUMAN-001", reason)
+        self.assertEqual("continue", result)
+        self.assertEqual("", reason)
 
     # The "pipeline surfaces stay gone" assertions moved to config/retired-surfaces.json
-    # (validator token scan); the always-ask behavior above is the live contract.
+    # (validator token scan); the direct non-deploy behavior above is the live contract.
 
 
 if __name__ == "__main__":

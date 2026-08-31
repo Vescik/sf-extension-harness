@@ -32,8 +32,9 @@ See [docs/compatibility.md](docs/compatibility.md) for the tested contract.
 > `PreToolUse` hooks actually fire. If unsupported, treat the corresponding controls as advisory
 > and enforce equivalents inside the MCP wrapper scripts. The `scripts/*_guard.py` and
 > `scripts/copilot_safety_hook.py` logic is unit-tested and correct in isolation; what is
-> build-dependent is whether VS Code invokes it. The residual risk is bounded by construction:
-> the configured MCP servers are read-only, and org mutation is not an agent capability at all.
+> build-dependent is whether VS Code invokes it. This matters especially for Salesforce writes:
+> the Developer can mutate org state, and the hook is what forces a fresh chat confirmation before
+> every real deploy.
 
 ## 2. Clone and workspace layout
 
@@ -59,15 +60,14 @@ root rather than searching subfolders, parent directories, sibling directories, 
 From the repository root, copy `config/harness.example.json` to ignored
 `config/harness.local.json`, then replace every placeholder with approved values. Keep
 `workspace.salesforceRootName` set to `brain-core`; manifest and promoted-test paths are relative
-to the repository/SFDX root. Do not add production aliases/origins. An org entry is
+to the repository/SFDX root. Keep the read facade pointed at a non-production evidence org; this
+does not limit Developer CLI targets. An org entry is
 `{alias, environment}`; the identity pins (`expectedInstanceHost` + `expectedOrganizationId`)
 are optional and travel together — with pins the facade holds the alias to that exact org,
 without them it freezes the live-discovered identity for the session. Configure the package
 namespaces and component API-name allowlist, and keep the review API version/current evidence
-window deliberate. Org changes ship through the human-run release process (the write-mode
-Salesforce MCP lane was removed 2026-07-14 and retired outright 2026-08-04). The only raw
-Salesforce CLI an agent may request is `sf project retrieve start` against a configured
-non-production alias, and the safety hook stops each invocation for human confirmation.
+window deliberate. The write-mode Salesforce MCP lane remains retired. The Developer uses direct
+`sf`/`sfdx` for org changes; every real deploy requires fresh target-and-scope chat confirmation.
 
 Which org a developer connects is the developer's responsibility (owner decision 2026-08-04):
 any alias — configured or not — is admitted once its live identity proves a canonical sandbox,
@@ -99,8 +99,8 @@ the locally authorized instance hostname against the canonical sandbox, scratch-
 Developer Edition signatures, then queries `Organization.IsSandbox` and stops unless the value
 matches what that hostname implies — `true` for a sandbox or scratch org, `false` for a
 Developer Edition. What the gates require is the receipt's `nonProduction` verdict, not
-`isSandbox` on its own. Direct agent use of `sf`, `sfdx`, or an unguarded Salesforce MCP
-launcher is denied.
+`isSandbox` on its own. The Developer uses direct `sf`/`sfdx` for org operations; the configured
+MCP remains the structured read/evidence path.
 
 Set `ADO_ORGANIZATION` to the exact non-secret organization slug in local configuration before
 opening VS Code. The MCP URL uses this environment variable, and the global hook requires every
@@ -178,7 +178,8 @@ call. To diagnose one org by hand, run
 4. Confirm `/` shows the eighteen prompts once each and their argument hints.
 5. Run one harmless ADO read, then the three bounded Salesforce review calls against the configured
    synthetic/pilot component. Confirm no raw CLI/alias or sensitive payload appears in Chat.
-6. Run a negative canary: a request to deploy/query production must be denied.
+6. Run canaries: a production data read passes, a dry-run deploy passes, and a real deploy request
+   stops with the target/scope warning before any CLI process starts. Do not confirm the canary.
 
 ### Reducing approval clicks (auto-approval)
 
@@ -190,9 +191,9 @@ click, via `chat.tools.terminal.autoApprove` in `.vscode/settings.json`:
   chat-confirmation lane), `knowledge_search.py` (read-only), and `force_app_knowledge.py`. The
   regexes are anchored and reject shell metacharacters, so chained or redirected commands never
   auto-run.
-- Never auto-approved: raw
-  `sf`/`sfdx`/`rm`/`del` (explicitly denied — a deny always wins). Auto-approval only skips the
-  click; the role guard and safety hook still enforce the real boundaries.
+- Direct `sf`/`sfdx` is auto-approved so non-deploy operations do not incur a harness click. The
+  safety hook overrides this with a single-use `ask` before every real deploy. Recursive filesystem
+  deletion and remote-history rewriting remain denied.
 - **Do not** enable `chat.tools.global.autoApprove` / `/yolo` — that blanket-approves everything,
   including destructive actions, and defeats the model.
 
@@ -217,12 +218,9 @@ owner decision of 2026-07-14.)
   `safety.allowScopedEnumeration` is enabled) a configured-orgs listing built purely
   from local configuration. Internally it reconciles fixed Salesforce MCP and private CLI receipts, redacts raw
   identity payloads, and returns `VERIFIED`, `MISMATCH`, `INCOMPLETE`, or `BLOCKED`.
-- The model never receives direct `sf`/`sfdx`, an alias, directory, Tooling flag,
-  `list_all_orgs`, or raw vendor output. Composed read-only SOQL (owner decisions 2026-07-30
-  and 2026-08-04) executes only through the facade's `review_soql_query` tool — verbatim, over
-  the facade's REST transport, never the CLI; rows return unredacted from the identity-proven
-  non-production org. MCP/CLI agreement is transport corroboration from the same org, not
-  independent package/business authority.
+- The Developer receives direct `sf`/`sfdx`; other roles keep their narrower tool contracts.
+  The read facade remains preferred for bounded, structured evidence. MCP/CLI agreement is
+  transport corroboration from the same org, not independent package/business authority.
 - `knowledge` starts through `scripts/knowledge_mcp_server.mjs` and is the primary read
   surface over governed Knowledge (context/search/impact/resolve/entry-status plus the
   curator deep-dive set) — read-only by construction, binds no org, takes no secrets. VS Code
@@ -234,14 +232,11 @@ owner decision of 2026-07-14.)
   server; the terminal command menu in the search-knowledge skill is the operator fallback.
 - Record-level reads for design/development context run through the facade's
   `review_soql_query` tool (the CLI `salesforce_read.py` lane was retired 2026-08-04).
-  There is no write-mode Salesforce
-  MCP server: agents never perform a real deploy, and the only raw Salesforce CLI they may
-  request is `sf project retrieve start --target-org <configured-alias>`, which the safety hook
-  stops for per-invocation human confirmation. The one deploy-shaped surface is the Developer's
-  guarded `scripts/validate_salesforce_deploy.py` wrapper — a check-only
-  `sf project deploy start --dry-run` validation against the identity-proven project-local
-  `development` org; it deploys nothing, and direct `sf project deploy …` stays denied for
-  every role even with `--dry-run`.
+  There is no write-mode Salesforce MCP server in the first cutover. The Developer uses direct
+  CLI for deploys, data mutations, Apex, package work, and org lifecycle. The safety hook asks
+  before every real deploy with the exact target and scope; dry runs, retrieve, deploy status,
+  cancel, and data mutations do not use that deployment-specific gate. The legacy
+  `scripts/validate_salesforce_deploy.py` helper remains optional for check-only validation.
 - Browser tooling is not available in this harness: direct browser/Playwright/automation commands
   and browser-named MCP tools are denied by the global safety hook (the guarded browser lane was
   removed 2026-08-05).

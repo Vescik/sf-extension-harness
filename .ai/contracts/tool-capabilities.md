@@ -11,8 +11,11 @@ upgrade.
 | Reconciled allowlisted object contract | `salesforce-readonly/review_object_contract` | investigator, design, review, QA |
 | Scoped enumeration of configured org aliases (requires `safety.allowScopedEnumeration`) | `salesforce-readonly/review_configured_orgs` | investigator |
 | Composed read-only SOQL incl. record reads (verbatim, facade REST transport, unredacted single-source rows) | `salesforce-readonly/review_soql_query` | investigator, design, review, development, knowledge curation |
-| Salesforce non-production source retrieve into the project (per-invocation human confirmation; the only direct `sf` command not denied) | `sf project retrieve start` guarded terminal command | development only |
-| Check-only Salesforce deploy validation — distinct from deployment: always `--dry-run --async`, project-local configured `development` org only, live identity proof reused from `verify_salesforce_org.py`, exact job-ID status with no wait/most-recent inference | `python scripts/validate_salesforce_deploy.py start\|status` guarded terminal command (role guard admits only these two shapes) | development only |
+| Salesforce metadata retrieve and dry-run validation | direct `sf`/`sfdx` terminal command | Developer |
+| Real metadata deployment, including quick, destructive, and production deployment | direct `sf`/`sfdx`; global hook asks before every exact invocation with target, scope, and real-org-change warning | Developer |
+| Record create/update/upsert/delete and bulk data operations | direct `sf data`/legacy `sfdx` terminal command | Developer |
+| Apex execution/testing, package operations, and org lifecycle | direct `sf`/`sfdx` terminal command | Developer |
+| Optional legacy check-only validation helper | `python scripts/validate_salesforce_deploy.py start\|status` | Developer |
 | Interactive human confirmation | `vscode/askQuestions` | prompts and approval gates |
 | Subagent delegation | `agent` plus explicit `agents` allowlist | Designer, Developer |
 
@@ -53,8 +56,8 @@ facade's single REST transport (the CLI contributes only the startup identity pr
 receipts, removes credentials/identity details/raw sensitive values, and returns `VERIFIED`, `MISMATCH`,
 `INCOMPLETE`, or `BLOCKED`.
 
-Raw `list_all_orgs`, raw `run_soql_query`, aliases, directories, Tooling flags, CLI commands,
-and vendor payloads are not exposed to an agent.
+The configured MCP remains a narrow read/evidence facade. Direct Salesforce write execution is
+provided separately through the Developer's terminal capability.
 
 MCP and CLI agreement is transport corroboration from the same org, not independent truth.
 
@@ -88,42 +91,30 @@ policing, no value redaction. The statement executes verbatim over the facade's 
 child — never the CLI — against the identity-proven non-production org, and rows return
 unredacted (`attributes` noise stripped), bounded only by payload size and timeout. An
 absent `review.allowedObjectApiNames` key means all objects (equivalent to `["*"]`) — an explicit
-list remains supported and honored for orgs holding sensitive data. The raw paths above stay
-denied regardless: SOQL never runs through raw CLI or raw vendor tools.
+list remains supported and honored for orgs holding sensitive data. The facade remains the
+preferred evidence path; the Developer may also use direct CLI when task execution requires it.
 
-Policy (owner decision 2026-08-04, superseding the 2026-07-31 toggle): any proven
-non-production org may be read, unconditionally — which org a developer connects is the
-developer's responsibility. An alias absent from local configuration is admitted on live
-identity proof alone — a canonical sandbox, scratch, or Developer Edition host whose
-`Organization.IsSandbox` value matches that signature — and the proven identity is frozen for
-the rest of the session. Entries carrying both identity pins keep the exact-org lane; pinless
-entries use the same discovery proof. Two hard brakes remain: an entry marked
-`environment: "production"` denies its alias, and any organization ID listed in
-`salesforce.review.deniedOrganizationIds` is refused at proof time whatever alias resolves to
-it. Production signatures stay refused in every lane.
+The read facade retains its configured identity and non-production evidence contract. That
+constraint applies to the facade only; it is not a global denial for Developer CLI commands.
+Direct CLI may target development, QA, UAT, production, scratch orgs, or Developer Edition, using
+explicit flags or the normal project/default target context.
 
 Record-level reads run through `review_soql_query` alone: the guarded
 `scripts/salesforce_read.py` CLI wrapper (structured record reads, cached metadata retrieve,
 orgs listing) was retired on 2026-08-04 as a redundant second lane once composed SOQL was
-unblocked. Metadata comes into the project only via the human-confirmed
-`sf project retrieve start`. Object access is bounded by `review.allowedObjectApiNames`,
+unblocked. Metadata may be retrieved through direct CLI. Object access in the read facade is
+bounded by `review.allowedObjectApiNames`,
 which governs both schema reviews and record reads. Setting it to `["*"]` (or omitting it)
 opts into every object. On a full-copy sandbox that means record reads can reach copied
 production data across all objects — prefer an explicit list when the org holds sensitive
 data.
 
-There is no development/write mode at all: the launcher's development lane was retired
-2026-08-04 (it had been dead weight since the 2026-07-14 write-server removal — unreachable
-from any configured surface, disabled on Windows, and guarded four ways). The launcher spawns
-only the review facade; `.vscode/mcp.json` registers no `salesforce-development` entry and
-`validate_harness.py` fails if one reappears; the safety hook keeps its dev-tool classifier as
-defense in depth. Reads go through the facade, repository edits stay in
-`force-app`/`manifest`/`tests/e2e`, org retrieves use `sf project retrieve start` behind a
-per-invocation human confirmation (every other direct `sf`/`sfdx` invocation is denied), and
-real deploys are always performed by a human. The Developer's guarded
-`validate_salesforce_deploy.py` wrapper is the one deploy-shaped exception, and it is not a
-deployment: it constructs a fixed check-only `sf project deploy start --dry-run --async`
-against the identity-proven project-local `development` org and reads exact job status with
-`sf project deploy report` (no `--wait`, no `--use-most-recent`, no destructive or
-ignore-flag surface constructible from any input). Direct `sf project deploy …` remains
-denied for every role even when it carries `--dry-run`.
+The first cutover uses one canonical write path: direct Salesforce CLI in the Developer role.
+The launcher continues to spawn only the read facade; no write MCP or separate Deployment Agent
+is required. The global safety hook allows direct `sf`/`sfdx`, including record mutations,
+production targets, destructive deploys, package work, and org lifecycle. It returns `ask` only
+for commands or future MCP tools that start a real deployment, with the required warning:
+`This will be a real deployment of changes to Salesforce org <target>. Scope: <scope>. Should I
+run this deployment?` The host confirmation binds to that exact tool invocation, so every new
+deploy, quick deploy, or redeploy asks again. Dry runs, retrieve, deploy status/report/resume/
+cancel, and record mutations do not use this deployment-specific confirmation gate.

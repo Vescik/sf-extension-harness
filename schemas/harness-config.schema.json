@@ -89,7 +89,7 @@
                 "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$"
               },
               "environment": {
-                "description": "production is a deny marker: the alias is refused everywhere (owner decisions 2026-07-31 and 2026-08-04).",
+                "description": "Operational classification used for context and reporting; it does not deny Developer CLI operations.",
                 "enum": [
                   "development",
                   "qa",
@@ -240,47 +240,13 @@
     "safety": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "sharedSandboxWritesApproved",
-        "sharedSandboxApprovalRef"
-      ],
+      "required": [],
       "properties": {
-        "sharedSandboxWritesApproved": {
-          "type": "boolean"
-        },
-        "sharedSandboxApprovalRef": {
-          "type": "string"
-        },
-        "autoApproveRetrieveWithReceipt": {
-          "description": "RETIRED (owner decision 2026-08-07): retrieve against a configured non-production alias now auto-approves whenever force-app is clean; this toggle is accepted for config compatibility and ignored.",
-          "type": "boolean"
-        },
         "allowScopedEnumeration": {
           "description": "Expose the review_configured_orgs facade listing ONLY the orgs configured in this file. Foreign enumeration tools stay denied. Default off.",
           "type": "boolean"
         }
-      },
-      "allOf": [
-        {
-          "if": {
-            "properties": {
-              "sharedSandboxWritesApproved": {
-                "const": true
-              }
-            },
-            "required": [
-              "sharedSandboxWritesApproved"
-            ]
-          },
-          "then": {
-            "properties": {
-              "sharedSandboxApprovalRef": {
-                "minLength": 1
-              }
-            }
-          }
-        }
-      ]
+      }
     },
     "workspace": {
       "type": "object",
