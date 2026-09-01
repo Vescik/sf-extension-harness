@@ -13,8 +13,9 @@ Organization identity query.
 
 Hard walls (enforced here, not by prompts):
 - Readiness refuses anything but a sandbox/scratch/Developer Edition host shape whose
-  org id passes the configured pins and denied-list. A 401 refreshes the token once;
-  no Organization table query or IsSandbox check is performed.
+  org id passes the configured pins and denied-list. A 401 requests a fresh access token
+  once; cancellation and the cumulative deadline also bound CLI and refresh-lock waits.
+  No Organization table query or IsSandbox check is performed.
 - Read-only by construction: every handler issues GETs against /query,
   /tooling/query, /sobjects/<x>/describe, /limits. No write handler exists;
   tests/test_salesforce_review.py pins the tool surface.
@@ -37,6 +38,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import signal
 import subprocess
 import sys
 import threading
@@ -87,7 +89,7 @@ POLICY_PATH = (
 )
 
 PROTOCOL_VERSION = "2025-06-18"
-SERVER_VERSION = "2.4.0"
+SERVER_VERSION = "2.4.1"
 SCHEMA_VERSION = 2
 
 MAX_OUTER_MESSAGE_BYTES = 1_048_576
@@ -108,12 +110,16 @@ MAX_OBJECT_FIELDS_PAYLOAD_BYTES = 16 * 1024 * 1024
 CONNECT_TIMEOUT_SECONDS = 10
 MAX_SOQL_ROWS = 2000
 THREAD_POOL_SIZE = 4
+TOKEN_REFRESH_TIMEOUT_SECONDS = 30
+CLI_POLL_SECONDS = 0.2
+CLI_TERMINATE_GRACE_SECONDS = 2
 
 # One deadline follows a tool call through readiness waiting, CLI, token refresh, REST,
 # and pagination. ContextVar keeps concurrent pool workers independent while allowing
 # the transport helpers to honor the same cumulative budget without plumbing a
 # deadline through every handler signature.
 _OPERATION_DEADLINE: "ContextVar[float | None]" = ContextVar("salesforce_operation_deadline", default=None)
+_CANCEL_EVENT: "ContextVar[threading.Event | None]" = ContextVar("salesforce_cancel_event", default=None)
 
 # Identity regexes ported character-for-character from the .mjs (plan par. 6c item 4).
 OBJECT_API_NAME = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,79}$")
@@ -166,8 +172,15 @@ class ReviewError(Exception):
         self.status = status
 
 
+def raise_if_cancelled() -> None:
+    event = _CANCEL_EVENT.get()
+    if event is not None and event.is_set():
+        raise ReviewError("REQUEST_CANCELLED", "INCOMPLETE")
+
+
 def bounded_operation_timeout(maximum_seconds: "int | float") -> float:
     """Cap one blocking step by the current tool call's cumulative deadline."""
+    raise_if_cancelled()
     deadline = _OPERATION_DEADLINE.get()
     if deadline is None:
         return float(maximum_seconds)
@@ -374,6 +387,42 @@ def scan_path_for_sf_named_exe(name: str) -> "str | None":
     return None
 
 
+def terminate_cli_process(process: subprocess.Popen) -> None:
+    """Terminate the complete CLI process tree without leaking protocol output."""
+    if process.poll() is not None:
+        return
+    if os.name == "nt":
+        try:
+            subprocess.run(
+                ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=CLI_TERMINATE_GRACE_SECONDS,
+                check=False,
+            )
+        except (OSError, subprocess.SubprocessError):
+            process.kill()
+    else:
+        try:
+            os.killpg(process.pid, signal.SIGTERM)
+        except (OSError, ProcessLookupError):
+            process.terminate()
+    try:
+        process.communicate(timeout=CLI_TERMINATE_GRACE_SECONDS)
+    except subprocess.TimeoutExpired:
+        if os.name == "nt":
+            process.kill()
+        else:
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except (OSError, ProcessLookupError):
+                process.kill()
+        try:
+            process.communicate(timeout=CLI_TERMINATE_GRACE_SECONDS)
+        except subprocess.TimeoutExpired:
+            pass
+
+
 def run_cli_json(args: "list[str]", failure_code: str = "CLI_UNAVAILABLE", timeout: "int | float" = 120) -> dict:
     if TEST_MODE:
         executable = os.environ.get("SF_HARNESS_SF_EXECUTABLE", "sf")
@@ -386,24 +435,40 @@ def run_cli_json(args: "list[str]", failure_code: str = "CLI_UNAVAILABLE", timeo
         for arg in args:
             assert_plain_cli_argument(arg)
         command = [*resolve_sf_invocation(), *args]
+    deadline = time.monotonic() + bounded_operation_timeout(timeout)
+    popen_kwargs = {
+        "stdout": subprocess.PIPE,
+        "stderr": subprocess.PIPE,
+        "text": True,
+        "cwd": str(REPO_ROOT),
+        "env": SPAWN_ENV,
+    }
+    if os.name == "nt":
+        popen_kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+    else:
+        popen_kwargs["start_new_session"] = True
     try:
-        completed = subprocess.run(
-            command,
-            capture_output=True,
-            text=True,
-            timeout=bounded_operation_timeout(timeout),
-            check=False,
-            cwd=str(REPO_ROOT),
-            env=SPAWN_ENV,
-        )
-    except subprocess.TimeoutExpired:
-        raise ReviewError("CLI_TIMEOUT", "INCOMPLETE")
+        process = subprocess.Popen(command, **popen_kwargs)
     except (OSError, subprocess.SubprocessError):
         raise ReviewError(failure_code, "INCOMPLETE")
-    if len(completed.stdout.encode("utf-8", "replace")) > MAX_OUTER_MESSAGE_BYTES:
+    while True:
+        try:
+            raise_if_cancelled()
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                terminate_cli_process(process)
+                raise ReviewError("CLI_TIMEOUT", "INCOMPLETE")
+            stdout, _stderr = process.communicate(timeout=min(CLI_POLL_SECONDS, remaining))
+            break
+        except subprocess.TimeoutExpired:
+            continue
+        except ReviewError:
+            terminate_cli_process(process)
+            raise
+    if len(stdout.encode("utf-8", "replace")) > MAX_OUTER_MESSAGE_BYTES:
         raise ReviewError("CLI_OUTPUT_TOO_LARGE", "INCOMPLETE")
     try:
-        payload = json.loads(completed.stdout)
+        payload = json.loads(stdout)
     except json.JSONDecodeError:
         raise ReviewError("CLI_SCHEMA_MISMATCH", "INCOMPLETE")
     if not isinstance(payload, dict) or (payload.get("status") not in (None, 0)):
@@ -423,7 +488,7 @@ def safe_string(value, max_length: int = 160) -> str:
 class RestClient:
     """One authenticated, pooled HTTPS session for the whole server session.
 
-    A 401 re-runs `sf org display --json` once to refresh the token and replays the idempotent GET.
+    A 401 runs `sf org auth show-access-token` once and replays the idempotent GET.
     The session remains bound to the instance URL admitted by readiness; no live
     Organization identity or IsSandbox query is performed."""
 
@@ -583,21 +648,28 @@ class RestClient:
             return parsed
 
     def _refresh_token(self, token_used: str) -> None:
-        with self._refresh_lock:
+        acquired = False
+        while not acquired:
+            acquired = self._refresh_lock.acquire(timeout=bounded_operation_timeout(CLI_POLL_SECONDS))
+        try:
+            raise_if_cancelled()
             if self.token != token_used:
                 # Another pool thread already refreshed while we queued on the lock;
                 # replay with its token instead of stampeding the sf CLI (one refresh
                 # serves every concurrently 401'd call).
                 return
-            log("token refresh: re-running sf org display")
+            log("token refresh: requesting a fresh access token")
             result = run_cli_json(
-                ["org", "display", "--json", "-o", self.runtime["alias"]],
-                timeout=self.runtime["policy"]["cliTimeoutSeconds"],
+                ["org", "auth", "show-access-token", "--json", "-o", self.runtime["alias"]],
+                timeout=min(TOKEN_REFRESH_TIMEOUT_SECONDS, self.runtime["policy"]["cliTimeoutSeconds"]),
             )
             token = result.get("accessToken")
             if not isinstance(token, str) or not token:
                 raise ReviewError("CLI_SCHEMA_MISMATCH", "INCOMPLETE")
             self.token = token
+            log("token refresh: access token updated")
+        finally:
+            self._refresh_lock.release()
 
     def query(
         self,
@@ -1337,6 +1409,7 @@ class Server:
         # transfer/parse/compaction); all other tools keep full pool concurrency.
         self.object_contract_lock = threading.Lock()
         self._cancelled: "set[str]" = set()
+        self._cancel_events: "dict[str, threading.Event]" = {}
         self._cancelled_lock = threading.Lock()
         self._stdout = sys.stdout.buffer
         self._readiness = threading.Condition()
@@ -1561,8 +1634,12 @@ class Server:
         message_id = message.get("id")
         if method == "notifications/cancelled":
             request_id = (message.get("params") or {}).get("requestId")
+            request_key = str(request_id)
             with self._cancelled_lock:
-                self._cancelled.add(str(request_id))
+                self._cancelled.add(request_key)
+                cancel_event = self._cancel_events.get(request_key)
+                if cancel_event is not None:
+                    cancel_event.set()
             return
         if not isinstance(method, str) or message_id is None:
             return
@@ -1589,13 +1666,25 @@ class Server:
             return
         if method == "tools/call":
             params = message.get("params") or {}
+            request_key = str(message_id)
+            cancel_event = threading.Event()
+            with self._cancelled_lock:
+                if request_key in self._cancelled:
+                    cancel_event.set()
+                self._cancel_events[request_key] = cancel_event
 
             def run_call() -> None:
-                result = self.call_tool(params.get("name"), params.get("arguments") or {})
+                cancel_token = _CANCEL_EVENT.set(cancel_event)
+                try:
+                    result = self.call_tool(params.get("name"), params.get("arguments") or {})
+                finally:
+                    _CANCEL_EVENT.reset(cancel_token)
                 with self._cancelled_lock:
-                    if str(message_id) in self._cancelled:
-                        # Cancelled mid-flight: the client stopped waiting; a late
-                        # response for this id must be suppressed (spec minimum).
+                    self._cancel_events.pop(request_key, None)
+                    if request_key in self._cancelled:
+                        # The CLI and lock waits are interrupted cooperatively; the
+                        # response is still suppressed because the client moved on.
+                        self._cancelled.discard(request_key)
                         return
                 self.write_message({"jsonrpc": "2.0", "id": message_id, "result": result})
 
