@@ -1229,7 +1229,7 @@ class SafetyClassificationTests(unittest.TestCase):
             root = Path(name)
             write_local_config(root)
             event = {
-                "tool_name": "salesforce-readonly/review_org_identity",
+                "tool_name": "salesforce/review_org_identity",
                 "tool_input": {},
             }
             stdout = StringIO()
@@ -1257,23 +1257,23 @@ class SafetyClassificationTests(unittest.TestCase):
         self.assertIsNone(
             safety.salesforce_review_tool_error(
                 config,
-                "salesforce-readonly/review_org_identity",
+                "salesforce/review_org_identity",
                 {},
             )
         )
         self.assertIsNone(
             safety.salesforce_review_tool_error(
                 config,
-                "salesforce-readonly/review_object_contract",
+                "salesforce/review_object_contract",
                 {"objectApiName": "ExampleManagedObject__c"},
             )
         )
         for tool, tool_input in (
-            ("salesforce-readonly/run_soql_query", {"query": "SELECT Name FROM Contact"}),
-            ("salesforce-readonly/list_all_orgs", {}),
-            ("salesforce-readonly/review_org_identity", {"usernameOrAlias": "other"}),
+            ("salesforce/run_soql_query", {"query": "SELECT Name FROM Contact"}),
+            ("salesforce/list_all_orgs", {}),
+            ("salesforce/review_org_identity", {"usernameOrAlias": "other"}),
             (
-                "salesforce-readonly/review_object_contract",
+                "salesforce/review_object_contract",
                 {"objectApiName": "Unlisted__c"},
             ),
         ):
@@ -1296,7 +1296,7 @@ class SafetyClassificationTests(unittest.TestCase):
         self.assertIsNone(
             safety.salesforce_review_tool_error(
                 config,
-                "salesforce-readonly/review_object_contract",
+                "salesforce/review_object_contract",
                 {"objectApiName": "AnyCustom__c"},
             )
         )
@@ -1304,14 +1304,14 @@ class SafetyClassificationTests(unittest.TestCase):
         self.assertIsNotNone(
             safety.salesforce_review_tool_error(
                 config,
-                "salesforce-readonly/review_object_contract",
+                "salesforce/review_object_contract",
                 {"objectApiName": "bad name!"},
             )
         )
         # "*" does not open raw query / org enumeration
         self.assertIsNotNone(
             safety.salesforce_review_tool_error(
-                config, "salesforce-readonly/run_soql_query", {"query": "SELECT Id FROM Account"}
+                config, "salesforce/run_soql_query", {"query": "SELECT Id FROM Account"}
             )
         )
 
@@ -1329,14 +1329,14 @@ class SafetyClassificationTests(unittest.TestCase):
         self.assertIsNone(
             safety.salesforce_review_tool_error(
                 config,
-                "salesforce-readonly/review_soql_query",
+                "salesforce/review_soql_query",
                 {"query": "SELECT Id FROM Account LIMIT 5"},
             )
         )
         self.assertIsNone(
             safety.salesforce_review_tool_error(
                 config,
-                "salesforce-readonly/review_soql_query",
+                "salesforce/review_soql_query",
                 {"query": "SELECT COUNT(Id) FROM Contact", "useToolingApi": False},
             )
         )
@@ -1344,7 +1344,7 @@ class SafetyClassificationTests(unittest.TestCase):
         self.assertIsNone(
             safety.salesforce_review_tool_error(
                 config,
-                "salesforce-readonly/review_object_contract",
+                "salesforce/review_object_contract",
                 {"objectApiName": "AnyCustom__c"},
             )
         )
@@ -1353,13 +1353,13 @@ class SafetyClassificationTests(unittest.TestCase):
         # to either bound must land in all three places.
         self.assertIsNone(
             safety.salesforce_review_tool_error(
-                config, "salesforce-readonly/review_soql_query", {"query": "SELECT a"}
+                config, "salesforce/review_soql_query", {"query": "SELECT a"}
             )
         )
         self.assertIsNone(
             safety.salesforce_review_tool_error(
                 config,
-                "salesforce-readonly/review_soql_query",
+                "salesforce/review_soql_query",
                 {"query": "SELECT Id FROM Account".ljust(4000)},
             )
         )
@@ -1376,7 +1376,7 @@ class SafetyClassificationTests(unittest.TestCase):
                 self.assertIsNotNone(
                     safety.salesforce_review_tool_error(
                         config,
-                        "salesforce-readonly/review_soql_query",
+                        "salesforce/review_soql_query",
                         tool_input,
                     )
                 )
@@ -1384,7 +1384,7 @@ class SafetyClassificationTests(unittest.TestCase):
         self.assertIsNotNone(
             safety.salesforce_review_tool_error(
                 config,
-                "salesforce-readonly/run_soql_query",
+                "salesforce/run_soql_query",
                 {"query": "SELECT Id FROM Account"},
             )
         )

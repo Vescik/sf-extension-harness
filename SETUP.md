@@ -69,13 +69,15 @@ namespaces and component API-name allowlist, and keep the review API version/cur
 window deliberate. The write-mode Salesforce MCP lane remains retired. The Developer uses direct
 `sf`/`sfdx` for org changes; every real deploy requires fresh target-and-scope chat confirmation.
 
-Which org a developer connects is the developer's responsibility (owner decision 2026-08-04):
-any alias — configured or not — is admitted once its live identity proves a canonical sandbox,
-scratch, or Developer Edition signature consistent with `Organization.IsSandbox`. The proof
-runs inside the review facade on every tool call. Production stays refused everywhere. Two
-config-level brakes remain: an entry with `environment: "production"` hard-blocks its alias,
-and `salesforce.review.deniedOrganizationIds` hard-blocks specific organization IDs whatever
-alias resolves to them.
+Which org the read facade connects is the developer's responsibility (owner decision 2026-08-04):
+any alias — configured or not — is admitted to that facade once its live identity proves a
+canonical sandbox, scratch, or Developer Edition signature consistent with
+`Organization.IsSandbox`. The proof runs once on the first Salesforce tool call, is shared by
+concurrent callers, and is repeated after a token refresh. Production remains refused by the
+review facade only; this is not a global restriction on Developer CLI targets. Two facade-level
+brakes remain: an entry with `environment: "production"` hard-blocks
+its alias from review, and `salesforce.review.deniedOrganizationIds` hard-blocks specific
+organization IDs from review whatever alias resolves to them.
 
 The checked-in `manifest/package.xml` is only a generic starter. Narrow it to the exact components
 the approved design (`work-items/<id>-<slug>/design.md`) names before retrieve, validation, or
@@ -94,7 +96,8 @@ and the whole `browser` section.
 
 The file holds identifiers, allowlists, and paths, not secrets. ADO uses OAuth through VS Code; Salesforce uses
 existing CLI authorization.
-Alias names and environment labels are not treated as proof: Salesforce MCP startup first checks
+Alias names and environment labels are not treated as proof: the MCP handshake completes without
+contacting Salesforce, then the first Salesforce tool call checks
 the locally authorized instance hostname against the canonical sandbox, scratch-org, and
 Developer Edition signatures, then queries `Organization.IsSandbox` and stops unless the value
 matches what that hostname implies — `true` for a sandbox or scratch org, `false` for a
@@ -199,7 +202,7 @@ click, via `chat.tools.terminal.autoApprove` in `.vscode/settings.json`:
 
 **MCP read-only tools** cannot be pre-approved from a committed setting (VS Code has no per-tool
 `mcp.json` field yet — it is an open feature request). To stop the per-call prompt, approve them
-once interactively: run **Chat: Manage Tool Approval**, expand `salesforce-readonly` and
+once interactively: run **Chat: Manage Tool Approval**, expand `salesforce` and
 `ado-readonly`, and trust all tools from those two servers at **workspace** scope. This choice
 persists per workspace. (These are the only configured MCP servers. The local ADO server has no
 server-side read-only mode — read-only remains harness policy enforced by the hooks, an accepted
@@ -212,12 +215,19 @@ owner decision of 2026-07-14.)
   hosted endpoint did not honor its toolset header, so the local `-d` args replace it). It
   authenticates with your own Azure CLI login — run `az login` once; agents never handle the
   credentials.
-- `salesforce-readonly` starts through `scripts/salesforce_review_server.py` (via the interpreter-resolving launcher). It binds one exact
+- `salesforce` starts through `scripts/salesforce_review_server.py` (via the interpreter-resolving launcher). It binds one exact
   review-enabled non-production org and exposes only identity, configured-package,
   allowlisted-object review, composed read-only SOQL (`review_soql_query`), and (when
   `safety.allowScopedEnumeration` is enabled) a configured-orgs listing built purely
   from local configuration. Internally it reconciles fixed Salesforce MCP and private CLI receipts, redacts raw
   identity payloads, and returns `VERIFIED`, `MISMATCH`, `INCOMPLETE`, or `BLOCKED`.
+  The MCP handshake and tool discovery do not wait for Salesforce CLI authorization. The first
+  Salesforce tool call performs one shared readiness proof; concurrent calls reuse that result.
+  Fixed policy budgets are `cliTimeoutSeconds: 120`, `restReadTimeoutSeconds: 60`, and
+  `operationTimeoutSeconds: 180`. SOQL uses the configured cumulative
+  `soqlQueryTimeoutSeconds` without a hidden shorter cap. Timeout values live in
+  `config/salesforce-review-policy.json`, are schema-bounded, and add runtime only when an
+  operation is actually slow or unavailable.
 - The Developer receives direct `sf`/`sfdx`; other roles keep their narrower tool contracts.
   The read facade remains preferred for bounded, structured evidence. MCP/CLI agreement is
   transport corroboration from the same org, not independent package/business authority.
@@ -274,8 +284,9 @@ owner decision of 2026-07-14.)
   confirm `.vscode/mcp.json` contains `${workspaceFolder}` without `:brain-core`, then restart the
   MCP server or reload the window.
 - Salesforce review blocked: verify the exact alias, expected hostname/organization ID, review
-  permission, package namespace, component allowlist, and pinned runtime. Never
-  bypass the facade with raw MCP, `ALLOW_ALL_ORGS`, a default org, or direct CLI.
+  permission, package namespace, component allowlist, and pinned runtime. Never claim the missing
+  review evidence by bypassing the facade with raw MCP, `ALLOW_ALL_ORGS`, a default org, or direct
+  CLI. The Developer's separate CLI write capability does not turn a blocked review into evidence.
 - Salesforce project missing: restore root `sfdx-project.json`, `force-app/`, `manifest/`, and
   `tests/e2e/` from this repository; do not fall back to a subfolder, parent/sibling directory, or
   second checkout.

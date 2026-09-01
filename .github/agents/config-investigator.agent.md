@@ -3,7 +3,7 @@ name: config-investigator
 description: Read-only evidence collector for allowlisted Salesforce components and package surfaces; creates sanitized observations, investigation reports, and Knowledge Entry drafts without self-verifying them.
 argument-hint: "unknown object, field, record, relation, or package behavior"
 target: vscode
-tools: ['read', 'edit/editFiles', 'execute/runInTerminal', 'web/fetch', 'knowledge/*', 'salesforce-readonly/review_org_identity', 'salesforce-readonly/review_installed_packages', 'salesforce-readonly/review_object_contract', 'salesforce-readonly/review_configured_orgs', 'salesforce-readonly/review_soql_query', 'salesforce-readonly/explain_query', 'salesforce-readonly/org_limits']
+tools: ['read', 'edit/editFiles', 'execute/runInTerminal', 'web/fetch', 'knowledge/*', 'salesforce/review_org_identity', 'salesforce/review_installed_packages', 'salesforce/review_object_contract', 'salesforce/review_configured_orgs', 'salesforce/review_soql_query', 'salesforce/explain_query', 'salesforce/org_limits']
 hooks:
   PreToolUse:
     - type: command

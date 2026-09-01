@@ -609,7 +609,11 @@ def main() -> int:
     # Unqualified tool token, so a bare `core_list_orgs` is classified the same as `ado-readonly/core_list_orgs`.
     bare_tool = tool_name.rsplit("/", 1)[-1].lower()
     is_ado = "ado-readonly" in lowered_name or bare_tool.startswith(ADO_TOOL_PREFIXES)
-    is_sf_review = "salesforce-readonly" in lowered_name or bare_tool in SALESFORCE_REVIEW_TOOLS
+    is_sf_review = (
+        lowered_name == "salesforce"
+        or lowered_name.startswith("salesforce/")
+        or bare_tool in SALESFORCE_REVIEW_TOOLS
+    )
     is_sf_dev = "salesforce-development" in lowered_name or bare_tool in SALESFORCE_DEV_TOOL_TOKENS
     tool_input = event.get("tool_input", {})
     text = flatten(tool_input)
@@ -649,7 +653,7 @@ def main() -> int:
         return 0
 
     if has_recursive_force_rm(text) or any(pattern.search(text) for pattern in DESTRUCTIVE_PATTERNS):
-        print(json.dumps(hook_response("deny", "Destructive operation blocked by SAFE-ROLE-001.")))
+        print(json.dumps(hook_response("deny", "Destructive operation blocked by the global safety policy.")))
         return 0
 
     config = load_config(root)

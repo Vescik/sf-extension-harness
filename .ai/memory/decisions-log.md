@@ -1641,3 +1641,19 @@ Gate: 690 unit tests OK in ~87 s, 43 safety evals PASS, validate_harness coheren
   and no confirmation is added for data or other non-deploy mutations.
 - Approved by: workspace owner directive, 2026-08-31, based on
   `MASTER-PLAN-SALESFORCE-ORG-CHANGE-LOG.md`.
+
+## 2026-09-01 — Salesforce review MCP receives a capability-neutral server alias
+
+- Decision: rename the VS Code MCP server alias from `salesforce-readonly` to `salesforce` and
+  rename its startup input from `sf_read_org` to `sf_review_org`. Agent tool allowlists, safety
+  classification, contracts, setup guidance, tests, and evals use the new alias.
+- Capability boundary: this is a naming-only change. The existing facade still exposes only its
+  annotated `review_*`, `org_limits`, and `explain_query` tools and remains read-only by
+  construction. Developer mutations and deployments continue through direct `sf`/`sfdx`; every
+  real deploy still requires fresh chat confirmation and qualifying mutations still use the
+  canonical org-change log.
+- Rationale: the old server name was repeatedly misread as a workspace-wide prohibition even
+  though it described only one MCP facade. The neutral alias makes server identity independent of
+  capability while tool names, annotations, documentation, and runtime enforcement continue to
+  communicate the actual boundary.
+- Approved by: workspace owner directive, 2026-09-01.

@@ -106,19 +106,19 @@ class ScopedEnumerationTests(unittest.TestCase):
     def test_review_configured_orgs_requires_the_toggle(self) -> None:
         denied = safety.salesforce_review_tool_error(
             base_config(allowScopedEnumeration=False),
-            "salesforce-readonly/review_configured_orgs",
+            "salesforce/review_configured_orgs",
             {},
         )
         self.assertIn("allowScopedEnumeration", denied)
         allowed = safety.salesforce_review_tool_error(
             base_config(allowScopedEnumeration=True),
-            "salesforce-readonly/review_configured_orgs",
+            "salesforce/review_configured_orgs",
             {},
         )
         self.assertIsNone(allowed)
         with_args = safety.salesforce_review_tool_error(
             base_config(allowScopedEnumeration=True),
-            "salesforce-readonly/review_configured_orgs",
+            "salesforce/review_configured_orgs",
             {"alias": "dev-sbx"},
         )
         self.assertIn("no model-controlled arguments", with_args)

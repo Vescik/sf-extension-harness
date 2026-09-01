@@ -796,10 +796,10 @@ class TestDesignerCapabilitySurfaceUnchanged(unittest.TestCase):
 
     BASELINE_TOOLS = (
         "tools: ['read', 'edit/editFiles', 'vscode/askQuestions', 'knowledge/*', "
-        "'ado-readonly/*', 'salesforce-readonly/review_org_identity', "
-        "'salesforce-readonly/review_installed_packages', "
-        "'salesforce-readonly/review_object_contract', "
-        "'salesforce-readonly/review_soql_query']"
+        "'ado-readonly/*', 'salesforce/review_org_identity', "
+        "'salesforce/review_installed_packages', "
+        "'salesforce/review_object_contract', "
+        "'salesforce/review_soql_query']"
     )
     BASELINE_HOOK = "command: python3 scripts/copilot_role_guard.py --role designer"
 

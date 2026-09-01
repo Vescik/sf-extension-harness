@@ -15,14 +15,15 @@ wyłącznie na bezpośrednim dziecku. Na ścieżce fallbacku spawnu CLI
 (`sf.cmd` → cmd.exe → node) timeout osieroci proces node; na ścieżce preferowanej
 (`node bin\run.js`) dzieckiem jest sam CLI i ryzyko jest znikome.
 
-**Czemu odłożone**: ekspozycja ogranicza się do 3–4 wywołań CLI na start/refresh
-sesji (nie per call), timeouty są długie (60 s / 15 s), a sierota to pojedynczy
+**Czemu odłożone**: ekspozycja ogranicza się do 3 wywołań CLI podczas leniwej,
+jednorazowej inicjalizacji i jednego podczas refreshu tokenu (nie per call), timeout
+CLI wynosi 120 s i mieści się w łącznym budżecie operacji 180 s, a sierota to pojedynczy
 bezczynny proces, nie wyciek w pętli. Prewencyjna implementacja `taskkill /T` to
 mechanizm bez zaobserwowanej potrzeby (content over process).
 
 **Kryterium eskalacji — naprawiamy, gdy zajdzie KTÓREKOLWIEK**:
 1. Ktokolwiek zaobserwuje na maszynie zespołu osierocony proces `node`/`sf` po
-   timeout'cie startu fasady (Task Manager / `tasklist | findstr node` po
+   timeout'cie inicjalizacji fasady (Task Manager / `tasklist | findstr node` po
    komunikacie `CLI_UNAVAILABLE`/`CLI_TIMEOUT` na stderr serwera) — **jeden
    potwierdzony przypadek wystarcza**;
 2. fallback `sf.cmd` stanie się ścieżką główną (np. existence-check `run.js`

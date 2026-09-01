@@ -40,10 +40,10 @@ function parseArgs(argv) {
 }
 
 const { mode, org } = parseArgs(process.argv.slice(2));
-// The development/write lane was retired 2026-08-04 (owner decision): org changes are
-// human-only, so nothing is ever launched in a write mode from here.
+// This launcher exposes the structured review facade only. Developer writes deliberately use
+// direct sf/sfdx commands, so no write-mode MCP process is launched from here.
 if (mode !== "review") {
-  fail(`unsupported mode '${mode ?? ""}'; org changes are human-only`);
+  fail(`unsupported mode '${mode ?? ""}'; this MCP launcher supports review mode only`);
 }
 // First never-production wall, pre-contact; the Python server re-checks it and adds
 // the live host/org-id/IsSandbox proof before serving any tool call.

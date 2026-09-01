@@ -4,6 +4,9 @@
   "mcpProtocolVersion": "2025-06-18",
   "salesforceCliMajor": 2,
   "maxVendorPayloadBytes": 1048576,
+  "cliTimeoutSeconds": 120,
+  "restReadTimeoutSeconds": 60,
+  "operationTimeoutSeconds": 180,
   "soqlQueryTimeoutSeconds": 60,
   "profiles": {
     "orgIdentity": {

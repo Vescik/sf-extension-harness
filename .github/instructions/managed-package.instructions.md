@@ -1,5 +1,5 @@
 ---
-description: Trust, role, credential, and real-deployment confirmation boundaries for a repository extending VendorPkg.
+description: Trust, credential, and real-deployment confirmation boundaries for a repository extending VendorPkg.
 applyTo: "**"
 ---
 
@@ -22,9 +22,6 @@ change that conflicts with them is wrong even if it works.
 - **MP-MAP-001 — docs are the map, the org is the terrain.** Facts about the org come
   from the read-only Salesforce MCP tools, not from model memory and not from `docs/`
   alone. On conflict the org wins; report the mismatch as a correction to `docs/`.
-- **SAFE-ROLE-001 — role capabilities stay explicit.** Designers and reviewers remain
-  read-oriented. The Developer is the primary executor for direct Salesforce CLI deployments,
-  data mutations, Apex execution, package operations, and org lifecycle work.
 - **SAFE-DEPLOY-CONFIRM-001 — confirm every real deploy in chat.** Immediately before a real
   deployment, the Developer states: `This will be a real deployment of changes to Salesforce
   org <target>. Scope: <scope>. Should I run this deployment?` The user must confirm that exact
