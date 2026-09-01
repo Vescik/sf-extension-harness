@@ -43,8 +43,6 @@ calls_path = os.path.join(state_dir, "cli-calls.log")
 args = sys.argv[1:]
 with open(calls_path, "a", encoding="utf-8") as fh:
     fh.write(json.dumps(args) + "\n")
-if state.get("cliDelaySeconds"):
-    time.sleep(state["cliDelaySeconds"])
 def count(prefix):
     n = 0
     with open(calls_path, encoding="utf-8") as fh:
@@ -52,12 +50,21 @@ def count(prefix):
             if json.loads(line)[: len(prefix)] == prefix:
                 n += 1
     return n
+if args[:3] == ["org", "auth", "show-access-token"] and state.get("refreshDelaySeconds"):
+    time.sleep(state["refreshDelaySeconds"])
+elif state.get("cliDelaySeconds"):
+    time.sleep(state["cliDelaySeconds"])
+token_call_count = count(["org", "display"]) + count(["org", "auth", "show-access-token"])
 if args[:2] == ["org", "display"]:
     tokens = state["tokens"]
-    index = min(count(["org", "display"]) - 1, len(tokens) - 1)
+    index = min(token_call_count - 1, len(tokens) - 1)
     result = dict(state["display"])
     result["accessToken"] = tokens[index]
     print(json.dumps({"status": 0, "result": result, "warnings": []}))
+elif args[:3] == ["org", "auth", "show-access-token"]:
+    tokens = state["tokens"]
+    index = min(token_call_count - 1, len(tokens) - 1)
+    print(json.dumps({"status": 0, "result": {"accessToken": tokens[index]}, "warnings": []}))
 else:
     print(json.dumps({"status": 1, "message": "unknown"}))
     sys.exit(1)
@@ -168,12 +175,14 @@ class FacadeHarness(unittest.TestCase):
         instance_url: str = f"https://{SANDBOX_HOST}",
         org_id: str = ORG_ID_18,
         cli_delay_seconds: float = 0,
+        refresh_delay_seconds: float = 0,
     ) -> None:
         self.cli_state_path.write_text(
             json.dumps(
                 {
                     "tokens": list(tokens),
                     "cliDelaySeconds": cli_delay_seconds,
+                    "refreshDelaySeconds": refresh_delay_seconds,
                     "display": {
                         "id": org_id,
                         "instanceUrl": instance_url,
@@ -234,7 +243,7 @@ class FacadeHarness(unittest.TestCase):
 
     def spawn(self) -> subprocess.Popen:
         # Per-session CLI call log: the fake CLI indexes its token list by the number
-        # of org-display calls in THIS session, so a re-spawned server starts
+        # of token-bearing CLI calls in THIS session, so a re-spawned server starts
         # from token-1 again instead of inheriting the previous session's counter.
         (self.tmp_path / "cli-calls.log").write_text("", encoding="utf-8")
         process = subprocess.Popen(
@@ -340,8 +349,8 @@ class ProtocolAndSurface(FacadeHarness):
         responses, _ = self.roundtrip([self.initialize_message(), {"jsonrpc": "2.0", "id": 2, "method": "tools/list"}])
         init = next(r for r in responses if r["id"] == 1)
         self.assertEqual(init["result"]["protocolVersion"], "2025-06-18")
-        # Version pin: 2.4.0 marks single-command CLI readiness.
-        self.assertEqual(init["result"]["serverInfo"]["version"], "2.4.0")
+        # Version pin: 2.4.1 marks cancellable token refresh.
+        self.assertEqual(init["result"]["serverInfo"]["version"], "2.4.1")
         tools = next(r for r in responses if r["id"] == 2)["result"]["tools"]
         # Read-only pin: exactly these six, no write handlers or identity-query tool.
         self.assertEqual(
@@ -519,7 +528,7 @@ class RefreshAndWalls(FacadeHarness):
         MockSalesforce.state["records"] = [{"Id": "001AA0000001"}]
         process = self.spawn()
         # Let background readiness complete against token-1, then invalidate it: the next data call
-        # 401s, the server re-runs org display (getting token-2) and replays.
+        # 401s, the server requests a fresh access token (token-2) and replays.
         self.initialize_ready_process(process)
         MockSalesforce.state["valid_tokens"] = ["token-2"]
         process.stdin.write(
@@ -531,7 +540,42 @@ class RefreshAndWalls(FacadeHarness):
         responses = [json.loads(line) for line in stdout.splitlines() if line.strip()]
         envelope = next(r for r in responses if r.get("id") == 5)["result"]["structuredContent"]
         self.assertEqual(envelope["status"], "VERIFIED", stderr.decode("utf-8", "replace")[-1500:])
-        self.assertEqual(self.cli_calls(["org", "display"]), 2)
+        self.assertEqual(self.cli_calls(["org", "display"]), 1)
+        self.assertEqual(self.cli_calls(["org", "auth", "show-access-token"]), 1)
+
+    def test_cancelled_refresh_is_terminated_and_retry_does_not_wait_on_the_lock(self) -> None:
+        self.write_cli_state(refresh_delay_seconds=10)
+        MockSalesforce.state["records"] = [{"Id": "001AA0000001"}]
+        process = self.spawn()
+        self.initialize_ready_process(process)
+        MockSalesforce.state["valid_tokens"] = ["token-2"]
+
+        process.stdin.write(
+            (json.dumps(self.call(5, "review_soql_query", {"query": "SELECT Id FROM Account"})) + "\n").encode("utf-8")
+        )
+        process.stdin.flush()
+        deadline = time.monotonic() + 5
+        while self.cli_calls(["org", "auth", "show-access-token"]) < 1 and time.monotonic() < deadline:
+            time.sleep(0.02)
+        self.assertEqual(self.cli_calls(["org", "auth", "show-access-token"]), 1)
+
+        process.stdin.write(
+            (json.dumps({"jsonrpc": "2.0", "method": "notifications/cancelled", "params": {"requestId": 5}}) + "\n").encode("utf-8")
+        )
+        process.stdin.flush()
+        self.write_cli_state(refresh_delay_seconds=0)
+        retry_started = time.monotonic()
+        process.stdin.write(
+            (json.dumps(self.call(6, "review_soql_query", {"query": "SELECT Id FROM Account"})) + "\n").encode("utf-8")
+        )
+        process.stdin.close()
+        process.stdin = None
+        stdout, stderr = process.communicate(timeout=10)
+        self.assertLess(time.monotonic() - retry_started, 5, stderr.decode("utf-8", "replace")[-2000:])
+        responses = [json.loads(line) for line in stdout.splitlines() if line.strip()]
+        self.assertNotIn(5, [response.get("id") for response in responses])
+        self.assertEqual(self.envelope_of(responses, 6)["status"], "VERIFIED")
+        self.assertEqual(self.cli_calls(["org", "auth", "show-access-token"]), 2)
 
     def test_refresh_does_not_query_organization_identity(self) -> None:
         MockSalesforce.state["records"] = [{"Id": "001AA0000001"}]
@@ -550,7 +594,8 @@ class RefreshAndWalls(FacadeHarness):
         for message_id in (6, 7):
             envelope = next(r for r in responses if r.get("id") == message_id)["result"]["structuredContent"]
             self.assertEqual(envelope["status"], "VERIFIED")
-        self.assertEqual(self.cli_calls(["org", "display"]), 2)
+        self.assertEqual(self.cli_calls(["org", "display"]), 1)
+        self.assertEqual(self.cli_calls(["org", "auth", "show-access-token"]), 1)
         self.assertFalse(
             any("Organization" in request.get("params", {}).get("q", "") for request in MockSalesforce.requests_seen)
         )
@@ -1152,17 +1197,17 @@ class BoundedStreamingTransport(unittest.TestCase):
         self.assertEqual(ctx.exception.code, "REST_TIMEOUT")
         self.assertEqual(mocked.call_count, 1)
 
-    def test_token_refresh_uses_the_configured_cli_timeout(self) -> None:
+    def test_token_refresh_uses_the_bounded_access_token_command(self) -> None:
         from unittest.mock import Mock, patch
         from scripts import salesforce_review_server as srv
 
         client = self.make_client()
         with patch.object(srv, "run_cli_json", return_value={"accessToken": "fresh"}) as cli:
             client._refresh_token("t")
-        self.assertEqual(cli.call_args.kwargs["timeout"], 120)
+        self.assertEqual(cli.call_args.kwargs["timeout"], 30)
         self.assertEqual(
             cli.call_args.args[0],
-            ["org", "display", "--json", "-o", ALIAS],
+            ["org", "auth", "show-access-token", "--json", "-o", ALIAS],
         )
         self.assertEqual(client.token, "fresh")
 
@@ -1189,7 +1234,7 @@ class ScaledBoundsConstants(unittest.TestCase):
     def test_server_version_is_bumped_for_stale_process_detection(self) -> None:
         from scripts import salesforce_review_server as srv
 
-        self.assertEqual(srv.SERVER_VERSION, "2.4.0")
+        self.assertEqual(srv.SERVER_VERSION, "2.4.1")
 
     def test_timeout_policy_defaults_are_pinned(self) -> None:
         policy = json.loads((ROOT / "config" / "salesforce-review-policy.json").read_text(encoding="utf-8"))
@@ -1202,13 +1247,15 @@ class ScaledBoundsConstants(unittest.TestCase):
         from unittest.mock import patch
         from scripts import salesforce_review_server as srv
 
-        with patch.object(srv, "resolve_sf_invocation", return_value=["sf"]), patch.object(
-            srv.subprocess,
-            "run",
-            side_effect=srv.subprocess.TimeoutExpired(["sf", "version", "--json"], 120),
+        with patch.object(
+            srv,
+            "resolve_sf_invocation",
+            return_value=[sys.executable, "-c", "import time; time.sleep(10)"],
         ):
+            started = time.monotonic()
             with self.assertRaises(srv.ReviewError) as ctx:
-                srv.run_cli_json(["version", "--json"], timeout=120)
+                srv.run_cli_json(["version", "--json"], timeout=0.1)
+        self.assertLess(time.monotonic() - started, 2.0)
         self.assertEqual(ctx.exception.code, "CLI_TIMEOUT")
         self.assertEqual(ctx.exception.status, "INCOMPLETE")
 

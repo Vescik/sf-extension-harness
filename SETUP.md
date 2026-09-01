@@ -221,6 +221,9 @@ owner decision of 2026-07-14.)
   The MCP handshake and tool discovery do not wait for Salesforce CLI authorization. Background
   readiness starts immediately and logs the single `org-display` authorization stage in
   MCP Output, and concurrent calls reuse its result. There is no `review_org_identity` tool.
+  A REST `401` requests a fresh token with `sf org auth show-access-token` under a code-owned
+  30-second ceiling. Cancelling a request interrupts its CLI process tree, including the
+  Windows `sf.cmd` fallback, and refresh-lock waits remain inside the cumulative deadline.
   Fixed policy budgets are `cliTimeoutSeconds: 120`, `restReadTimeoutSeconds: 60`, and
   `operationTimeoutSeconds: 180`. SOQL uses the configured cumulative
   `soqlQueryTimeoutSeconds` without a hidden shorter cap. Timeout values live in
