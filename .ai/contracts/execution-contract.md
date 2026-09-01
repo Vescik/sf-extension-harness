@@ -9,9 +9,9 @@ Every skill must apply this contract in addition to its task-specific procedure.
 
 1. Validate required inputs, allowed values, mutual exclusion, identifiers, URLs, and paths before
    invoking a tool.
-2. Validate task inputs first, then call the scoped tool directly. Salesforce MCP checks its
-   configured host/org-id walls in background readiness, and ADO scope is checked on every tool
-   call. Preserve a tool's
+2. Validate task inputs first, then call the scoped tool directly. External readiness is proven
+   at the point of use — the Salesforce review MCP proves the identity of its configured read
+   target at startup, and ADO scope is checked on every tool call. Preserve a tool's
    fail-closed unavailable/blocked/partial result instead of retrying around it.
 3. For work raised by a work item, read `work-items/<id>-<slug>/design.md` before relying on
    approval, scope, design, or repository state, plus `tasks.md` for execution state and
@@ -92,7 +92,7 @@ Developer, subject to the global real-deploy confirmation hook:
   not implied by design or pull-request review.
 - Principles constrain actions; they do not rewrite observations. The metadata repository describes
   intended customer-owned state; the org review describes deployed state at a timestamp.
-- Salesforce CLI readiness binds the REST session to the configured target. It is not independent
+- Salesforce MCP and CLI agreement corroborates transport from the same org. It is not independent
   evidence of business meaning, vendor guarantees, or inaccessible package internals.
 - Never state that a tool or source was used without an actual successful receipt and evidence ID.
 

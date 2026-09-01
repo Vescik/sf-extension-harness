@@ -796,7 +796,8 @@ class TestDesignerCapabilitySurfaceUnchanged(unittest.TestCase):
 
     BASELINE_TOOLS = (
         "tools: ['read', 'edit/editFiles', 'vscode/askQuestions', 'knowledge/*', "
-        "'ado-readonly/*', 'salesforce/review_installed_packages', "
+        "'ado-readonly/*', 'salesforce/review_org_identity', "
+        "'salesforce/review_installed_packages', "
         "'salesforce/review_object_contract', "
         "'salesforce/review_soql_query']"
     )

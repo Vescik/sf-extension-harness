@@ -1,13 +1,15 @@
 {
   "$schema": "../schemas/salesforce-review-policy.schema.json",
-  "schemaVersion": 3,
+  "schemaVersion": 1,
   "mcpProtocolVersion": "2025-06-18",
+  "salesforceCliMajor": 2,
   "maxVendorPayloadBytes": 1048576,
-  "cliTimeoutSeconds": 120,
-  "restReadTimeoutSeconds": 60,
-  "operationTimeoutSeconds": 180,
   "soqlQueryTimeoutSeconds": 60,
   "profiles": {
+    "orgIdentity": {
+      "useToolingApi": false,
+      "query": "SELECT Id, IsSandbox FROM Organization LIMIT 1"
+    },
     "installedPackages": {
       "useToolingApi": true,
       "query": "SELECT SubscriberPackage.NamespacePrefix, SubscriberPackage.Name, SubscriberPackageVersion.Name, SubscriberPackageVersion.MajorVersion, SubscriberPackageVersion.MinorVersion, SubscriberPackageVersion.PatchVersion, SubscriberPackageVersion.BuildNumber FROM InstalledSubscriberPackage WHERE SubscriberPackage.NamespacePrefix IN (${PACKAGE_NAMESPACES}) ORDER BY SubscriberPackage.NamespacePrefix, SubscriberPackage.Name LIMIT 500"

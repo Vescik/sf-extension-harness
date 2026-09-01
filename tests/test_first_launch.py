@@ -30,12 +30,13 @@ class HostClassificationTests(unittest.TestCase):
             "mpsadev.scratch.my.salesforce.com",
         ):
             with self.subTest(host=host):
-                self.assertTrue(first_launch.classify_non_production_host(host))
+                self.assertEqual(first_launch.classify_non_production_host(host), (True, True))
 
     def test_developer_edition_expects_is_sandbox_false(self) -> None:
         """Salesforce reports false for a Developer Edition; that is the proof, not a failure."""
-        self.assertTrue(
-            first_launch.classify_non_production_host("orgfarm-x-dev-ed.develop.my.salesforce.com")
+        self.assertEqual(
+            first_launch.classify_non_production_host("orgfarm-x-dev-ed.develop.my.salesforce.com"),
+            (True, False),
         )
 
     def test_production_and_login_hosts_are_refused(self) -> None:
@@ -46,7 +47,7 @@ class HostClassificationTests(unittest.TestCase):
             "",
         ):
             with self.subTest(host=host):
-                self.assertFalse(first_launch.classify_non_production_host(host))
+                self.assertIsNone(first_launch.classify_non_production_host(host))
 
 
 class ConfigWritingTests(unittest.TestCase):

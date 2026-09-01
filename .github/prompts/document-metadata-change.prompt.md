@@ -3,7 +3,7 @@ name: document-metadata-change
 description: Generate reviewed technical documentation for one accepted metadata change.
 argument-hint: "itemId=<ID> [manifestPath=<path>]"
 agent: developer
-tools: ['read', 'search', 'edit/editFiles', 'execute/runInTerminal', 'vscode/askQuestions', 'ado-readonly/*', 'salesforce/review_installed_packages', 'salesforce/review_object_contract', 'knowledge/*']
+tools: ['read', 'search', 'edit/editFiles', 'execute/runInTerminal', 'vscode/askQuestions', 'ado-readonly/*', 'salesforce/review_org_identity', 'salesforce/review_installed_packages', 'salesforce/review_object_contract', 'knowledge/*']
 ---
 
 Use the [generate-technical-documentation skill](../skills/generate-technical-documentation/SKILL.md).

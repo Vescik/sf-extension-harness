@@ -81,8 +81,8 @@ For CustomObject and CustomField entries, consider the entry-lane org-sampling s
 [investigate-object](../investigate-object/SKILL.md) — the same rule as after describe
 there: attach when fill rate or real data shape matters for what the entry is for;
 skipping is fine, forgetting should not be. Mechanics unchanged: when the selected
-Salesforce review MCP session is ready against its configured host/org-id walls (successful
-review tool evidence from this session) and the entry's org lane
+Salesforce review MCP session has proven its non-production identity (successful review
+tool evidence from this session) and the entry's org lane
 is not `org-fresh`, compose the probes-file and run
 `python scripts/knowledge_store.py entry-org-attach --identity <id> --org <alias>
 --probes-file <path>`; when no org is configured or containment refuses, skip silently and

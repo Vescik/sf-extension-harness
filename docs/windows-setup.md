@@ -157,8 +157,8 @@ the `sf_review_org` input, enter your authorized sandbox alias (e.g. `mpsa_dev_s
 .\.venv\Scripts\python.exe scripts\validate_harness.py          # structure OK
 ```
 
-There is no separate readiness command: Salesforce MCP background readiness checks the configured
-host/org-id walls and logs every CLI stage in MCP Output; ADO scope is checked on every tool call. Optional single-org
+There is no separate readiness command: Salesforce MCP proves the selected org's non-production
+identity before tool discovery; ADO scope is checked on every tool call. Optional single-org
 diagnostic: `.\.venv\Scripts\python.exe scripts\verify_salesforce_org.py --org <alias>`.
 
 Then in Copilot Chat: run `/fetch-ado-item itemId=<id>` and a Salesforce review. ADO calls
@@ -183,7 +183,7 @@ Get-Content .cache\denials.log -Tail 20
 | `Organization name is required. Provide it as a parameter…` | ADO MCP URL is org-less because the env var is unset | Step 4 |
 | ADO tool call denied: "ADO runtime organization does not match local policy" | env var missing or mismatched | Step 4 (exact match, no trailing spaces) |
 | `Salesforce MCP startup blocked: development mode is disabled on Windows` / `exit code 2` | Stale MCP config — the `salesforce-development` server was removed 2026-07-14 | Pull the latest `main` and reload VS Code; only `salesforce` and `ado-readonly` should be listed |
-| A review tool answers `BLOCKED` with `NON_PRODUCTION_HOST_REQUIRED` / `ORG_ID_MISMATCH` / `ORG_ID_DENIED` | `sf org display` returned a production-shaped host, the configured host/org-id pins do not match, or the org ID is on `deniedOrganizationIds` | Step 5/6: authorize a non-production org; fix or remove the pins; check the denylist. Sanity-check with `python scripts/verify_salesforce_org.py --org <alias>` |
+| A review tool answers `BLOCKED` with `IDENTITY_HOST_MISMATCH` / `IDENTITY_ORG_ID_MISMATCH` / `NOT_SANDBOX` / `ORG_ID_DENIED` | the org is production, the host signature and live `IsSandbox` disagree, the pins point at a different org, or the org ID is on `deniedOrganizationIds`. A Developer Edition reporting `IsSandbox=false` is expected | Step 5/6: authorize a non-production org; fix or remove the pins; check the denylist. Sanity-check with `python scripts/verify_salesforce_org.py --org <alias>` |
 | `webidl.util.markAsUncloneable is not a function` | Node < 22 | Install Node 22+ (Step 1) |
 | ADO call still runs without being scoped / lists all orgs | Known hook-matching gap (see below) | Track the hardening fix; interim, do not rely on the hook to block bare-named MCP tools |
 

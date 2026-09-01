@@ -45,8 +45,7 @@ effective windows, who maintains them — not from how many there are.
    Knowledge, so no citable ref is needed
    ([search-knowledge](../search-knowledge/SKILL.md) has the envelope-reading rules if the
    pack raises questions).
-2. Salesforce MCP readiness automatically checks the configured host/org-id walls in the
-   background; do not run a separate identity tool.
+2. Call `review_org_identity` first. Stop unless it is `VERIFIED` for the exact configured org with `nonProduction: true` (a Developer Edition legitimately reports `isSandbox: false`).
 3. Call `review_object_contract` for the object's accessible field contract. Choose the snapshot
    fields from that contract only: the natural key (`Name`, a `DeveloperName`-like field, or an
    external-id field) plus the configuration-bearing fields (status values, flags, ordering,

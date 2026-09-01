@@ -37,13 +37,12 @@ distributions) to the governed record reads instead of rejecting them (owner dec
    checked and how — enumeration scope, method, pagination bounds, and limitations — and
    state absence as an observation within those bounds, never as proof. Whether that
    coverage suffices is the reviewer's judgment, not a precondition for reporting.
-4. Salesforce MCP readiness automatically checks the configured host/org-id walls in the
-   background; do not run a separate identity tool.
+4. Call `review_org_identity` first. Stop unless it is `VERIFIED` for the exact configured org with `nonProduction: true` (a Developer Edition legitimately reports `isSandbox: false`).
 5. Call only the necessary guarded review tool:
    - `review_installed_packages` for package identity/version;
    - `review_object_contract` for an allowlisted object's accessible existence/field contract.
-6. Treat CLI readiness as target binding for the REST session. On `MISMATCH`, `INCOMPLETE`,
-   truncation, schema drift, sensitive-output detection, or scope mismatch, return unresolved.
+6. Treat MCP/CLI agreement as transport corroboration. On `MISMATCH`, `INCOMPLETE`, truncation,
+   schema drift, sensitive-output detection, or scope mismatch, return unresolved.
 7. Write the sanitized findings as a report under `output/` (investigation reports are
    documentation, not Knowledge authority). Record limitations, repository drift, package
    version, and missing authority in the report itself.
@@ -58,8 +57,8 @@ distributions) to the governed record reads instead of rejecting them (owner dec
 
 ## Entry-lane org sampling (governed persistence)
 
-When the selected Salesforce review MCP session is ready against its configured host/org-id
-walls (successful review tool evidence from this session), org sampling is the
+When the selected Salesforce review MCP session has started and proven its non-production
+identity (successful review tool evidence from this session), org sampling is the
 default persistence path for object/field usage numbers. For each target entry whose org lane
 is not already `org-fresh` (recompute it with
 the `knowledge_entry_status` tool — never from chat history):

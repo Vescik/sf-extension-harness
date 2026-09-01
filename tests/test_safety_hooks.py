@@ -1224,12 +1224,12 @@ class RoleGuardTests(unittest.TestCase):
 
 
 class SafetyClassificationTests(unittest.TestCase):
-    def test_salesforce_review_no_arg_tool_with_empty_input_is_allowed(self) -> None:
+    def test_salesforce_review_identity_with_empty_input_is_allowed(self) -> None:
         with tempfile.TemporaryDirectory() as name:
             root = Path(name)
             write_local_config(root)
             event = {
-                "tool_name": "salesforce/review_installed_packages",
+                "tool_name": "salesforce/review_org_identity",
                 "tool_input": {},
             }
             stdout = StringIO()
@@ -1257,7 +1257,7 @@ class SafetyClassificationTests(unittest.TestCase):
         self.assertIsNone(
             safety.salesforce_review_tool_error(
                 config,
-                "salesforce/review_installed_packages",
+                "salesforce/review_org_identity",
                 {},
             )
         )
@@ -1271,7 +1271,7 @@ class SafetyClassificationTests(unittest.TestCase):
         for tool, tool_input in (
             ("salesforce/run_soql_query", {"query": "SELECT Name FROM Contact"}),
             ("salesforce/list_all_orgs", {}),
-            ("salesforce/review_installed_packages", {"usernameOrAlias": "other"}),
+            ("salesforce/review_org_identity", {"usernameOrAlias": "other"}),
             (
                 "salesforce/review_object_contract",
                 {"objectApiName": "Unlisted__c"},
