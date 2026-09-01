@@ -6,7 +6,7 @@
   configured MCP surface is read-only by construction on every platform (no write-mode Salesforce
   MCP server exists).
 - Consolidated GitHub Copilot extension and the recommendations in `.vscode/extensions.json`.
-- Git, Python 3.11+, Node.js 22+ (the MCP launchers and the ADO server run on Node), and Salesforce CLI 2.136.8+ (the review facade needs `sf org auth show-access-token`).
+- Git, Python 3.11+, Node.js 22+ (the MCP launchers and the ADO server run on Node), and Salesforce CLI 2.x with `sf org display --json`.
   On Windows both install flavors are supported — npm (`sf.cmd`) and the installer (`sf.exe`);
   the review server resolves whichever `where.exe sf` would find first.
 - **Windows is a first-class runtime, not best-effort**: CI runs the full gate
@@ -64,16 +64,15 @@ to the repository/SFDX root. Keep the read facade pointed at a non-production ev
 does not limit Developer CLI targets. An org entry is
 `{alias, environment}`; the identity pins (`expectedInstanceHost` + `expectedOrganizationId`)
 are optional and travel together — with pins the facade holds the alias to that exact org,
-without them it freezes the live-discovered identity for the session. Configure the package
+without them it accepts the authorized CLI host/org ID when they match a supported host shape. Configure the package
 namespaces and component API-name allowlist, and keep the review API version/current evidence
 window deliberate. The write-mode Salesforce MCP lane remains retired. The Developer uses direct
 `sf`/`sfdx` for org changes; every real deploy requires fresh target-and-scope chat confirmation.
 
 Which org the read facade connects is the developer's responsibility (owner decision 2026-08-04):
-any alias — configured or not — is admitted to that facade once its live identity proves a
-canonical sandbox, scratch, or Developer Edition signature consistent with
-`Organization.IsSandbox`. The proof runs once on the first Salesforce tool call, is shared by
-concurrent callers, and is repeated after a token refresh. Production remains refused by the
+any alias — configured or not — is admitted when `sf org display` returns a canonical sandbox,
+scratch, or Developer Edition host shape and a valid org ID. No live `Organization` query or
+`IsSandbox` check is performed. Production remains refused by the
 review facade only; this is not a global restriction on Developer CLI targets. Two facade-level
 brakes remain: an entry with `environment: "production"` hard-blocks
 its alias from review, and `salesforce.review.deniedOrganizationIds` hard-blocks specific
@@ -96,13 +95,10 @@ and the whole `browser` section.
 
 The file holds identifiers, allowlists, and paths, not secrets. ADO uses OAuth through VS Code; Salesforce uses
 existing CLI authorization.
-Alias names and environment labels are not treated as proof: the MCP handshake completes without
-contacting Salesforce, then the first Salesforce tool call checks
-the locally authorized instance hostname against the canonical sandbox, scratch-org, and
-Developer Edition signatures, then queries `Organization.IsSandbox` and stops unless the value
-matches what that hostname implies — `true` for a sandbox or scratch org, `false` for a
-Developer Edition. What the gates require is the receipt's `nonProduction` verdict, not
-`isSandbox` on its own. The Developer uses direct `sf`/`sfdx` for org operations; the configured
+Alias names and environment labels are not treated as proof: background MCP readiness checks the
+authorized instance hostname and org ID from `sf org display` against configuration and canonical
+sandbox, scratch-org, or Developer Edition host shapes. It performs no separate Organization
+identity query. The Developer uses direct `sf`/`sfdx` for org operations; the configured
 MCP remains the structured read/evidence path.
 
 Set `ADO_ORGANIZATION` to the exact non-secret organization slug in local configuration before
@@ -166,9 +162,9 @@ the `py` launcher or `python3`). The same
 commands are available through `Terminal: Run Task` as Harness: Validate, Harness: Test, and
 Harness: Evals.
 
-There is no separate readiness step before a workflow: the Salesforce review MCP proves the
-selected org's non-production identity when it starts, and ADO scope is checked on every tool
-call. To diagnose one org by hand, run
+There is no separate readiness step before a workflow: Salesforce MCP checks the configured
+host/org-id walls in the background and logs each CLI stage in MCP Output; ADO scope is checked on
+every tool call. To diagnose one org by hand, run
 `python scripts/verify_salesforce_org.py --org <alias>`.
 
 ## 5. Verify Copilot customizations
@@ -216,21 +212,23 @@ owner decision of 2026-07-14.)
   authenticates with your own Azure CLI login — run `az login` once; agents never handle the
   credentials.
 - `salesforce` starts through `scripts/salesforce_review_server.py` (via the interpreter-resolving launcher). It binds one exact
-  review-enabled non-production org and exposes only identity, configured-package,
+  review-enabled org and exposes configured-package,
   allowlisted-object review, composed read-only SOQL (`review_soql_query`), and (when
   `safety.allowScopedEnumeration` is enabled) a configured-orgs listing built purely
-  from local configuration. Internally it reconciles fixed Salesforce MCP and private CLI receipts, redacts raw
-  identity payloads, and returns `VERIFIED`, `MISMATCH`, `INCOMPLETE`, or `BLOCKED`.
-  The MCP handshake and tool discovery do not wait for Salesforce CLI authorization. The first
-  Salesforce tool call performs one shared readiness proof; concurrent calls reuse that result.
+  from local configuration. Internally it uses the CLI once for startup authorization and
+  configured target checks, then bounded Salesforce REST reads; it redacts raw authorization
+  details and returns `VERIFIED`, `MISMATCH`, `INCOMPLETE`, or `BLOCKED`.
+  The MCP handshake and tool discovery do not wait for Salesforce CLI authorization. Background
+  readiness starts immediately and logs the single `org-display` authorization stage in
+  MCP Output, and concurrent calls reuse its result. There is no `review_org_identity` tool.
   Fixed policy budgets are `cliTimeoutSeconds: 120`, `restReadTimeoutSeconds: 60`, and
   `operationTimeoutSeconds: 180`. SOQL uses the configured cumulative
   `soqlQueryTimeoutSeconds` without a hidden shorter cap. Timeout values live in
   `config/salesforce-review-policy.json`, are schema-bounded, and add runtime only when an
   operation is actually slow or unavailable.
 - The Developer receives direct `sf`/`sfdx`; other roles keep their narrower tool contracts.
-  The read facade remains preferred for bounded, structured evidence. MCP/CLI agreement is
-  transport corroboration from the same org, not independent package/business authority.
+  The read facade remains preferred for bounded, structured evidence. CLI readiness only binds
+  the REST session to the configured target; it is not independent package/business authority.
 - `knowledge` starts through `scripts/knowledge_mcp_server.mjs` and is the primary read
   surface over governed Knowledge (context/search/impact/resolve/entry-status plus the
   curator deep-dive set) — read-only by construction, binds no org, takes no secrets. VS Code

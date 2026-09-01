@@ -11,7 +11,7 @@ Two public shapes, nothing else:
 
 `start` resolves the PROJECT-LOCAL VS Code `target-org` (a global default is never
 accepted), requires that alias to be configured `environment: development` in
-config/harness.local.json, re-proves its live non-production identity through
+config/harness.local.json, checks its configured non-production host and org-id walls through
 scripts/verify_salesforce_org.py, validates one bounded scope form, derives an honest
 test level, and submits exactly `sf project deploy start --dry-run --async ... --json`.
 `status` re-proves the same target and reads exactly one `sf project deploy report
@@ -22,7 +22,7 @@ This is NOT a deployment capability: the constructed child command always contai
 raw passthrough flags do not exist in this grammar and cannot be constructed from any
 input. This legacy wrapper never starts a real deployment; the Developer's separate direct
 ``sf``/``sfdx`` path may do so only after fresh chat confirmation for the exact target and
-scope. Transport problems (bad JSON, timeout, oversized output, missing CLI, identity drift)
+scope. Transport problems (bad JSON, timeout, oversized output, missing CLI, configured-target drift)
 are reported as BLOCKED/ERROR/INCOMPLETE — never as deployment success or failure.
 """
 
@@ -133,9 +133,9 @@ def resolve_project_local_target(runner: Callable[..., Any]) -> tuple[str | None
 
 
 def prove_development_org(alias: str, runner: Callable[..., Any]) -> tuple[bool, str]:
-    """Fail closed unless alias is configured `development` and live-proven non-production.
+    """Fail closed unless alias is configured `development` and passes target walls.
 
-    Reuses the existing scripts/verify_salesforce_org.py proof — this module adds no
+    Reuses scripts/verify_salesforce_org.py — this module adds no
     second, weaker non-production detector.
     """
 
@@ -158,14 +158,14 @@ def prove_development_org(alias: str, runner: Callable[..., Any]) -> tuple[bool,
         return False, identity
     denied = org_proof.denied_organization_ids()
     if identity is not None:
-        return org_proof.verify_is_sandbox(
+        return org_proof.check_non_production_org(
             alias,
             expected_host=identity[0],
             expected_org_id=identity[1],
             denied_org_ids=denied,
             runner=runner,
         )
-    return org_proof.verify_is_sandbox(alias, denied_org_ids=denied, runner=runner)
+    return org_proof.check_non_production_org(alias, denied_org_ids=denied, runner=runner)
 
 
 def contained_repo_path(raw: str, prefix: str) -> tuple[str | None, str]:
@@ -396,9 +396,9 @@ def run_start(args: argparse.Namespace, runner: Callable[..., Any]) -> dict[str,
     alias, reason = resolve_project_local_target(runner)
     if alias is None:
         return blocked("start", reason)
-    proven, reason = prove_development_org(alias, runner)
-    if not proven:
-        return blocked("start", f"non-production development proof failed: {reason}")
+    target_ok, reason = prove_development_org(alias, runner)
+    if not target_ok:
+        return blocked("start", f"non-production development check failed: {reason}")
     has_apex, reason = scope_contains_apex(scope)
     if has_apex is None:
         return error("start", reason)
@@ -451,9 +451,9 @@ def run_status(args: argparse.Namespace, runner: Callable[..., Any]) -> dict[str
             f"job was started against '{alias}'; re-select the original development org "
             "instead of checking the job through a different target",
         )
-    proven, reason = prove_development_org(alias, runner)
-    if not proven:
-        return blocked("status", f"non-production development proof failed: {reason}")
+    target_ok, reason = prove_development_org(alias, runner)
+    if not target_ok:
+        return blocked("status", f"non-production development check failed: {reason}")
     executable = shutil.which("sf")
     if executable is None:
         return blocked("status", "Salesforce CLI is unavailable")

@@ -7,7 +7,6 @@
   "required": [
     "schemaVersion",
     "mcpProtocolVersion",
-    "salesforceCliMajor",
     "maxVendorPayloadBytes",
     "cliTimeoutSeconds",
     "restReadTimeoutSeconds",
@@ -20,13 +19,10 @@
       "type": "string"
     },
     "schemaVersion": {
-      "const": 1
+      "const": 3
     },
     "mcpProtocolVersion": {
       "const": "2025-06-18"
-    },
-    "salesforceCliMajor": {
-      "const": 2
     },
     "maxVendorPayloadBytes": {
       "type": "integer",
@@ -57,16 +53,12 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "orgIdentity",
         "installedPackages",
         "installedPackagesAll",
         "objectEntity",
         "objectFields"
       ],
       "properties": {
-        "orgIdentity": {
-          "$ref": "#/$defs/fixedProfile"
-        },
         "installedPackages": {
           "$ref": "#/$defs/packageProfile"
         },

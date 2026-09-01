@@ -3,7 +3,7 @@ name: developer
 description: Implement a designed work item in force-app — VendorPkg extension points, tests, and an append-only record of every deviation from the design.
 argument-hint: "work item ID"
 target: vscode
-tools: ['read', 'edit/editFiles', 'execute/runInTerminal', 'vscode/askQuestions', 'knowledge/*', 'ado-readonly/*', 'salesforce/review_org_identity', 'salesforce/review_installed_packages', 'salesforce/review_object_contract', 'salesforce/review_soql_query']
+tools: ['read', 'edit/editFiles', 'execute/runInTerminal', 'vscode/askQuestions', 'knowledge/*', 'ado-readonly/*', 'salesforce/review_installed_packages', 'salesforce/review_object_contract', 'salesforce/review_soql_query']
 hooks:
   PreToolUse:
     - type: command

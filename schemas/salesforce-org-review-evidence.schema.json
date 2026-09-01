@@ -939,17 +939,17 @@
           "type": "boolean"
         },
         "isSandbox": {
-          "description": "Salesforce's Organization.IsSandbox. Descriptive only — legitimately false for a Developer Edition. Never gate on this; gate on nonProduction.",
+          "description": "Whether the accepted hostname has a sandbox or scratch-org shape. False for Developer Edition. Historical receipts may contain Salesforce's Organization.IsSandbox value.",
           "type": "boolean"
         },
         "nonProduction": {
-          "description": "The security verdict: the live host matched a sandbox/scratch/Developer Edition shape AND Organization.IsSandbox matched what that shape implies. False whenever no identity proof was performed.",
+          "description": "The security verdict: sf org display returned a recognized sandbox, scratch-org, or Developer Edition hostname and the configured host/org-id walls passed. False when readiness was not performed.",
           "type": "boolean"
         }
       }
     },
     "unprovenTarget": {
-      "description": "A receipt that performs NO identity proof (the configured-orgs enumeration is answered from local config alone). Every proof flag is pinned false so the shape cannot be confused with a proof that failed — the accidental all-false target of an unproven receipt is exactly what made a reader refuse a healthy org.",
+      "description": "A receipt that performs NO org-readiness check (the configured-orgs enumeration is answered from local config alone). Every proof flag is pinned false so the shape cannot be confused with a completed readiness check.",
       "allOf": [
         {
           "$ref": "#/$defs/target"
@@ -1041,25 +1041,6 @@
             },
             "version": {
               "pattern": "^(?:@salesforce/cli/[0-9]+\\.[0-9]+\\.[0-9]+|unavailable)$"
-            }
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "complete": {
-                "const": true
-              }
-            },
-            "required": [
-              "complete"
-            ]
-          },
-          "then": {
-            "properties": {
-              "version": {
-                "pattern": "^@salesforce/cli/[0-9]+\\.[0-9]+\\.[0-9]+$"
-              }
             }
           }
         }
@@ -2247,9 +2228,11 @@
         "MCP_START_FAILED",
         "MCP_TIMEOUT",
         "MCP_TOOL_ERROR",
+        "NON_PRODUCTION_HOST_REQUIRED",
         "NOT_SANDBOX",
         "OBJECT_NOT_ALLOWLISTED",
         "ORG_ID_DENIED",
+        "ORG_ID_MISMATCH",
         "QUERY_PROFILE_DENIED",
         "QUERY_VALIDATION_DENIED",
         "REST_PAYLOAD_TOO_LARGE",
@@ -2285,9 +2268,11 @@
         "IDENTITY_HOST_MISMATCH",
         "IDENTITY_ORG_ID_MISMATCH",
         "INTERNAL_ERROR",
+        "NON_PRODUCTION_HOST_REQUIRED",
         "NOT_SANDBOX",
         "OBJECT_NOT_ALLOWLISTED",
         "ORG_ID_DENIED",
+        "ORG_ID_MISMATCH",
         "QUERY_PROFILE_DENIED",
         "QUERY_VALIDATION_DENIED",
         "SCOPED_ENUMERATION_DISABLED",

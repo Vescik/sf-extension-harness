@@ -23,7 +23,7 @@ retrieval reads follow [search-knowledge](../skills/search-knowledge/SKILL.md).
 
 Composed read-only SOQL through the `review_soql_query` facade tool is recommended over
 guessing when curation depends on real record shape (owner decision 2026-08-04) — it
-runs verbatim over the facade's REST transport against the identity-proven
+runs verbatim over the facade's REST transport against the configured
 non-production org, never the CLI. Treat rows as org observations for curation
 judgment, never as source-derived facts; escalate deep or contested org
 investigations, and all `entry-org-attach` persistence, to `config-investigator`.

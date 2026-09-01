@@ -59,8 +59,8 @@ Only after Stage 1 established the applicable local baselines:
    (what cannot be done, and why). If the concept doesn't cover your area, say so in the
    design — don't guess the domain from general Salesforce knowledge; VendorPkg is a niche
    product and the model's memory of it is unreliable.
-2. Run discovery per the [org-discovery skill](../org-discovery/SKILL.md): org identity,
-   installed package version, object contract for every object you touch,
+2. Run discovery per the [org-discovery skill](../org-discovery/SKILL.md): wait for background
+   org readiness, establish the installed package version and object contract for every object you touch,
    `knowledge_context` for every artifact you touch (re-read any `hydrated: false` row
    from its entry file before relying on it). Compare the `package-version` stamp
    in `docs/package-concept.md` with the live `review_installed_packages` result; on

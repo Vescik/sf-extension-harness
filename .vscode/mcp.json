@@ -3,7 +3,7 @@
     {
       "id": "sf_review_org",
       "type": "promptString",
-      "description": "Salesforce alias for the structured review facade; Developer write operations use direct sf/sfdx (the facade proves and freezes non-production identity for this session)"
+      "description": "Salesforce alias for the structured review facade; Developer write operations use direct sf/sfdx (the facade checks configured host/org-id walls in background readiness)"
     }
   ],
   "servers": {

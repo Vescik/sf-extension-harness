@@ -75,17 +75,6 @@ def org_display_response() -> SimpleNamespace:
     )
 
 
-def org_query_response() -> SimpleNamespace:
-    return completed(
-        json.dumps(
-            {
-                "status": 0,
-                "result": {"records": [{"Id": ORG_ID, "IsSandbox": True}]},
-            }
-        )
-    )
-
-
 def deploy_start_response(status: str = "Queued", job_id: str = JOB_ID) -> SimpleNamespace:
     return completed(json.dumps({"status": 0, "result": {"id": job_id, "status": status}}))
 
@@ -109,8 +98,6 @@ class RecordingRunner:
             return "config-get"
         if tail[:2] == ["org", "display"]:
             return "org-display"
-        if tail[:2] == ["data", "query"]:
-            return "data-query"
         if tail == ["project", "deploy", "start"]:
             return "deploy-start"
         if tail == ["project", "deploy", "report"]:
@@ -125,7 +112,6 @@ class RecordingRunner:
         defaults = {
             "config-get": config_get_response(),
             "org-display": org_display_response(),
-            "data-query": org_query_response(),
             "deploy-start": deploy_start_response(),
             "deploy-report": deploy_report_response("Succeeded"),
         }
@@ -365,12 +351,12 @@ class TestStartSubmission(ExecutorFixture):
         self.assertEqual(child.count("--source-dir"), 1)
         self.assertNotIn("--manifest", child)
 
-    def test_identity_proof_runs_before_submission(self) -> None:
+    def test_configured_target_check_runs_before_submission(self) -> None:
         runner = RecordingRunner()
         self.start(["start", "--source-dir", "force-app"], runner)
         kinds = [runner.classify(argv) for argv in runner.calls]
         self.assertIn("org-display", kinds)
-        self.assertIn("data-query", kinds)
+        self.assertNotIn("data-query", kinds)
         self.assertLess(kinds.index("org-display"), kinds.index("deploy-start"))
 
     def test_global_only_target_is_blocked(self) -> None:
@@ -405,7 +391,7 @@ class TestStartSubmission(ExecutorFixture):
         self.assertIn("denied", envelope["reason"])
         self.assertIsNone(runner.child("deploy-start"))
 
-    def test_failed_identity_proof_blocks_submission(self) -> None:
+    def test_failed_configured_target_check_blocks_submission(self) -> None:
         runner = RecordingRunner({"org-display": completed("not json", returncode=1)})
         _, envelope = self.start(["start", "--source-dir", "force-app"], runner)
         self.assertEqual(envelope["state"], "BLOCKED")
