@@ -77,7 +77,6 @@ FILESYSTEM_KEYS = {
 
 HARNESS_ROOT = Path(__file__).resolve().parents[1]
 SALESFORCE_REVIEW_TOOLS = {
-    "review_org_identity",
     "review_installed_packages",
     "review_object_contract",
     "review_configured_orgs",
@@ -306,7 +305,7 @@ def salesforce_review_tool_error(
     # gated a second transport that no longer exists; review.enabled is the whole switch.
     if review.get("enabled") is not True:
         return "Salesforce org review is disabled"
-    # Owner decision 2026-08-04: any alias is admitted on the facade's live identity proof
+    # Owner decision 2026-08-04: the facade owns configured host/org-id readiness
     # (per call, with review.deniedOrganizationIds as the org-level brake), so the hook
     # holds no per-alias grant gate — only tool-shape checks below.
     lowered = tool_name.lower()
@@ -320,7 +319,7 @@ def salesforce_review_tool_error(
         config, "allowScopedEnumeration"
     ):
         return "scoped org enumeration is disabled (safety.allowScopedEnumeration)"
-    if matched in {"review_org_identity", "review_installed_packages", "review_configured_orgs", "org_limits"}:
+    if matched in {"review_installed_packages", "review_configured_orgs", "org_limits"}:
         if keys:
             return "this Salesforce review tool accepts no model-controlled arguments"
         return None

@@ -6,7 +6,6 @@ upgrade.
 | Logical capability | Configured implementation | Consumers |
 |---|---|---|
 | ADO work-item/query/wiki reads + project-scoped text search (includes reading a formally linked Test Case as a Work Item) | `ado-readonly/*` local stdio MCP (`@azure-devops/mcp`, version-pinned, domains bounded to work-items/wiki/search) | intake, Feature delivery preparation, feature health, QA test-plan authoring, handover, search-ado |
-| Reconciled Salesforce org identity | `salesforce/review_org_identity` | investigator, design, review |
 | Reconciled installed package inventory | `salesforce/review_installed_packages` | investigator, design, review |
 | Reconciled allowlisted object contract | `salesforce/review_object_contract` | investigator, design, review, QA |
 | Scoped enumeration of configured org aliases (requires `safety.allowScopedEnumeration`) | `salesforce/review_configured_orgs` | investigator |
@@ -52,14 +51,14 @@ alias. It exposes only the review tools above (configured-orgs enumeration is ad
 by `safety.allowScopedEnumeration` and reflects local configuration only — never unconfigured
 orgs, ids, or hosts). Internally it executes fixed, checked-in query
 profiles — plus validated composed read-only statements for `review_soql_query` — through the
-facade's single REST transport (the CLI contributes only the startup identity proof), normalizes the
+facade's single REST transport (the CLI performs background readiness against configured host/org-id walls), normalizes the
 receipts, removes credentials/identity details/raw sensitive values, and returns `VERIFIED`, `MISMATCH`,
 `INCOMPLETE`, or `BLOCKED`.
 
 The configured MCP remains a narrow read/evidence facade. Direct Salesforce write execution is
 provided separately through the Developer's terminal capability.
 
-MCP and CLI agreement is transport corroboration from the same org, not independent truth.
+CLI readiness binds the REST session to the configured target; it is not independent truth.
 
 Design work has no MCP runtime and no machine state: it is the `fetch-ado-item` prompt and skill
 persisting `work-items/<id>-<slug>/ado-context.md` (requirement intake), then the
@@ -76,7 +75,7 @@ delivery-map lookup is a bounded local file search, not a remote call.
 QA test-plan authoring (`/prepare-qa-test-plan`, 2026-08-11) introduces **no new
 capability**: the Test Strategist authors `work-items/<id>-<slug>/qa-test-plan.md` with its
 existing grants — Knowledge tools, read-only ADO work-item tools (including relation and
-linked-Test-Case Work Item reads), org identity, installed-package review, object-contract
+linked-Test-Case Work Item reads), installed-package review, object-contract
 review, and interactive questions. It deliberately has **no** `review_soql_query`: when
 test-data shape would need a record read, the workflow asks the maintainer for a safe
 test-data recipe or records a visible gap. Widening the strategist to composed SOQL reaches
@@ -88,13 +87,13 @@ and recommended whenever a task depends on record data structure — through the
 and config-investigator roles. The 2026-08-04 decision removed the statement
 blockade entirely: no grammar validation, no secret-adjacent object deny-set, no LIMIT
 policing, no value redaction. The statement executes verbatim over the facade's REST transport
-child — never the CLI — against the identity-proven non-production org, and rows return
+child — never the CLI — against the configured review org, and rows return
 unredacted (`attributes` noise stripped), bounded only by payload size and timeout. An
 absent `review.allowedObjectApiNames` key means all objects (equivalent to `["*"]`) — an explicit
 list remains supported and honored for orgs holding sensitive data. The facade remains the
 preferred evidence path; the Developer may also use direct CLI when task execution requires it.
 
-The read facade retains its configured identity and non-production evidence contract. That
+The read facade retains its configured host/org-id and non-production host-shape contract. That
 constraint applies to the facade only; it is not a global denial for Developer CLI commands.
 Direct CLI may target development, QA, UAT, production, scratch orgs, or Developer Edition, using
 explicit flags or the normal project/default target context.

@@ -3,7 +3,7 @@ name: test-strategist
 description: Own the QA perspective — assess coverage sufficiency, run Feature Health, and author the per-work-item QA test plan interactively; select exactly one QA skill per request.
 argument-hint: "work item, feature, or functional area"
 target: vscode
-tools: ['read', 'search', 'edit/editFiles', 'execute/runInTerminal', 'web/fetch', 'vscode/askQuestions', 'knowledge/*', 'ado-readonly/*', 'salesforce/review_org_identity', 'salesforce/review_installed_packages', 'salesforce/review_object_contract']
+tools: ['read', 'search', 'edit/editFiles', 'execute/runInTerminal', 'web/fetch', 'vscode/askQuestions', 'knowledge/*', 'ado-readonly/*', 'salesforce/review_installed_packages', 'salesforce/review_object_contract']
 hooks:
   PreToolUse:
     - type: command

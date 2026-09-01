@@ -121,7 +121,7 @@ class RetiredRequireDualSourceFlag(unittest.TestCase):
     def test_enabled_without_the_retired_flag_is_allowed(self) -> None:
         error = safety.salesforce_review_tool_error(
             self.config({"enabled": True}),
-            "salesforce/review_org_identity",
+            "salesforce/review_installed_packages",
             {},
         )
         self.assertIsNone(error)
@@ -129,7 +129,7 @@ class RetiredRequireDualSourceFlag(unittest.TestCase):
     def test_enabled_with_the_retired_flag_is_still_allowed(self) -> None:
         error = safety.salesforce_review_tool_error(
             self.config({"enabled": True, "requireDualSource": True}),
-            "salesforce/review_org_identity",
+            "salesforce/review_installed_packages",
             {},
         )
         self.assertIsNone(error)
@@ -137,7 +137,7 @@ class RetiredRequireDualSourceFlag(unittest.TestCase):
     def test_disabled_review_is_denied(self) -> None:
         error = safety.salesforce_review_tool_error(
             self.config({"enabled": False}),
-            "salesforce/review_org_identity",
+            "salesforce/review_installed_packages",
             {},
         )
         self.assertIsNotNone(error)

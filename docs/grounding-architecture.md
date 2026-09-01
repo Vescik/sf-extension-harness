@@ -59,11 +59,10 @@ permitted — and, for record data-shape questions, recommended (owner decisions
 2026-08-04) — through the governed `salesforce` facade's `review_soql_query` tool only.
 The 2026-08-04 decision removed
 the statement blockade: the statement executes verbatim over the facade's REST transport (never
-the CLI) against the identity-proven non-production org, and rows return unredacted in a
+the CLI) against the configured review org, and rows return unredacted in a
 single-source envelope. An explicitly configured `review.allowedObjectApiNames` list is still
 honored. The facade exposes only:
 
-- `review_org_identity`
 - `review_installed_packages`
 - `review_object_contract`
 - `review_configured_orgs` (only when `safety.allowScopedEnumeration` is enabled; lists the
@@ -71,14 +70,15 @@ honored. The facade exposes only:
 - `review_soql_query` (composed read-only SOQL; executed verbatim, single-source, rows
   unredacted)
 
-The facade binds one configured allowlisted non-production org (sandbox, scratch org, or an owner-admitted Developer Edition), runs fixed evidence profiles — plus
+The facade binds one configured review org after CLI host/org-id readiness checks, runs fixed evidence profiles — plus
 verbatim composed statements for `review_soql_query` — through the pinned
-Salesforce MCP and a private CLI allowlist, sanitizes the profile receipts, and reconciles what
-carries the session identity proof; object contracts reconcile the describe and Tooling REST endpoints, with contested traits nulled and listed. Results are `VERIFIED`, `INCOMPLETE`, or `BLOCKED` (`MISMATCH` retired with the dual-transport design).
+Salesforce REST and a private CLI readiness path and sanitizes the profile receipts; object
+contracts reconcile the describe and Tooling REST endpoints, with contested traits nulled and
+listed. Results are `VERIFIED`, `INCOMPLETE`, or `BLOCKED` (`MISMATCH` retired with the dual-transport design).
 
-MCP/CLI agreement corroborates transport from the same org; it is not an independent source of
-business or vendor truth. Mismatch, truncation, schema drift, identity failure, or one missing
-transport prevents Knowledge promotion and `SAFE`.
+CLI readiness binds the REST session to the configured target; it is not an independent source of
+business or vendor truth. Truncation, schema drift, target-check failure, or an unavailable
+required endpoint prevents Knowledge promotion and `SAFE`.
 
 ## Knowledge boundary
 

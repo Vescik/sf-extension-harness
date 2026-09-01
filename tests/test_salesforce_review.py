@@ -33,7 +33,6 @@ from scripts.salesforce_review_client import validate_salesforce_review_envelope
 ALIAS = "devsb"
 ORG_ID_18 = "00DAA0000001234AAA"
 SANDBOX_HOST = "acme--dev.sandbox.my.salesforce.com"
-IDENTITY_QUERY = "SELECT Id, IsSandbox FROM Organization LIMIT 1"
 
 FAKE_SF = r'''
 import json, os, sys, time
@@ -53,14 +52,12 @@ def count(prefix):
             if json.loads(line)[: len(prefix)] == prefix:
                 n += 1
     return n
-if args[:1] == ["version"]:
-    print(json.dumps({"cliVersion": state["cliVersion"], "architecture": "test"}))
-elif args[:3] == ["org", "auth", "show-access-token"]:
+if args[:2] == ["org", "display"]:
     tokens = state["tokens"]
-    index = min(count(["org", "auth", "show-access-token"]) - 1, len(tokens) - 1)
-    print(json.dumps({"status": 0, "result": {"accessToken": tokens[index]}, "warnings": []}))
-elif args[:2] == ["org", "display"]:
-    print(json.dumps({"status": 0, "result": state["display"], "warnings": []}))
+    index = min(count(["org", "display"]) - 1, len(tokens) - 1)
+    result = dict(state["display"])
+    result["accessToken"] = tokens[index]
+    print(json.dumps({"status": 0, "result": result, "warnings": []}))
 else:
     print(json.dumps({"status": 1, "message": "unknown"}))
     sys.exit(1)
@@ -88,22 +85,6 @@ class MockSalesforce(BaseHTTPRequestHandler):
         delay = state.get("delay_seconds")
         if delay and "/query" in parts.path and "explain" not in params:
             time.sleep(delay)
-        if params.get("q") == IDENTITY_QUERY:
-            self._respond(
-                200,
-                {
-                    "totalSize": 1,
-                    "done": True,
-                    "records": [
-                        {
-                            "attributes": {"type": "Organization"},
-                            "Id": state.get("org_id", ORG_ID_18),
-                            "IsSandbox": state.get("is_sandbox", True),
-                        }
-                    ],
-                },
-            )
-            return
         if "explain" in params:
             self._respond(200, {"plans": state.get("plans", [])})
             return
@@ -163,8 +144,6 @@ class FacadeHarness(unittest.TestCase):
         tmp = Path(self.tmp.name)
         MockSalesforce.state = {
             "valid_tokens": ["token-1"],
-            "org_id": ORG_ID_18,
-            "is_sandbox": True,
         }
         MockSalesforce.requests_seen = []
         self.http = QuietHTTPServer(("127.0.0.1", 0), MockSalesforce)
@@ -185,7 +164,6 @@ class FacadeHarness(unittest.TestCase):
 
     def write_cli_state(
         self,
-        cli_version: str = "@salesforce/cli/2.146.3",
         tokens=("token-1", "token-2"),
         instance_url: str = f"https://{SANDBOX_HOST}",
         org_id: str = ORG_ID_18,
@@ -194,7 +172,6 @@ class FacadeHarness(unittest.TestCase):
         self.cli_state_path.write_text(
             json.dumps(
                 {
-                    "cliVersion": cli_version,
                     "tokens": list(tokens),
                     "cliDelaySeconds": cli_delay_seconds,
                     "display": {
@@ -257,7 +234,7 @@ class FacadeHarness(unittest.TestCase):
 
     def spawn(self) -> subprocess.Popen:
         # Per-session CLI call log: the fake CLI indexes its token list by the number
-        # of show-access-token calls in THIS session, so a re-spawned server starts
+        # of org-display calls in THIS session, so a re-spawned server starts
         # from token-1 again instead of inheriting the previous session's counter.
         (self.tmp_path / "cli-calls.log").write_text("", encoding="utf-8")
         process = subprocess.Popen(
@@ -363,11 +340,10 @@ class ProtocolAndSurface(FacadeHarness):
         responses, _ = self.roundtrip([self.initialize_message(), {"jsonrpc": "2.0", "id": 2, "method": "tools/list"}])
         init = next(r for r in responses if r["id"] == 1)
         self.assertEqual(init["result"]["protocolVersion"], "2025-06-18")
-        # Version pin: 2.2.0 marks fast handshake + lazy shared org readiness and
-        # configurable cumulative timeouts. An older live process is stale.
-        self.assertEqual(init["result"]["serverInfo"]["version"], "2.2.0")
+        # Version pin: 2.4.0 marks single-command CLI readiness.
+        self.assertEqual(init["result"]["serverInfo"]["version"], "2.4.0")
         tools = next(r for r in responses if r["id"] == 2)["result"]["tools"]
-        # Read-only pin (plan par. 7 test 7): exactly these seven, no write handlers.
+        # Read-only pin: exactly these six, no write handlers or identity-query tool.
         self.assertEqual(
             sorted(tool["name"] for tool in tools),
             [
@@ -376,7 +352,6 @@ class ProtocolAndSurface(FacadeHarness):
                 "review_configured_orgs",
                 "review_installed_packages",
                 "review_object_contract",
-                "review_org_identity",
                 "review_soql_query",
             ],
         )
@@ -389,12 +364,12 @@ class ProtocolAndSurface(FacadeHarness):
         responses, _ = self.roundtrip([self.initialize_message(), {"jsonrpc": "2.0", "id": 2, "method": "tools/list"}])
         self.assertLess(time.monotonic() - started, 1.0)
         self.assertIn("result", next(r for r in responses if r["id"] == 1))
-        self.assertEqual(self.cli_calls([]), 0, "handshake and discovery must not contact Salesforce")
+        # Background readiness may already be using the CLI, but it must not delay discovery.
 
     def test_batch_client_flow_without_initialized_notification(self) -> None:
         # salesforce_review_client.py batches initialize + tools/call, never sends
         # notifications/initialized, then closes stdin. Both answers, clean exit 0.
-        responses, process = self.roundtrip([self.initialize_message(), self.call(2, "review_org_identity")])
+        responses, process = self.roundtrip([self.initialize_message(), self.call(2, "review_installed_packages")])
         self.assertEqual(process.returncode, 0)
         envelope = self.envelope_of(responses, 2)
         self.assertEqual(envelope["status"], "VERIFIED")
@@ -402,8 +377,6 @@ class ProtocolAndSurface(FacadeHarness):
 
     def test_startup_spawns_a_fixed_number_of_cli_processes(self) -> None:
         self.roundtrip([self.initialize_message(), self.call(2, "review_soql_query", {"query": "SELECT Id FROM Account"})])
-        self.assertEqual(self.cli_calls(["version"]), 1)
-        self.assertEqual(self.cli_calls(["org", "auth", "show-access-token"]), 1)
         self.assertEqual(self.cli_calls(["org", "display"]), 1)
 
     def test_cancellation_suppresses_the_response(self) -> None:
@@ -435,8 +408,6 @@ class ProtocolAndSurface(FacadeHarness):
         for message_id in (11, 12):
             envelope = self.envelope_of(responses, message_id)
             self.assertEqual(envelope["status"], "VERIFIED")
-        self.assertEqual(self.cli_calls(["version"]), 1)
-        self.assertEqual(self.cli_calls(["org", "auth", "show-access-token"]), 1)
         self.assertEqual(self.cli_calls(["org", "display"]), 1)
 
 
@@ -530,7 +501,7 @@ class SoqlEnvelope(FacadeHarness):
 
 class RefreshAndWalls(FacadeHarness):
     def initialize_ready_process(self, process: subprocess.Popen) -> None:
-        frames = [self.initialize_message(), self.call(2, "review_org_identity")]
+        frames = [self.initialize_message(), self.call(2, "review_installed_packages")]
         process.stdin.write("".join(json.dumps(frame) + "\n" for frame in frames).encode("utf-8"))
         process.stdin.flush()
         seen = set()
@@ -540,15 +511,15 @@ class RefreshAndWalls(FacadeHarness):
             seen.add(json.loads(line)["id"])
 
     def assert_first_call_warning(self, warning: str) -> None:
-        responses, _ = self.roundtrip([self.initialize_message(), self.call(2, "review_org_identity")])
+        responses, _ = self.roundtrip([self.initialize_message(), self.call(2, "review_installed_packages")])
         envelope = self.envelope_of(responses, 2)
         self.assertIn(warning, envelope["warnings"])
 
     def test_401_refresh_replays_once_and_succeeds(self) -> None:
         MockSalesforce.state["records"] = [{"Id": "001AA0000001"}]
         process = self.spawn()
-        # Let lazy readiness complete against token-1, then invalidate it: the next data call
-        # 401s, the server re-runs show-access-token (getting token-2) and replays.
+        # Let background readiness complete against token-1, then invalidate it: the next data call
+        # 401s, the server re-runs org display (getting token-2) and replays.
         self.initialize_ready_process(process)
         MockSalesforce.state["valid_tokens"] = ["token-2"]
         process.stdin.write(
@@ -560,16 +531,14 @@ class RefreshAndWalls(FacadeHarness):
         responses = [json.loads(line) for line in stdout.splitlines() if line.strip()]
         envelope = next(r for r in responses if r.get("id") == 5)["result"]["structuredContent"]
         self.assertEqual(envelope["status"], "VERIFIED", stderr.decode("utf-8", "replace")[-1500:])
-        self.assertEqual(self.cli_calls(["org", "auth", "show-access-token"]), 2)
+        self.assertEqual(self.cli_calls(["org", "display"]), 2)
 
-    def test_refresh_landing_on_a_different_org_fails_closed(self) -> None:
+    def test_refresh_does_not_query_organization_identity(self) -> None:
         MockSalesforce.state["records"] = [{"Id": "001AA0000001"}]
         process = self.spawn()
         self.initialize_ready_process(process)
-        # Invalidate the token AND swap the org the mock claims to be: the refresh
-        # re-proof must catch the rebind and fail-close the whole session.
+        # Token refresh is deliberately token-only; it must not query Organization.
         MockSalesforce.state["valid_tokens"] = ["token-2"]
-        MockSalesforce.state["org_id"] = "00DBB0000009999BBB"
         for message_id in (6, 7):
             process.stdin.write(
                 (json.dumps(self.call(message_id, "review_soql_query", {"query": "SELECT Id FROM Account"})) + "\n").encode("utf-8")
@@ -580,12 +549,15 @@ class RefreshAndWalls(FacadeHarness):
         responses = [json.loads(line) for line in stdout.splitlines() if line.strip()]
         for message_id in (6, 7):
             envelope = next(r for r in responses if r.get("id") == message_id)["result"]["structuredContent"]
-            self.assertEqual(envelope["status"], "BLOCKED")
-            self.assertIn("IDENTITY_ORG_ID_MISMATCH", envelope["warnings"])
+            self.assertEqual(envelope["status"], "VERIFIED")
+        self.assertEqual(self.cli_calls(["org", "display"]), 2)
+        self.assertFalse(
+            any("Organization" in request.get("params", {}).get("q", "") for request in MockSalesforce.requests_seen)
+        )
 
     def test_production_shaped_host_is_refused_on_first_tool_call(self) -> None:
         self.write_cli_state(instance_url="https://acme.my.salesforce.com")
-        self.assert_first_call_warning("IDENTITY_HOST_MISMATCH")
+        self.assert_first_call_warning("NON_PRODUCTION_HOST_REQUIRED")
 
     def test_denied_org_id_is_refused_on_first_tool_call(self) -> None:
         self.write_config(denied=[ORG_ID_18])
@@ -611,11 +583,22 @@ class RefreshAndWalls(FacadeHarness):
             "the refusal must happen before any sf CLI invocation",
         )
 
-    def test_is_sandbox_mismatch_is_refused_on_first_tool_call(self) -> None:
-        # A sandbox-shaped host must prove IsSandbox=true live; a false answer means
-        # the alias is not the org the host shape claims, and the session never opens.
-        MockSalesforce.state["is_sandbox"] = False
-        self.assert_first_call_warning("NOT_SANDBOX")
+    def test_readiness_logs_all_cli_stages_to_output(self) -> None:
+        process = self.spawn()
+        frames = [self.initialize_message(), self.call(2, "review_installed_packages")]
+        stdout, stderr = process.communicate(
+            "".join(json.dumps(frame) + "\n" for frame in frames).encode("utf-8"),
+            timeout=60,
+        )
+        responses = [json.loads(line) for line in stdout.splitlines() if line.strip()]
+        self.assertEqual(self.envelope_of(responses, 2)["status"], "VERIFIED")
+        output = stderr.decode("utf-8", "replace")
+        for marker in (
+            "readiness started: checking Salesforce CLI authorization",
+            "readiness org-display:",
+            "readiness complete: configured org accepted",
+        ):
+            self.assertIn(marker, output)
 
     def test_duplicate_selected_alias_is_rejected_as_invalid_config(self) -> None:
         # Two config entries claiming the selected alias are ambiguous: pins could be
@@ -657,10 +640,13 @@ class RefreshAndWalls(FacadeHarness):
         init = next(r for r in responses if r["id"] == 1)
         self.assertIn("result", init)
 
-    def test_too_old_cli_is_refused_on_first_tool_call(self) -> None:
-        # show-access-token only exists from 2.136.8; older CLIs must fail loudly.
-        self.write_cli_state(cli_version="@salesforce/cli/2.100.0")
-        self.assert_first_call_warning("CLI_VERSION_UNSUPPORTED")
+    def test_startup_never_runs_version_or_show_access_token(self) -> None:
+        responses, _ = self.roundtrip(
+            [self.initialize_message(), self.call(2, "review_installed_packages")]
+        )
+        self.assertEqual(self.envelope_of(responses, 2)["status"], "VERIFIED")
+        self.assertEqual(self.cli_calls(["version"]), 0)
+        self.assertEqual(self.cli_calls(["org", "auth", "show-access-token"]), 0)
 
     def test_sensitive_gate_blocks_non_soql_and_exempts_soql(self) -> None:
         leaky = [
@@ -1010,10 +996,8 @@ class BoundedStreamingTransport(unittest.TestCase):
                 "soqlQueryTimeoutSeconds": 60,
             }
         }
-        client.fail_closed = False
         client.token = "t"
         client.api_version = "64.0"
-        client.frozen_org_id = ORG_ID_18[:15]
         client._session = srv.requests.Session()
         self.addCleanup(client._session.close)
         client._session_lock = threading.Lock()
@@ -1173,15 +1157,13 @@ class BoundedStreamingTransport(unittest.TestCase):
         from scripts import salesforce_review_server as srv
 
         client = self.make_client()
-        response = Mock(status_code=200)
-        response.json.return_value = {
-            "records": [{"Id": ORG_ID_18, "IsSandbox": True}]
-        }
-        with patch.object(srv, "run_cli_json", return_value={"accessToken": "fresh"}) as cli, patch.object(
-            srv.RestClient, "_get", return_value=response
-        ):
-            client._refresh_token_and_reprove("t")
+        with patch.object(srv, "run_cli_json", return_value={"accessToken": "fresh"}) as cli:
+            client._refresh_token("t")
         self.assertEqual(cli.call_args.kwargs["timeout"], 120)
+        self.assertEqual(
+            cli.call_args.args[0],
+            ["org", "display", "--json", "-o", ALIAS],
+        )
         self.assertEqual(client.token, "fresh")
 
 
@@ -1207,7 +1189,7 @@ class ScaledBoundsConstants(unittest.TestCase):
     def test_server_version_is_bumped_for_stale_process_detection(self) -> None:
         from scripts import salesforce_review_server as srv
 
-        self.assertEqual(srv.SERVER_VERSION, "2.2.0")
+        self.assertEqual(srv.SERVER_VERSION, "2.4.0")
 
     def test_timeout_policy_defaults_are_pinned(self) -> None:
         policy = json.loads((ROOT / "config" / "salesforce-review-policy.json").read_text(encoding="utf-8"))

@@ -37,8 +37,8 @@ decisions remain reviewable in one pull request.
 
 The guarded Salesforce MCP launcher starts from `brain-core` and refuses to start when root
 `sfdx-project.json` is missing; it runs review (read-only) mode only. Its protocol handshake is
-local and fast; the first Salesforce tool call performs the bounded CLI/REST identity proof and
-freezes that non-production identity for the session. Developer writes use direct
+local and fast; background readiness immediately checks CLI authorization plus configured
+host/org-id walls and logs every stage in MCP Output. Developer writes use direct
 Salesforce CLI rather than a write MCP. Root identity does not grant root-wide file authority: role
 permissions bound file edits to approved metadata/test subpaths such as `force-app/`,
 `manifest/`, and `tests/e2e/`. Harness instructions, Knowledge, work items, configuration,

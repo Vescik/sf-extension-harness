@@ -3,7 +3,7 @@ name: pin-knowledge
 description: Turn a small pinned or named selection of force-app files into governed Knowledge — mechanical resolution, a human-approved plan, then per-lane draft/describe/propose with one approval pass.
 argument-hint: "[files=<path|name,...>]"
 agent: config-investigator
-tools: ['read', 'search', 'edit/editFiles', 'execute/runInTerminal', 'vscode/askQuestions', 'salesforce/review_org_identity', 'salesforce/review_object_contract', 'salesforce/review_soql_query', 'knowledge/*']
+tools: ['read', 'search', 'edit/editFiles', 'execute/runInTerminal', 'vscode/askQuestions', 'salesforce/review_object_contract', 'salesforce/review_soql_query', 'knowledge/*']
 ---
 
 Use the [selected-files-knowledge skill](../skills/selected-files-knowledge/SKILL.md).

@@ -45,8 +45,8 @@ const { mode, org } = parseArgs(process.argv.slice(2));
 if (mode !== "review") {
   fail(`unsupported mode '${mode ?? ""}'; this MCP launcher supports review mode only`);
 }
-// First never-production wall, pre-contact; the Python server re-checks it and adds
-// the live host/org-id/IsSandbox proof before serving any tool call.
+// First never-production wall, pre-contact; the Python server re-checks the alias,
+// authorized host, org-id pins, and deny list during background readiness.
 if (!org || /(^|[^a-z])(prod|production)([^a-z]|$)/i.test(org)) {
   fail("the org alias is missing or production-like");
 }
@@ -75,6 +75,8 @@ if (entry && !new Set(["development", "qa", "uat"]).has(environment)) {
 if (config?.salesforce?.review?.enabled !== true) {
   fail("Salesforce org review is disabled in local configuration");
 }
+
+process.stderr.write("Salesforce MCP startup: resolving the Python runtime\n");
 
 // Interpreter ladder (same shape as knowledge_mcp_server.mjs): the probe imports the
 // facade's real third-party dependency, so a missing `requests` surfaces here as one
@@ -110,6 +112,10 @@ if (!python) {
       "python -m pip install --require-hashes -r requirements-dev.lock",
   );
 }
+
+process.stderr.write(
+  "Salesforce MCP startup: launching the review facade; CLI authorization readiness continues in the background\n",
+);
 
 const child = spawn(python[0], [...python.slice(1), REVIEW_SERVER, "--org", org], {
   cwd: REPO_ROOT,

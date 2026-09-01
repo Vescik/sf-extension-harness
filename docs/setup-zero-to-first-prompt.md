@@ -194,7 +194,7 @@ sf org login web --instance-url https://test.salesforce.com --alias my_review_sb
 ```
 
 A browser opens; sign in with **your own** sandbox user. Never paste credentials into a
-terminal, a file, or Copilot chat. Then read the org identity:
+terminal, a file, or Copilot chat. Then read the authorized org configuration:
 
 ```powershell
 sf org display --target-org my_review_sbx --json
@@ -204,9 +204,8 @@ From the JSON `result`, copy the host part of `instanceUrl` (looks like
 `mydomain--sbxname.sandbox.my.salesforce.com`) into `expectedInstanceHost` and `id` into
 `expectedOrganizationId` in `config\harness.local.json`. Only non-production orgs are accepted:
 the host must carry a sandbox (`*--*.sandbox.my.salesforce.com`), scratch-org, or Developer
-Edition (`*.develop.my.salesforce.com`) signature, and live `Organization.IsSandbox` must agree
-with it — `true` for a sandbox or scratch org, `false` for a Developer Edition. Production is
-refused by design, and the facade re-proves this identity on every tool call. No toggle is
+Edition (`*.develop.my.salesforce.com`) signature. Production host shapes are refused by design;
+the facade performs no separate Organization identity query. No toggle is
 needed for any non-production shape (owner decision 2026-08-04); the pins are optional — an
 unlisted alias is also readable, but only configured entries can anchor Knowledge org snapshots.
 
@@ -217,8 +216,8 @@ unlisted alias is also readable, but only configured entries can anchor Knowledg
 .\.venv\Scripts\python.exe -m unittest discover -s tests                          # optional, ~20s
 ```
 
-Both should PASS now. There is no separate readiness command: the Salesforce review MCP proves
-the selected org's non-production identity when it starts, and ADO scope is checked on every
+Both should PASS now. There is no separate readiness command: Salesforce MCP checks the configured
+host/org-id walls in the background and logs every CLI stage in MCP Output; ADO scope is checked on every
 tool call. If an ADO call fails on the organization not matching local policy, re-check
 Part 7.1 (exact slug, no trailing spaces, VS Code fully restarted). To diagnose one org by
 hand: `.\.venv\Scripts\python.exe scripts\verify_salesforce_org.py --org <alias>`.

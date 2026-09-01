@@ -10,15 +10,12 @@ deliberately not on the role-guard allowlist. It:
   4. collects ADO configuration interactively;
   5. walks you through authorizing each NON-PRODUCTION org (``sf org login web``) —
      sandbox, scratch org, or Developer Edition — auto-fills the expected host +
-     organization id from ``sf org display``, and refuses anything else. The live
-     ``Organization.IsSandbox`` value must match what the hostname implies (true for a
-     sandbox or scratch org, false for a Developer Edition), which is the proof
-     (mirrors SAFE-ENV-001);
+     organization id from ``sf org display``, and refuses unrecognized host shapes;
   6. runs the static repository validator and reports local-config status.
 
-External capabilities are proven at the point of use, not here: the Salesforce review
-MCP proves the selected org's non-production identity when it starts, and ADO scope is
-checked on every tool call.
+External capabilities are checked at the point of use: Salesforce MCP readiness checks
+the configured host/org-id walls through ``sf org display`` and ADO scope is checked on
+every tool call.
 
 Salesforce MCP is review (read-only) mode only. That restriction applies to the MCP facade,
 not to the Developer role: Salesforce org changes use direct ``sf``/``sfdx`` commands, and
@@ -215,26 +212,20 @@ def collect_ado(pending: dict[str, object]) -> None:
         pending["ado.releaseQueryId"] = ado_query
 
 
-def classify_non_production_host(host: str) -> tuple[bool, bool] | None:
-    """Return (recognized, expected_is_sandbox) for a non-production host, else None.
-
-    `Organization.IsSandbox` is true for a sandbox or scratch org and false for a Developer
-    Edition, so the live value is checked against what the hostname implies rather than
-    being required to be true. Production hosts match nothing here and are refused.
-    """
+def classify_non_production_host(host: str) -> bool:
+    """Recognize a configured non-production host shape; production matches nothing."""
     if SANDBOX_HOST_PATTERN.match(host) or SCRATCH_HOST_PATTERN.match(host):
-        return True, True
+        return True
     if DEV_EDITION_HOST_PATTERN.match(host):
-        return True, False
-    return None
+        return True
+    return False
 
 
 def authorize_sandboxes(sf_path: str, pending: dict[str, object]) -> None:
     step("Non-production org authorization for the read-only review MCP")
     warn(
         "Accepted: sandbox (*--*.sandbox.my.salesforce.com), scratch org, or Developer "
-        "Edition (*.develop.my.salesforce.com). Production is refused. Organization.IsSandbox "
-        "must match the host: true for sandbox/scratch, false for Developer Edition."
+        "Edition (*.develop.my.salesforce.com). Production host shapes are refused."
     )
     for env_name in ("development", "qa", "uat"):
         answer = prompt(f"Authorize the '{env_name}' sandbox now? [y/N]").lower()
@@ -259,7 +250,7 @@ def authorize_sandboxes(sf_path: str, pending: dict[str, object]) -> None:
 
         display = sf_json(sf_path, ["org", "display", "--target-org", alias])
         if not display or display.get("status") != 0:
-            warn(f"could not read org identity for '{alias}'; skipping.")
+            warn(f"could not read the authorized org configuration for '{alias}'; skipping.")
             continue
         result = display.get("result") or {}
         instance_url = result.get("instanceUrl") or ""
@@ -267,34 +258,13 @@ def authorize_sandboxes(sf_path: str, pending: dict[str, object]) -> None:
         host = urlsplit(instance_url).hostname or ""
 
         classified = classify_non_production_host(host)
-        if classified is None:
+        if not classified:
             warn(
                 f"REFUSED: '{host}' is not a recognized non-production host (needs "
                 "*--*.sandbox.my.salesforce.com, *.scratch.my.salesforce.com, or "
                 "*.develop.my.salesforce.com). Not recorded."
             )
             continue
-        _, expected_is_sandbox = classified
-
-        query = sf_json(
-            sf_path,
-            [
-                "data",
-                "query",
-                "--query",
-                "SELECT IsSandbox FROM Organization LIMIT 1",
-                "--target-org",
-                alias,
-            ],
-        )
-        records = ((query or {}).get("result") or {}).get("records") or []
-        if not records or records[0].get("IsSandbox") is not expected_is_sandbox:
-            warn(
-                f"REFUSED: live Organization.IsSandbox is not {str(expected_is_sandbox).lower()} "
-                f"for '{alias}', which its host signature requires. Not recorded."
-            )
-            continue
-
         pending[f"org.{env_name}"] = {"alias": alias, "host": host, "orgId": org_id}
         ok(f"recorded '{env_name}': {alias} -> {host} ({org_id})")
 
@@ -461,9 +431,10 @@ def main() -> None:
     else:
         ok("config/harness.local.json parses, matches the schema, and has no placeholders")
     print(
-        "\n    Salesforce and ADO are validated when their tools run: the Salesforce "
-        "review MCP proves\n    the selected org's non-production identity at startup, "
-        "and ADO scope is checked on every\n    tool call. Optional org diagnostic: "
+        "\n    Salesforce readiness starts in the background with visible MCP Output logs: "
+        "the configured\n    alias, non-production host shape, organization ID pins, and deny list are "
+        "checked without an\n    Organization.IsSandbox query. ADO scope is checked on every tool call. "
+        "Optional org diagnostic: "
         "python scripts/verify_salesforce_org.py --org <alias>."
     )
     print(_c("36", "\nNext steps:"))

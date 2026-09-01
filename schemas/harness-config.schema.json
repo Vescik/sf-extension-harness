@@ -159,7 +159,7 @@
               "type": "boolean"
             },
             "deniedOrganizationIds": {
-              "description": "Owner decision 2026-08-04: organization IDs (00D…, 15 or 18 characters) that agents must never read, whatever alias resolves to them. Enforced at live identity proof time in the review facade (both transport legs) and by verify_salesforce_org.py. The org-level complement of the developer's-responsibility read-anywhere convention.",
+              "description": "Owner decision 2026-08-04: organization IDs (00D…, 15 or 18 characters) that agents must never read, whatever alias resolves to them. Enforced from the organization ID returned by sf org display during MCP background readiness and by verify_salesforce_org.py. The org-level complement of the developer's-responsibility read-anywhere convention.",
               "type": "array",
               "maxItems": 50,
               "uniqueItems": true,
