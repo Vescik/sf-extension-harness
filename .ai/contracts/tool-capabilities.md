@@ -6,11 +6,11 @@ upgrade.
 | Logical capability | Configured implementation | Consumers |
 |---|---|---|
 | ADO work-item/query/wiki reads + project-scoped text search (includes reading a formally linked Test Case as a Work Item) | `ado-readonly/*` local stdio MCP (`@azure-devops/mcp`, version-pinned, domains bounded to work-items/wiki/search) | intake, Feature delivery preparation, feature health, QA test-plan authoring, handover, search-ado |
-| Reconciled Salesforce org identity | `salesforce-readonly/review_org_identity` | investigator, design, review |
-| Reconciled installed package inventory | `salesforce-readonly/review_installed_packages` | investigator, design, review |
-| Reconciled allowlisted object contract | `salesforce-readonly/review_object_contract` | investigator, design, review, QA |
-| Scoped enumeration of configured org aliases (requires `safety.allowScopedEnumeration`) | `salesforce-readonly/review_configured_orgs` | investigator |
-| Composed read-only SOQL incl. record reads (verbatim, facade REST transport, unredacted single-source rows) | `salesforce-readonly/review_soql_query` | investigator, design, review, development, knowledge curation |
+| Reconciled Salesforce org identity | `salesforce/review_org_identity` | investigator, design, review |
+| Reconciled installed package inventory | `salesforce/review_installed_packages` | investigator, design, review |
+| Reconciled allowlisted object contract | `salesforce/review_object_contract` | investigator, design, review, QA |
+| Scoped enumeration of configured org aliases (requires `safety.allowScopedEnumeration`) | `salesforce/review_configured_orgs` | investigator |
+| Composed read-only SOQL incl. record reads (verbatim, facade REST transport, unredacted single-source rows) | `salesforce/review_soql_query` | investigator, design, review, development, knowledge curation |
 | Salesforce metadata retrieve and dry-run validation | direct `sf`/`sfdx` terminal command | Developer |
 | Real metadata deployment, including quick, destructive, and production deployment | direct `sf`/`sfdx`; global hook asks before every exact invocation with target, scope, and real-org-change warning | Developer |
 | Record create/update/upsert/delete and bulk data operations | direct `sf data`/legacy `sfdx` terminal command | Developer |

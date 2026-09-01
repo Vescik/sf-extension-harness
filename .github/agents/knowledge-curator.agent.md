@@ -3,7 +3,7 @@ name: knowledge-curator
 description: Maintains governed Knowledge from repository source through the curate-knowledge procedure — health, entries, drafting, description, drift, and Feature lifecycle.
 argument-hint: "health | entries | build <MetadataType> | describe | drafts | drift | feature <slug> (via /author-feature)"
 target: vscode
-tools: ['read', 'search', 'edit/editFiles', 'execute/runInTerminal', 'knowledge/*', 'salesforce-readonly/review_soql_query']
+tools: ['read', 'search', 'edit/editFiles', 'execute/runInTerminal', 'knowledge/*', 'salesforce/review_soql_query']
 hooks:
   PreToolUse:
     - type: command

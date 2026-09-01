@@ -134,21 +134,21 @@ sf org display --target-org mpsa_dev_sbx --json
 
 > **There is no development/write MCP server** (removed 2026-07-14 — it produced the expected but
 > confusing `exit code 2` startup error on Windows). Agents never mutate the org: reads go through
-> the `salesforce-readonly` facade tools; metadata comes into the project only
+> the `salesforce` facade tools; metadata comes into the project only
 > via human-approved `sf project retrieve start`; deploys are a human-run release step.
 
 ## Step 7 — Start the MCP servers
 
 When VS Code prompts *"The MCP servers … may have new tools … Start them now?"*, start
-**`salesforce-readonly`** and **`ado-readonly`** (the only configured servers). When prompted for
-the `sf_read_org` input, enter your authorized sandbox alias (e.g. `mpsa_dev_sbx`).
+**`salesforce`** and **`ado-readonly`** (the only configured servers). When prompted for
+the `sf_review_org` input, enter your authorized sandbox alias (e.g. `mpsa_dev_sbx`).
 
 ## Step 8 — Pre-approve tools (fewer clicks)
 
 - **Terminal scripts** are already pre-approved via `chat.tools.terminal.autoApprove` in settings —
   no action needed.
 - **MCP read tools** cannot be pre-approved from a committed setting. Run **`Chat: Manage Tool
-  Approval`** (Command Palette), expand `salesforce-readonly` and `ado-readonly`, and trust all
+  Approval`** (Command Palette), expand `salesforce` and `ado-readonly`, and trust all
   their tools at **workspace** scope.
 
 ## Step 9 — Verify
@@ -182,7 +182,7 @@ Get-Content .cache\denials.log -Tail 20
 | `Blocked by Pre-Tool Use hook` on ADO calls | `ADO_ORGANIZATION` env var unset or ≠ `ado.organization` | Step 4: set the env var to the exact slug, **fully restart** VS Code |
 | `Organization name is required. Provide it as a parameter…` | ADO MCP URL is org-less because the env var is unset | Step 4 |
 | ADO tool call denied: "ADO runtime organization does not match local policy" | env var missing or mismatched | Step 4 (exact match, no trailing spaces) |
-| `Salesforce MCP startup blocked: development mode is disabled on Windows` / `exit code 2` | Stale MCP config — the `salesforce-development` server was removed 2026-07-14 | Pull the latest `main` and reload VS Code; only `salesforce-readonly` and `ado-readonly` should be listed |
+| `Salesforce MCP startup blocked: development mode is disabled on Windows` / `exit code 2` | Stale MCP config — the `salesforce-development` server was removed 2026-07-14 | Pull the latest `main` and reload VS Code; only `salesforce` and `ado-readonly` should be listed |
 | A review tool answers `BLOCKED` with `IDENTITY_HOST_MISMATCH` / `NOT_SANDBOX` / `ORG_ID_DENIED` | the org is production, the host signature and live `IsSandbox` disagree, the pins point at a different org, or the org ID is on `deniedOrganizationIds`. A Developer Edition reporting `IsSandbox=false` is **not** the fault — that is expected | Step 5/6: authorize a non-production org; fix or remove the pins; check the denylist. Sanity-check with `python scripts/verify_salesforce_org.py --org <alias>` |
 | `webidl.util.markAsUncloneable is not a function` | Node < 22 | Install Node 22+ (Step 1) |
 | ADO call still runs without being scoped / lists all orgs | Known hook-matching gap (see below) | Track the hardening fix; interim, do not rely on the hook to block bare-named MCP tools |

@@ -20,8 +20,9 @@ External capabilities are proven at the point of use, not here: the Salesforce r
 MCP proves the selected org's non-production identity when it starts, and ADO scope is
 checked on every tool call.
 
-Salesforce MCP is review (read-only) mode only; org changes are human-only
-(owner decision 2026-08-04 — the development/write lane was retired).
+Salesforce MCP is review (read-only) mode only. That restriction applies to the MCP facade,
+not to the Developer role: Salesforce org changes use direct ``sf``/``sfdx`` commands, and
+every real deployment requires fresh chat confirmation for its exact target and scope.
 
 Credentials are never handled by this script: ``sf org login web`` performs interactive
 browser OAuth, and no tokens/passwords are read, printed, or stored.
@@ -229,7 +230,7 @@ def classify_non_production_host(host: str) -> tuple[bool, bool] | None:
 
 
 def authorize_sandboxes(sf_path: str, pending: dict[str, object]) -> None:
-    step("Non-production org authorization (review-only; writes stay disabled)")
+    step("Non-production org authorization for the read-only review MCP")
     warn(
         "Accepted: sandbox (*--*.sandbox.my.salesforce.com), scratch org, or Developer "
         "Edition (*.develop.my.salesforce.com). Production is refused. Organization.IsSandbox "
@@ -468,10 +469,13 @@ def main() -> None:
     print(_c("36", "\nNext steps:"))
     print("  - In VS Code, select the .venv interpreter (Python: Select Interpreter).")
     print(
-        "  - Start the Salesforce MCP; when prompted for \"sf_read_org\", enter an "
+        "  - Start the Salesforce MCP; when prompted for \"sf_review_org\", enter an "
         "authorized alias."
     )
-    print("  - The Salesforce MCP is review (read-only) on every OS; org changes are human-only.")
+    print(
+        "  - The Salesforce MCP is review-only; Developer org changes use direct sf/sfdx, "
+        "with fresh chat confirmation before every real deploy."
+    )
     print("  - config/harness.local.json is gitignored and never leaves this machine.")
 
 

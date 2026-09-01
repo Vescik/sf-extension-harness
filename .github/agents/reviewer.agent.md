@@ -3,7 +3,7 @@ name: reviewer
 description: Challenge a design or implementation against the package constraints and house conventions. Read-only — no edit rights, no org mutations.
 argument-hint: "work item ID, file, or design to review"
 target: vscode
-tools: ['read', 'search', 'execute/runInTerminal', 'vscode/askQuestions', 'knowledge/*', 'salesforce-readonly/review_org_identity', 'salesforce-readonly/review_installed_packages', 'salesforce-readonly/review_object_contract', 'salesforce-readonly/review_soql_query']
+tools: ['read', 'search', 'execute/runInTerminal', 'vscode/askQuestions', 'knowledge/*', 'salesforce/review_org_identity', 'salesforce/review_installed_packages', 'salesforce/review_object_contract', 'salesforce/review_soql_query']
 hooks:
   PreToolUse:
     - type: command

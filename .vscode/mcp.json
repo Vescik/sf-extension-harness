@@ -1,9 +1,9 @@
 {
   "inputs": [
     {
-      "id": "sf_read_org",
+      "id": "sf_review_org",
       "type": "promptString",
-      "description": "Non-production Salesforce alias for read-only investigation (identity proven live at startup, frozen for the session, re-proven after every token refresh)"
+      "description": "Salesforce alias for the structured review facade; Developer write operations use direct sf/sfdx (the facade proves and freezes non-production identity for this session)"
     }
   ],
   "servers": {
@@ -20,7 +20,7 @@
         "search"
       ]
     },
-    "salesforce-readonly": {
+    "salesforce": {
       "type": "stdio",
       "command": "node",
       "cwd": "${workspaceFolder}",
@@ -29,7 +29,7 @@
         "--mode",
         "review",
         "--org",
-        "${input:sf_read_org}"
+        "${input:sf_review_org}"
       ]
     },
     "knowledge": {

@@ -45,7 +45,7 @@ scenarios:
       tool_input:
         command: rm -rf output
     expectedDecision: deny
-    reasonContains: SAFE-ROLE-001
+    reasonContains: Destructive operation blocked
 
   - id: global-salesforce-default-org-allowed
     guard: global
@@ -316,7 +316,7 @@ scenarios:
     guard: global
     workingDirectory: temporary
     event:
-      tool_name: salesforce-readonly/review_soql_query
+      tool_name: salesforce/review_soql_query
       tool_input:
         query: SELECT Id FROM Account
         usernameOrAlias: other

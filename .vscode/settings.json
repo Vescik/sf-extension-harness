@@ -22,7 +22,7 @@
   // commands are pre-approved here; the safety hook still asks before every real deploy. This skips the approval
   // click — the role guard and safety hook still enforce the actual boundaries.
   // MCP read-only tools cannot be pre-approved from settings (VS Code has no per-tool key yet);
-  // trust the `salesforce-readonly` and `ado-readonly` servers once via "Chat: Manage Tool
+  // trust the `salesforce` and `ado-readonly` servers once via "Chat: Manage Tool
   // Approval" (workspace scope). See SETUP.md.
   "chat.tools.terminal.autoApprove": {
     "/^(?:\\S*[\\\\/])?(?:python3?|py)(?:\\.exe)?(?:\\s+-3)?\\s+(?:\\S*[\\\\/])?scripts[\\\\/]knowledge_store\\.py\\s+(?!(?:entry|feature)-(?:approve|revoke)\\b)[^\\n\\r;&|<>`$()]*$/": {

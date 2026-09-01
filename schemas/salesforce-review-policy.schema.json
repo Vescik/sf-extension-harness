@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:sf-harness-brain-core:salesforce-review-policy.schema.json",
-  "title": "Salesforce org-review fixed query policy",
+  "title": "Salesforce org-review runtime and fixed query policy",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -9,6 +9,9 @@
     "mcpProtocolVersion",
     "salesforceCliMajor",
     "maxVendorPayloadBytes",
+    "cliTimeoutSeconds",
+    "restReadTimeoutSeconds",
+    "operationTimeoutSeconds",
     "soqlQueryTimeoutSeconds",
     "profiles"
   ],
@@ -29,6 +32,21 @@
       "type": "integer",
       "minimum": 65536,
       "maximum": 1048576
+    },
+    "cliTimeoutSeconds": {
+      "type": "integer",
+      "minimum": 30,
+      "maximum": 300
+    },
+    "restReadTimeoutSeconds": {
+      "type": "integer",
+      "minimum": 10,
+      "maximum": 120
+    },
+    "operationTimeoutSeconds": {
+      "type": "integer",
+      "minimum": 60,
+      "maximum": 600
     },
     "soqlQueryTimeoutSeconds": {
       "type": "integer",

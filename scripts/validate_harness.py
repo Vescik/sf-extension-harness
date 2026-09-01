@@ -71,13 +71,13 @@ ALLOWED_TOOLS = {
     "agent",
     "knowledge/*",
     "ado-readonly/*",
-    "salesforce-readonly/review_org_identity",
-    "salesforce-readonly/review_installed_packages",
-    "salesforce-readonly/review_object_contract",
-    "salesforce-readonly/review_configured_orgs",
-    "salesforce-readonly/review_soql_query",
-    "salesforce-readonly/org_limits",
-    "salesforce-readonly/explain_query",
+    "salesforce/review_org_identity",
+    "salesforce/review_installed_packages",
+    "salesforce/review_object_contract",
+    "salesforce/review_configured_orgs",
+    "salesforce/review_soql_query",
+    "salesforce/org_limits",
+    "salesforce/explain_query",
     "solution-design/design_open",
     "solution-design/design_record",
     "solution-design/design_check",
@@ -415,10 +415,10 @@ def check_customizations(audit: Audit, root: Path = ROOT) -> None:
             "execute/runInTerminal",
             "step 7 runs `knowledge_store.py entry-verify-citations --envelope` before the verdict",
         ),
-        ("salesforce-readonly/review_soql_query", "the review reconciles design claims against org records"),
-        ("salesforce-readonly/review_object_contract", "package-namespace claims need the object contract"),
-        ("salesforce-readonly/review_org_identity", "evidence must name the org it came from"),
-        ("salesforce-readonly/review_installed_packages", "package version is part of the evidence"),
+        ("salesforce/review_soql_query", "the review reconciles design claims against org records"),
+        ("salesforce/review_object_contract", "package-namespace claims need the object contract"),
+        ("salesforce/review_org_identity", "evidence must name the org it came from"),
+        ("salesforce/review_installed_packages", "package version is part of the evidence"),
     ):
         audit.require(tool in reviewer_tools, f"reviewer needs `{tool}`: {reason}")
     audit.require(
@@ -551,7 +551,7 @@ def check_settings_and_mcp(audit: Audit) -> None:
     mcp = load_json(ROOT / ".vscode/mcp.json", audit)
     servers = mcp.get("servers", {}) if isinstance(mcp, dict) else {}
     audit.require(
-        set(servers) == {"ado-readonly", "salesforce-readonly", "knowledge"},
+        set(servers) == {"ado-readonly", "salesforce", "knowledge"},
         "MCP server set is unexpected",
     )
     ado = servers.get("ado-readonly", {})
@@ -590,7 +590,7 @@ def check_settings_and_mcp(audit: Audit) -> None:
         "@azure-devops/mcp must be a declared dependency, not a runtime acquisition",
     )
     audit.require(not any(item.get("id") == "ado_org" for item in mcp.get("inputs", [])), "independent ADO organization prompt is forbidden")
-    for name in ("salesforce-readonly",):
+    for name in ("salesforce",):
         server = servers.get(name, {})
         audit.require(server.get("command") == "node", f"{name}: wrapper must run with node")
         audit.require(server.get("cwd") == "${workspaceFolder}", f"{name}: wrapper must start in the direct-folder-safe root SFDX workspace")
@@ -682,14 +682,13 @@ def check_settings_and_mcp(audit: Audit) -> None:
         audit.require(pre[0].get("timeout", 0) >= 10, "global hook timeout must accommodate guarded command parsing")
 
     launcher = required_text(ROOT / "scripts/start_salesforce_mcp.mjs", audit)
-    # Owner decision 2026-08-04 retired the launcher's per-alias grants, write lane and
-    # startup identity subprocess; plan-2026-08-09 F-3 repointed it at the Python REST
-    # facade with an interpreter-resolving probe (local, no org contact). These markers
-    # pin what must survive both slimmings.
+    # The launcher is intentionally review-only; Developer writes use direct sf/sfdx rather than
+    # a second MCP lane. Plan-2026-08-09 F-3 repointed it at the Python REST facade with an
+    # interpreter-resolving probe (local, no org contact). These markers pin that boundary.
     for marker in (
         "production-like",
         'environment === "production"',
-        "org changes are human-only",
+        "Developer writes deliberately use",
         "salesforce_review_server.py",
     ):
         audit.require(marker in launcher, f"Salesforce MCP launcher is missing runtime gate: {marker}")
@@ -1387,7 +1386,7 @@ def check_contracts_match_mcp(audit: Audit) -> None:
     """
     mcp = load_json(ROOT / ".vscode/mcp.json", audit)
     servers = set(mcp.get("servers", {})) if isinstance(mcp, dict) else set()
-    referenced = re.compile(r"`(ado-readonly|salesforce-readonly|salesforce-development)/")
+    referenced = re.compile(r"`(ado-readonly|salesforce|salesforce-development)/")
     for path in sorted((ROOT / ".ai/contracts").glob("*.md")):
         for name in sorted(set(referenced.findall(path.read_text(encoding="utf-8")))):
             audit.require(

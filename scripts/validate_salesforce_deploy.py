@@ -20,9 +20,10 @@ test level, and submits exactly `sf project deploy start --dry-run --async ... -
 This is NOT a deployment capability: the constructed child command always contains
 `--dry-run`; destructive-change, ignore-error/warning/conflict, wait, metadata-dir, and
 raw passthrough flags do not exist in this grammar and cannot be constructed from any
-input. Real deploys remain human-only. Transport problems (bad JSON, timeout, oversized
-output, missing CLI, identity drift) are reported as BLOCKED/ERROR/INCOMPLETE — never as
-deployment success or failure.
+input. This legacy wrapper never starts a real deployment; the Developer's separate direct
+``sf``/``sfdx`` path may do so only after fresh chat confirmation for the exact target and
+scope. Transport problems (bad JSON, timeout, oversized output, missing CLI, identity drift)
+are reported as BLOCKED/ERROR/INCOMPLETE — never as deployment success or failure.
 """
 
 from __future__ import annotations

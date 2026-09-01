@@ -162,8 +162,10 @@ team lead / harness maintainer:
 | `salesforce.orgs[].expectedOrganizationId` | The org id (optional pin; set together with the host) | filled in Part 7 |
 | `salesforce.review.allowedObjectApiNames` | Objects the agent may read via the review facade | team lead (keep narrow) |
 
-There is no write mode: agents only read, and org changes ship through the human-run release
-process (the write lane was retired 2026-08-04).
+There is no write-mode Salesforce MCP. The review facade remains read-only, while the Developer
+uses direct `sf`/`sfdx` commands for in-scope org changes. Every real deployment requires fresh
+chat confirmation for its exact target and scope; data mutations do not use that deploy-specific
+gate.
 
 ## Part 7 — Set `ADO_ORGANIZATION` and authorize a sandbox
 
@@ -223,11 +225,11 @@ hand: `.\.venv\Scripts\python.exe scripts\verify_salesforce_org.py --org <alias>
 
 ## Part 9 — First Copilot prompt
 
-1. VS Code may prompt *"The MCP servers … Start them now?"* — start **`salesforce-readonly`**
+1. VS Code may prompt *"The MCP servers … Start them now?"* — start **`salesforce`**
    and **`ado-readonly`** (the only configured servers; both are read-only).
-2. When prompted for the `sf_read_org` input, enter your sandbox alias (e.g. `my_review_sbx`).
+2. When prompted for the `sf_review_org` input, enter your sandbox alias (e.g. `my_review_sbx`).
 3. Reduce approval clicks: Command Palette → **Chat: Manage Tool Approval** → trust all tools
-   under `salesforce-readonly` and `ado-readonly` at **workspace** scope. Never enable global
+   under `salesforce` and `ado-readonly` at **workspace** scope. Never enable global
    auto-approve (`/yolo`).
 4. Open Copilot Chat and run your first command:
 

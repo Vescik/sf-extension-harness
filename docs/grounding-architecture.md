@@ -52,10 +52,12 @@ a Principle, record noncompliance. When sources disagree on a normalized claim, 
 
 ## Salesforce review boundary
 
-Agents never receive raw Salesforce CLI, aliases, directories, Tooling flags, or raw vendor
-payloads. Composed read-only SOQL is permitted — and, for record data-shape questions,
-recommended (owner decisions 2026-07-30 and 2026-08-04) — through the governed
-`salesforce-readonly` facade's `review_soql_query` tool only. The 2026-08-04 decision removed
+The structured review path never exposes raw Salesforce CLI, directories, Tooling flags, or raw
+vendor payloads to its callers. This boundary applies to evidence collection through the facade;
+the Developer separately may use direct `sf`/`sfdx` for task execution. Composed read-only SOQL is
+permitted — and, for record data-shape questions, recommended (owner decisions 2026-07-30 and
+2026-08-04) — through the governed `salesforce` facade's `review_soql_query` tool only.
+The 2026-08-04 decision removed
 the statement blockade: the statement executes verbatim over the facade's REST transport (never
 the CLI) against the identity-proven non-production org, and rows return unredacted in a
 single-source envelope. An explicitly configured `review.allowedObjectApiNames` list is still
