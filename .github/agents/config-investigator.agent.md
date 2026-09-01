@@ -3,7 +3,7 @@ name: config-investigator
 description: Read-only evidence collector for allowlisted Salesforce components and package surfaces; creates sanitized observations, investigation reports, and Knowledge Entry drafts without self-verifying them.
 argument-hint: "unknown object, field, record, relation, or package behavior"
 target: vscode
-tools: ['read', 'edit/editFiles', 'execute/runInTerminal', 'web/fetch', 'knowledge/*', 'salesforce/review_installed_packages', 'salesforce/review_object_contract', 'salesforce/review_configured_orgs', 'salesforce/review_soql_query', 'salesforce/explain_query', 'salesforce/org_limits']
+tools: ['read', 'edit/editFiles', 'execute/runInTerminal', 'web/fetch', 'knowledge/*', 'salesforce/review_org_identity', 'salesforce/review_installed_packages', 'salesforce/review_object_contract', 'salesforce/review_configured_orgs', 'salesforce/review_soql_query', 'salesforce/explain_query', 'salesforce/org_limits']
 hooks:
   PreToolUse:
     - type: command
@@ -45,8 +45,8 @@ document exactly the files the human pinned to chat or named in the prompt, load
 3. State the exact question to investigate and the minimum evidence needed. An absence
    question requires explicit completeness and permission proof before absence may even be
    reported as an observation.
-4. Use only the guarded Salesforce review tools for schema/package facts. Background readiness
-   binds the configured alias using CLI authorization; never request raw CLI, raw vendor MCP
+4. Use only the guarded Salesforce review tools for schema/package facts. Startup validation
+   proves the selected non-production identity before tools are exposed; never request raw CLI, raw vendor MCP
    tools, aliases, directories, or payloads. Composed read-only SOQL is permitted and
    recommended for record data-shape questions (owner decisions 2026-07-30, 2026-08-04) through
    the governed `review_soql_query` facade tool — executed verbatim over the Salesforce REST

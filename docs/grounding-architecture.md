@@ -63,6 +63,7 @@ the CLI) against the configured review org, and rows return unredacted in a
 single-source envelope. An explicitly configured `review.allowedObjectApiNames` list is still
 honored. The facade exposes only:
 
+- `review_org_identity`
 - `review_installed_packages`
 - `review_object_contract`
 - `review_configured_orgs` (only when `safety.allowScopedEnumeration` is enabled; lists the
@@ -70,13 +71,13 @@ honored. The facade exposes only:
 - `review_soql_query` (composed read-only SOQL; executed verbatim, single-source, rows
   unredacted)
 
-The facade binds one configured review org after CLI host/org-id readiness checks, runs fixed evidence profiles — plus
+The facade binds one configured review org after CLI host/org-id checks and a live REST identity proof, runs fixed evidence profiles — plus
 verbatim composed statements for `review_soql_query` — through the pinned
-Salesforce REST and a private CLI readiness path and sanitizes the profile receipts; object
+Salesforce REST and a private CLI startup path and sanitizes the profile receipts; object
 contracts reconcile the describe and Tooling REST endpoints, with contested traits nulled and
-listed. Results are `VERIFIED`, `INCOMPLETE`, or `BLOCKED` (`MISMATCH` retired with the dual-transport design).
+listed. Results are `VERIFIED`, `MISMATCH`, `INCOMPLETE`, or `BLOCKED`.
 
-CLI readiness binds the REST session to the configured target; it is not an independent source of
+MCP and CLI agreement corroborates transport from the same org; it is not an independent source of
 business or vendor truth. Truncation, schema drift, target-check failure, or an unavailable
 required endpoint prevents Knowledge promotion and `SAFE`.
 

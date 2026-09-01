@@ -4,18 +4,17 @@
 Python rewrite of the retired dual-transport .mjs facade (owner-approved rewrite,
 decisions D-1..D-7 recorded 2026-08-09 in .ai/memory/decisions-log.md). The model never receives a
 command string, an org alias it did not configure, a raw token, or an unbounded
-vendor response. The MCP handshake is intentionally fast: the first Salesforce tool
-startup background task performs a shared, one-time readiness gate. It invokes the
-Salesforce CLI once (`sf org display --json`) to obtain the existing authorization,
-checks the configured host/org-id walls, and then releases every concurrent caller.
-Subsequent tool calls use pooled HTTPS — no child processes per call and no live
-Organization identity query.
+vendor response. One allowlisted non-production alias is bound at startup: the
+Salesforce CLI is invoked a fixed number of times ONCE per server session (version
+gate, access token, org display), the org's non-production identity is proven live
+and frozen, and every subsequent tool call is a single HTTPS request over a pooled
+session — no child processes per call, no per-call identity round-trips.
 
 Hard walls (enforced here, not by prompts):
-- Readiness refuses anything but a sandbox/scratch/Developer Edition host shape whose
-  org id passes the configured pins and denied-list. A 401 requests a fresh access token
-  once; cancellation and the cumulative deadline also bound CLI and refresh-lock waits.
-  No Organization table query or IsSandbox check is performed.
+- Startup refuses to run against anything but a sandbox/scratch/Developer Edition
+  host shape whose org id passes the configured pins and denied-list; the proven
+  identity is frozen for the session and re-proven live after every 401 token
+  refresh. An identity mismatch after refresh fail-closes the whole session.
 - Read-only by construction: every handler issues GETs against /query,
   /tooling/query, /sobjects/<x>/describe, /limits. No write handler exists;
   tests/test_salesforce_review.py pins the tool surface.
@@ -38,13 +37,11 @@ from __future__ import annotations
 import json
 import os
 import re
-import signal
 import subprocess
 import sys
 import threading
 import time
 import uuid
-from contextvars import ContextVar
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
@@ -89,7 +86,7 @@ POLICY_PATH = (
 )
 
 PROTOCOL_VERSION = "2025-06-18"
-SERVER_VERSION = "2.4.1"
+SERVER_VERSION = "2.1.0"
 SCHEMA_VERSION = 2
 
 MAX_OUTER_MESSAGE_BYTES = 1_048_576
@@ -108,18 +105,11 @@ MAX_RESULT_BYTES = 480_000
 MAX_DESCRIBE_PAYLOAD_BYTES = 64 * 1024 * 1024
 MAX_OBJECT_FIELDS_PAYLOAD_BYTES = 16 * 1024 * 1024
 CONNECT_TIMEOUT_SECONDS = 10
+READ_TIMEOUT_SECONDS = 30
+CLI_TIMEOUT_SECONDS = 60
 MAX_SOQL_ROWS = 2000
 THREAD_POOL_SIZE = 4
-TOKEN_REFRESH_TIMEOUT_SECONDS = 30
-CLI_POLL_SECONDS = 0.2
-CLI_TERMINATE_GRACE_SECONDS = 2
-
-# One deadline follows a tool call through readiness waiting, CLI, token refresh, REST,
-# and pagination. ContextVar keeps concurrent pool workers independent while allowing
-# the transport helpers to honor the same cumulative budget without plumbing a
-# deadline through every handler signature.
-_OPERATION_DEADLINE: "ContextVar[float | None]" = ContextVar("salesforce_operation_deadline", default=None)
-_CANCEL_EVENT: "ContextVar[threading.Event | None]" = ContextVar("salesforce_cancel_event", default=None)
+MIN_CLI_VERSION = (2, 136, 8)  # sf org auth show-access-token ships here
 
 # Identity regexes ported character-for-character from the .mjs (plan par. 6c item 4).
 OBJECT_API_NAME = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,79}$")
@@ -156,6 +146,7 @@ SPAWN_ENV = {
 }
 
 EXPECTED_QUERIES = {
+    "orgIdentity": "SELECT Id, IsSandbox FROM Organization LIMIT 1",
     "installedPackages": "SELECT SubscriberPackage.NamespacePrefix, SubscriberPackage.Name, SubscriberPackageVersion.Name, SubscriberPackageVersion.MajorVersion, SubscriberPackageVersion.MinorVersion, SubscriberPackageVersion.PatchVersion, SubscriberPackageVersion.BuildNumber FROM InstalledSubscriberPackage WHERE SubscriberPackage.NamespacePrefix IN (${PACKAGE_NAMESPACES}) ORDER BY SubscriberPackage.NamespacePrefix, SubscriberPackage.Name LIMIT 500",
     "installedPackagesAll": "SELECT SubscriberPackage.NamespacePrefix, SubscriberPackage.Name, SubscriberPackageVersion.Name, SubscriberPackageVersion.MajorVersion, SubscriberPackageVersion.MinorVersion, SubscriberPackageVersion.PatchVersion, SubscriberPackageVersion.BuildNumber FROM InstalledSubscriberPackage ORDER BY SubscriberPackage.NamespacePrefix, SubscriberPackage.Name LIMIT 500",
     "objectEntity": "SELECT QualifiedApiName FROM EntityDefinition WHERE QualifiedApiName = '${OBJECT_API_NAME}' LIMIT 2",
@@ -170,24 +161,6 @@ class ReviewError(Exception):
         super().__init__(code)
         self.code = code
         self.status = status
-
-
-def raise_if_cancelled() -> None:
-    event = _CANCEL_EVENT.get()
-    if event is not None and event.is_set():
-        raise ReviewError("REQUEST_CANCELLED", "INCOMPLETE")
-
-
-def bounded_operation_timeout(maximum_seconds: "int | float") -> float:
-    """Cap one blocking step by the current tool call's cumulative deadline."""
-    raise_if_cancelled()
-    deadline = _OPERATION_DEADLINE.get()
-    if deadline is None:
-        return float(maximum_seconds)
-    remaining = deadline - time.monotonic()
-    if remaining <= 0:
-        raise ReviewError("MCP_TIMEOUT", "INCOMPLETE")
-    return max(0.05, min(float(maximum_seconds), remaining))
 
 
 def now_iso() -> str:
@@ -231,7 +204,7 @@ def load_runtime(alias: str) -> dict:
     configured = matching[0] if matching else None
     if configured and configured.get("environment") == "production":
         raise ReviewError("ALIAS_MARKED_PRODUCTION")
-    # Owner decision 2026-08-04: any alias is admitted after configured host/org-id checks;
+    # Owner decision 2026-08-04: any alias is admitted on live identity proof alone;
     # environment=production stays a hard deny marker and deniedOrganizationIds the
     # org-level brake. Unconfigured aliases run the dynamic-discovery lane.
     dynamic = configured is None
@@ -271,24 +244,17 @@ def load_runtime(alias: str) -> dict:
     max_fields = review.get("maxFieldsPerObject")
     if not isinstance(max_fields, int) or not 1 <= max_fields <= 500:
         raise ReviewError("CONFIG_INVALID")
-    cli_timeout = policy.get("cliTimeoutSeconds")
-    rest_timeout = policy.get("restReadTimeoutSeconds")
-    operation_timeout = policy.get("operationTimeoutSeconds")
+    # Policy: the old server's knobs (vendor package pin, command timeout) were removed
+    # from the policy file in F-4; unknown legacy keys are simply never read here.
     soql_timeout = policy.get("soqlQueryTimeoutSeconds")
     if (
-        policy.get("schemaVersion") != 3
+        policy.get("schemaVersion") != 1
         or policy.get("mcpProtocolVersion") != PROTOCOL_VERSION
+        or policy.get("salesforceCliMajor") != 2
         or not isinstance(policy.get("maxVendorPayloadBytes"), int)
         or not 65_536 <= policy["maxVendorPayloadBytes"] <= 1_048_576
-        or not isinstance(cli_timeout, int)
-        or not 30 <= cli_timeout <= 300
-        or not isinstance(rest_timeout, int)
-        or not 10 <= rest_timeout <= 120
-        or not isinstance(operation_timeout, int)
-        or not 60 <= operation_timeout <= 600
         or not isinstance(soql_timeout, int)
         or not 5 <= soql_timeout <= 120
-        or operation_timeout < max(cli_timeout, rest_timeout, soql_timeout)
     ):
         raise ReviewError("CONFIG_INVALID")
     profiles = policy.get("profiles") or {}
@@ -387,43 +353,7 @@ def scan_path_for_sf_named_exe(name: str) -> "str | None":
     return None
 
 
-def terminate_cli_process(process: subprocess.Popen) -> None:
-    """Terminate the complete CLI process tree without leaking protocol output."""
-    if process.poll() is not None:
-        return
-    if os.name == "nt":
-        try:
-            subprocess.run(
-                ["taskkill", "/PID", str(process.pid), "/T", "/F"],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                timeout=CLI_TERMINATE_GRACE_SECONDS,
-                check=False,
-            )
-        except (OSError, subprocess.SubprocessError):
-            process.kill()
-    else:
-        try:
-            os.killpg(process.pid, signal.SIGTERM)
-        except (OSError, ProcessLookupError):
-            process.terminate()
-    try:
-        process.communicate(timeout=CLI_TERMINATE_GRACE_SECONDS)
-    except subprocess.TimeoutExpired:
-        if os.name == "nt":
-            process.kill()
-        else:
-            try:
-                os.killpg(process.pid, signal.SIGKILL)
-            except (OSError, ProcessLookupError):
-                process.kill()
-        try:
-            process.communicate(timeout=CLI_TERMINATE_GRACE_SECONDS)
-        except subprocess.TimeoutExpired:
-            pass
-
-
-def run_cli_json(args: "list[str]", failure_code: str = "CLI_UNAVAILABLE", timeout: "int | float" = 120) -> dict:
+def run_cli_json(args: "list[str]", failure_code: str = "CLI_UNAVAILABLE", timeout: int = CLI_TIMEOUT_SECONDS) -> dict:
     if TEST_MODE:
         executable = os.environ.get("SF_HARNESS_SF_EXECUTABLE", "sf")
         try:
@@ -435,40 +365,22 @@ def run_cli_json(args: "list[str]", failure_code: str = "CLI_UNAVAILABLE", timeo
         for arg in args:
             assert_plain_cli_argument(arg)
         command = [*resolve_sf_invocation(), *args]
-    deadline = time.monotonic() + bounded_operation_timeout(timeout)
-    popen_kwargs = {
-        "stdout": subprocess.PIPE,
-        "stderr": subprocess.PIPE,
-        "text": True,
-        "cwd": str(REPO_ROOT),
-        "env": SPAWN_ENV,
-    }
-    if os.name == "nt":
-        popen_kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
-    else:
-        popen_kwargs["start_new_session"] = True
     try:
-        process = subprocess.Popen(command, **popen_kwargs)
+        completed = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+            cwd=str(REPO_ROOT),
+            env=SPAWN_ENV,
+        )
     except (OSError, subprocess.SubprocessError):
         raise ReviewError(failure_code, "INCOMPLETE")
-    while True:
-        try:
-            raise_if_cancelled()
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                terminate_cli_process(process)
-                raise ReviewError("CLI_TIMEOUT", "INCOMPLETE")
-            stdout, _stderr = process.communicate(timeout=min(CLI_POLL_SECONDS, remaining))
-            break
-        except subprocess.TimeoutExpired:
-            continue
-        except ReviewError:
-            terminate_cli_process(process)
-            raise
-    if len(stdout.encode("utf-8", "replace")) > MAX_OUTER_MESSAGE_BYTES:
+    if len(completed.stdout.encode("utf-8", "replace")) > MAX_OUTER_MESSAGE_BYTES:
         raise ReviewError("CLI_OUTPUT_TOO_LARGE", "INCOMPLETE")
     try:
-        payload = json.loads(stdout)
+        payload = json.loads(completed.stdout)
     except json.JSONDecodeError:
         raise ReviewError("CLI_SCHEMA_MISMATCH", "INCOMPLETE")
     if not isinstance(payload, dict) or (payload.get("status") not in (None, 0)):
@@ -488,9 +400,10 @@ def safe_string(value, max_length: int = 160) -> str:
 class RestClient:
     """One authenticated, pooled HTTPS session for the whole server session.
 
-    A 401 runs `sf org auth show-access-token` once and replays the idempotent GET.
-    The session remains bound to the instance URL admitted by readiness; no live
-    Organization identity or IsSandbox query is performed."""
+    401 handling re-runs `sf org auth show-access-token` once, then re-proves the
+    live org identity with the new token before any replay - auth-file metadata is
+    not trusted here because a stale or realiased file can disagree with the token
+    it stores. An identity mismatch fail-closes the session permanently."""
 
     def __init__(self, runtime: dict, instance_url: str, api_version: str, token: str) -> None:
         self.runtime = runtime
@@ -502,6 +415,9 @@ class RestClient:
         )
         self.api_version = api_version
         self.token = token
+        self.fail_closed = False
+        self.frozen_org_id: "str | None" = None
+        self.frozen_is_sandbox: "bool | None" = None
         self._refresh_lock = threading.Lock()
         self._session_lock = threading.Lock()
         self._session = self._build_session()
@@ -514,15 +430,14 @@ class RestClient:
         return session
 
     def _get(
-        self, path: str, params: "dict | None", read_timeout: "int | float", *, stream: bool = False
+        self, path: str, params: "dict | None", read_timeout: int, *, stream: bool = False
     ) -> requests.Response:
         url = path if path.startswith("http") else f"{self.base}{path}"
-        bounded_read_timeout = bounded_operation_timeout(read_timeout)
         return self._session.get(
             url,
             params=params,
             headers={"Authorization": f"Bearer {self.token}", "Accept": "application/json"},
-            timeout=(min(CONNECT_TIMEOUT_SECONDS, bounded_read_timeout), bounded_read_timeout),
+            timeout=(CONNECT_TIMEOUT_SECONDS, read_timeout),
             stream=stream,
         )
 
@@ -543,12 +458,7 @@ class RestClient:
         REST_PAYLOAD_TOO_LARGE before further chunks are consumed. Size is checked
         before the 404/HTTP-error classification, matching the pre-streaming order.
         """
-        started = time.monotonic()
-        try:
-            response = self._get(path, params, read_timeout, stream=True)
-        except Exception:
-            log(f"rest {operation}: {int((time.monotonic() - started) * 1000)} ms outcome=exception")
-            raise
+        response = self._get(path, params, read_timeout, stream=True)
         try:
             if response.status_code == 401:
                 return 401, b""
@@ -585,22 +495,18 @@ class RestClient:
             return response.status_code, b"".join(chunks)
         finally:
             response.close()
-            log(
-                f"rest {operation}: {int((time.monotonic() - started) * 1000)} ms "
-                f"http={response.status_code}"
-            )
 
     def get_json(
         self,
         path: str,
         params: "dict | None" = None,
-        read_timeout: "int | float | None" = None,
+        read_timeout: int = READ_TIMEOUT_SECONDS,
         *,
         max_payload_bytes: "int | None" = None,
         operation: str = "generic",
     ) -> dict:
-        if read_timeout is None:
-            read_timeout = self.runtime["policy"]["restReadTimeoutSeconds"]
+        if self.fail_closed:
+            raise ReviewError("IDENTITY_ORG_ID_MISMATCH")
         limit = max_payload_bytes or self.runtime["policy"]["maxVendorPayloadBytes"]
         attempt = 0
         while True:
@@ -616,9 +522,8 @@ class RestClient:
             except requests.exceptions.ConnectTimeout:
                 raise ReviewError("REST_UNAVAILABLE", "INCOMPLETE")
             except requests.exceptions.ReadTimeout:
-                # Never retried: the configured cumulative operation budget is shared
-                # across readiness, REST, and pagination. The agent gets a steering
-                # execution error instead (narrower query or lower LIMIT).
+                # Never retried: a retry would blow the client's ~60s budget. The agent
+                # gets a steering execution error instead (narrower query, lower LIMIT).
                 raise ReviewError("REST_TIMEOUT", "INCOMPLETE")
             except requests.exceptions.ConnectionError:
                 # Laptop sleep / dropped VPN leaves dead pooled connections. Rebuild the
@@ -637,7 +542,7 @@ class RestClient:
             if status == 401:
                 if attempt > 1:
                     raise ReviewError("REST_UNAVAILABLE", "INCOMPLETE")
-                self._refresh_token(token_used)
+                self._refresh_token_and_reprove(token_used)
                 continue
             try:
                 parsed = json.loads(body.decode("utf-8"))
@@ -647,51 +552,81 @@ class RestClient:
                 raise ReviewError("REST_SCHEMA_MISMATCH", "INCOMPLETE")
             return parsed
 
-    def _refresh_token(self, token_used: str) -> None:
-        acquired = False
-        while not acquired:
-            acquired = self._refresh_lock.acquire(timeout=bounded_operation_timeout(CLI_POLL_SECONDS))
-        try:
-            raise_if_cancelled()
+    def _refresh_token_and_reprove(self, token_used: str) -> None:
+        with self._refresh_lock:
+            if self.fail_closed:
+                raise ReviewError("IDENTITY_ORG_ID_MISMATCH")
             if self.token != token_used:
                 # Another pool thread already refreshed while we queued on the lock;
                 # replay with its token instead of stampeding the sf CLI (one refresh
                 # serves every concurrently 401'd call).
                 return
-            log("token refresh: requesting a fresh access token")
+            log("token refresh: re-running sf org auth show-access-token")
             result = run_cli_json(
                 ["org", "auth", "show-access-token", "--json", "-o", self.runtime["alias"]],
-                timeout=min(TOKEN_REFRESH_TIMEOUT_SECONDS, self.runtime["policy"]["cliTimeoutSeconds"]),
+                timeout=15,
             )
             token = result.get("accessToken")
             if not isinstance(token, str) or not token:
                 raise ReviewError("CLI_SCHEMA_MISMATCH", "INCOMPLETE")
             self.token = token
-            log("token refresh: access token updated")
-        finally:
-            self._refresh_lock.release()
+            # Live re-proof with the NEW token: the refresh must never silently rebind
+            # the session to a different org (stale auth file, reused alias). Direct
+            # request on purpose - going through get_json here would re-enter the
+            # non-reentrant refresh lock on a second 401.
+            try:
+                response = self._get(
+                    f"/services/data/v{self.api_version}/query/",
+                    {"q": EXPECTED_QUERIES["orgIdentity"]},
+                    READ_TIMEOUT_SECONDS,
+                )
+            except requests.exceptions.RequestException:
+                raise ReviewError("REST_UNAVAILABLE", "INCOMPLETE")
+            if response.status_code != 200:
+                raise ReviewError("REST_UNAVAILABLE", "INCOMPLETE")
+            try:
+                records = response.json().get("records")
+            except ValueError:
+                raise ReviewError("REST_SCHEMA_MISMATCH", "INCOMPLETE")
+            if not isinstance(records, list) or len(records) != 1 or not isinstance(records[0], dict):
+                raise ReviewError("REST_SCHEMA_MISMATCH", "INCOMPLETE")
+            record = records[0]
+            org_id = str(record.get("Id") or "")[:15]
+            if self.frozen_org_id is not None and org_id != self.frozen_org_id:
+                self.fail_closed = True
+                log("token refresh: org id mismatch - session fail-closed")
+                raise ReviewError("IDENTITY_ORG_ID_MISMATCH")
+
+    def identity_record(self) -> dict:
+        payload = self.get_json(
+            f"/services/data/v{self.api_version}/query/",
+            {"q": EXPECTED_QUERIES["orgIdentity"]},
+        )
+        records = payload.get("records")
+        if not isinstance(records, list) or len(records) != 1 or not isinstance(records[0], dict):
+            raise ReviewError("REST_SCHEMA_MISMATCH", "INCOMPLETE")
+        return records[0]
 
     def query(
         self,
         soql: str,
         use_tooling: bool,
-        budget_seconds: "int | None" = None,
+        budget_seconds: int = 45,
         max_rows: int = MAX_SOQL_ROWS,
         *,
         max_payload_bytes: "int | None" = None,
         operation: str = "generic",
     ) -> dict:
-        # One SOQL deadline for the WHOLE query, pagination included. Each page is also
-        # bounded by restReadTimeoutSeconds and the outer operation deadline.
-        if budget_seconds is None:
-            budget_seconds = self.runtime["policy"]["soqlQueryTimeoutSeconds"]
+        # One cumulative deadline for the WHOLE call, pagination included: giving each
+        # nextRecordsUrl page a fresh read budget would let two slow pages blow the
+        # client's hard ~60s timeout - the exact symptom this rewrite removes.
         deadline = time.monotonic() + budget_seconds
 
         def remaining() -> int:
             left = int(deadline - time.monotonic())
             if left <= 0:
                 raise ReviewError("REST_TIMEOUT", "INCOMPLETE")
-            return min(left, self.runtime["policy"]["restReadTimeoutSeconds"])
+            return min(left, READ_TIMEOUT_SECONDS + 10)
 
         prefix = "tooling/" if use_tooling else ""
         # An explicit per-response-page bound (only the fixed object-field profile sets
@@ -827,9 +762,11 @@ def make_envelope(
 # in both enums, but only the BLOCKED lane accepts it unconditionally.
 BLOCKING_WARNINGS = {
     "CLI_SCHEMA_MISMATCH",
-    "NON_PRODUCTION_HOST_REQUIRED",
-    "ORG_ID_MISMATCH",
+    "CLI_VERSION_UNSUPPORTED",
+    "IDENTITY_HOST_MISMATCH",
+    "IDENTITY_ORG_ID_MISMATCH",
     "INTERNAL_ERROR",
+    "NOT_SANDBOX",
     "OBJECT_NOT_ALLOWLISTED",
     "ORG_ID_DENIED",
     "QUERY_PROFILE_DENIED",
@@ -947,6 +884,39 @@ def strip_attributes(value):
 
 
 # ------------------------------------------------------------------ tool handlers
+
+
+def review_org_identity(server: "Server") -> dict:
+    runtime = server.runtime
+    retrieved = now_iso()
+    record = server.rest.identity_record()
+    org_id = str(record.get("Id") or "")[:15]
+    if org_id != server.rest.frozen_org_id:
+        server.rest.fail_closed = True
+        raise ReviewError("IDENTITY_ORG_ID_MISMATCH")
+    if record.get("IsSandbox") != server.rest.frozen_is_sandbox:
+        raise ReviewError("NOT_SANDBOX")
+    return make_envelope(
+        runtime,
+        "org-identity",
+        "VERIFIED",
+        target=base_target(runtime, server.proof),
+        sources={
+            "cli": dict(server.cli_source),
+            "rest": {"kind": "salesforce-rest", "version": runtime["review"]["apiVersion"], "complete": True, "retrievedAt": retrieved},
+        },
+        facts={
+            "identityPolicyMatched": True,
+            "isSandbox": server.proof["isSandbox"] is True,
+            "nonProduction": True,
+        },
+        reconciliation={
+            "status": "MATCH",
+            "comparisons": [comparison("organization-identity", True), comparison("is-sandbox", True)],
+        },
+        completeness={"complete": True, "dualSource": False, "truncated": False},
+        warnings=[],
+    )
 
 
 def review_installed_packages(server: "Server") -> dict:
@@ -1227,7 +1197,7 @@ def review_soql_query(server: "Server", tool_input: dict) -> dict:
     result = server.rest.query(
         tool_input["query"],
         description["useToolingApi"],
-        budget_seconds=runtime["policy"]["soqlQueryTimeoutSeconds"],
+        budget_seconds=min(runtime["policy"]["soqlQueryTimeoutSeconds"], 45),
     )
     if result["truncated"]:
         raise ReviewError("RESULT_TRUNCATED", "INCOMPLETE")
@@ -1306,6 +1276,13 @@ STEER_EVIDENCE = (
 
 TOOL_DEFINITIONS = [
     {
+        "name": "review_org_identity",
+        "title": "Review the configured non-production Salesforce identity",
+        "description": "Re-prove the session-frozen non-production org identity live over REST. " + STEER_EVIDENCE,
+        "inputSchema": {"type": "object", "additionalProperties": False},
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "openWorldHint": False},
+    },
+    {
         "name": "review_installed_packages",
         "title": "Review installed Salesforce packages",
         "description": "Normalized package namespace, name, and version facts (single REST source). " + STEER_EVIDENCE,
@@ -1340,7 +1317,7 @@ TOOL_DEFINITIONS = [
     {
         "name": "review_soql_query",
         "title": "Execute one composed read-only SOQL statement",
-        "description": "Execute one model-composed read-only SOQL statement verbatim against the configured review org over REST. Rows return unredacted, bounded by payload size, row cap and timeout. Add a LIMIT yourself: an overflowing result set returns INCOMPLETE/RESULT_TRUNCATED - make several narrower queries instead of one broad one.",
+        "description": "Execute one model-composed read-only SOQL statement verbatim against the identity-proven non-production org over REST. Rows return unredacted, bounded by payload size, row cap and timeout. Add a LIMIT yourself: an overflowing result set returns INCOMPLETE/RESULT_TRUNCATED - make several narrower queries instead of one broad one.",
         "inputSchema": {
             "type": "object",
             "additionalProperties": False,
@@ -1377,6 +1354,7 @@ TOOL_DEFINITIONS = [
 ]
 
 ENVELOPE_TOOLS = {
+    "review_org_identity",
     "review_installed_packages",
     "review_configured_orgs",
     "review_object_contract",
@@ -1409,86 +1387,28 @@ class Server:
         # transfer/parse/compaction); all other tools keep full pool concurrency.
         self.object_contract_lock = threading.Lock()
         self._cancelled: "set[str]" = set()
-        self._cancel_events: "dict[str, threading.Event]" = {}
         self._cancelled_lock = threading.Lock()
         self._stdout = sys.stdout.buffer
-        self._readiness = threading.Condition()
-        self._readiness_state = "new"
-        self._readiness_error: "ReviewError | None" = None
 
-    # -- shared background readiness ---------------------------------------
+    # -- startup ------------------------------------------------------------
 
-    def ensure_ready(self) -> None:
-        """Await or run one shared org check without delaying the MCP handshake."""
-        with self._readiness:
-            while self._readiness_state == "initializing":
-                self._readiness.wait(timeout=bounded_operation_timeout(1.0))
-            if self._readiness_state == "ready":
-                return
-            if self._readiness_state == "failed" and self._readiness_error is not None:
-                raise ReviewError(self._readiness_error.code, self._readiness_error.status)
-            self._readiness_state = "initializing"
-
-        try:
-            self._initialize_org()
-        except ReviewError as error:
-            with self._readiness:
-                # Network/CLI latency can recover on the next call. Identity, config,
-                # and version failures are stable security walls for this process.
-                if error.status == "INCOMPLETE":
-                    self._readiness_state = "new"
-                    self._readiness_error = None
-                else:
-                    self._readiness_state = "failed"
-                    self._readiness_error = error
-                self._readiness.notify_all()
-            raise
-        except Exception:
-            with self._readiness:
-                self._readiness_state = "new"
-                self._readiness_error = None
-                self._readiness.notify_all()
-            raise
-        else:
-            with self._readiness:
-                self._readiness_state = "ready"
-                self._readiness_error = None
-                self._readiness.notify_all()
-
-    def _run_cli_stage(self, label: str, args: "list[str]") -> dict:
+    def start(self) -> None:
         started = time.monotonic()
-        try:
-            return run_cli_json(args, timeout=self.runtime["policy"]["cliTimeoutSeconds"])
-        finally:
-            log(f"readiness {label}: {int((time.monotonic() - started) * 1000)} ms")
-
-    def start_background_readiness(self) -> None:
-        """Warm CLI authorization immediately while keeping MCP handshake responsive."""
-
-        def warm() -> None:
-            token = _OPERATION_DEADLINE.set(
-                time.monotonic() + self.runtime["policy"]["operationTimeoutSeconds"]
-            )
-            log("readiness started: checking Salesforce CLI authorization")
-            try:
-                self.ensure_ready()
-            except ReviewError as error:
-                log(f"readiness failed: {error.code}")
-            except Exception:
-                log("readiness failed: INTERNAL_ERROR")
-            finally:
-                _OPERATION_DEADLINE.reset(token)
-
-        threading.Thread(target=warm, name="salesforce-readiness", daemon=True).start()
-
-    def _initialize_org(self) -> None:
-        started = time.monotonic()
-        display = self._run_cli_stage(
-            "org-display", ["org", "display", "--json", "-o", self.runtime["alias"]]
+        version_payload = run_cli_json(["version", "--json"])
+        cli_version = safe_string(version_payload.get("cliVersion"), 80)
+        match = re.match(r"^@salesforce/cli/(\d+)\.(\d+)\.(\d+)$", cli_version)
+        if not match or int(match.group(1)) != self.runtime["policy"]["salesforceCliMajor"]:
+            raise ReviewError("CLI_VERSION_UNSUPPORTED")
+        if tuple(int(part) for part in match.groups()) < MIN_CLI_VERSION:
+            # sf org auth show-access-token only exists from 2.136.8 (plugin-org 5.11.0).
+            raise ReviewError("CLI_VERSION_UNSUPPORTED")
+        token_payload = run_cli_json(
+            ["org", "auth", "show-access-token", "--json", "-o", self.runtime["alias"]]
         )
-        token = display.get("accessToken")
+        token = token_payload.get("accessToken")
         if not isinstance(token, str) or not token:
             raise ReviewError("CLI_SCHEMA_MISMATCH")
+        display = run_cli_json(["org", "display", "--json", "-o", self.runtime["alias"]])
         instance_url = str(display.get("instanceUrl") or "")
         host = self._validated_host(instance_url)
         display_org_id = str(display.get("id") or display.get("orgId") or "")
@@ -1498,26 +1418,37 @@ class Server:
             else display_org_id
         )
         if not ORG_ID.match(display_org_id) or display_org_id[:15] != str(expected_org_id)[:15]:
-            raise ReviewError("ORG_ID_MISMATCH")
+            raise ReviewError("IDENTITY_ORG_ID_MISMATCH")
         if display_org_id[:15] in self.runtime["denied_org_ids"]:
             raise ReviewError("ORG_ID_DENIED")
         self.rest = RestClient(self.runtime, instance_url, self.runtime["review"]["apiVersion"], token)
-        # No Organization table query: the configured host/org-id walls and the
-        # authorized `sf org display` receipt are the complete readiness contract.
-        host_is_sandbox = not DEV_EDITION_HOST.match(host)
+        # Live probe: proves the token works, freezes the identity, and doubles as the
+        # latency baseline. wantSandbox comes from the host shape - a Developer Edition
+        # legitimately reports IsSandbox=false (the comment convention from the .mjs).
+        record = self.rest.identity_record()
+        live_org_id = str(record.get("Id") or "")
+        if not ORG_ID.match(live_org_id) or live_org_id[:15] != display_org_id[:15]:
+            raise ReviewError("IDENTITY_ORG_ID_MISMATCH")
+        want_sandbox = not DEV_EDITION_HOST.match(host)
+        if record.get("IsSandbox") is not want_sandbox:
+            raise ReviewError("NOT_SANDBOX")
+        self.rest.frozen_org_id = live_org_id[:15]
+        self.rest.frozen_is_sandbox = record.get("IsSandbox")
         self.proof = {
             "expectedHostMatched": True,
             "expectedOrgIdMatched": True,
-            "isSandbox": host_is_sandbox,
+            "isSandbox": record.get("IsSandbox") is True,
+            # Reaching this point already proves it: the live host passed
+            # NON_PRODUCTION_HOST and IsSandbox matched what that host shape implies.
             "nonProduction": True,
         }
         self.cli_source = {
             "kind": "salesforce-cli",
-            "version": "unavailable",
+            "version": cli_version,
             "complete": True,
             "retrievedAt": now_iso(),
         }
-        log(f"readiness complete: configured org accepted for {host} in {int((time.monotonic() - started) * 1000)} ms")
+        log(f"startup: identity frozen for {host} in {int((time.monotonic() - started) * 1000)} ms")
 
     def _validated_host(self, instance_url: str) -> str:
         try:
@@ -1543,7 +1474,7 @@ class Server:
             or host != expected_host
             or not NON_PRODUCTION_HOST.match(host)
         ):
-            raise ReviewError("NON_PRODUCTION_HOST_REQUIRED")
+            raise ReviewError("IDENTITY_HOST_MISMATCH")
         return host
 
     # -- protocol -----------------------------------------------------------
@@ -1564,21 +1495,20 @@ class Server:
 
     def call_tool(self, name: str, tool_input: dict) -> dict:
         if not any(tool["name"] == name for tool in TOOL_DEFINITIONS) or not validate_tool_input(name, tool_input):
-            envelope = make_envelope(self.runtime, "soql-query", "BLOCKED", warnings=["QUERY_PROFILE_DENIED"])
+            envelope = make_envelope(self.runtime, "org-identity", "BLOCKED", warnings=["QUERY_PROFILE_DENIED"])
             return {"content": [{"type": "text", "text": json.dumps(envelope)}], "structuredContent": envelope, "isError": True}
         review_types = {
+            "review_org_identity": "org-identity",
             "review_installed_packages": "installed-packages",
             "review_object_contract": "object-contract",
             "review_configured_orgs": "configured-orgs",
             "review_soql_query": "soql-query",
         }
         started = time.monotonic()
-        deadline_token = _OPERATION_DEADLINE.set(
-            started + self.runtime["policy"]["operationTimeoutSeconds"]
-        )
         try:
-            self.ensure_ready()
-            if name == "review_installed_packages":
+            if name == "review_org_identity":
+                result = review_org_identity(self)
+            elif name == "review_installed_packages":
                 result = review_installed_packages(self)
             elif name == "review_object_contract":
                 result = review_object_contract(self, tool_input)
@@ -1605,8 +1535,6 @@ class Server:
         except Exception:  # noqa: BLE001 - an unhandled exception must not kill the loop
             result = {"error": "INTERNAL_ERROR"}
             is_error = True
-        finally:
-            _OPERATION_DEADLINE.reset(deadline_token)
         elapsed_ms = int((time.monotonic() - started) * 1000)
         log(f"call {name}: {elapsed_ms} ms error={is_error}")
         text = json.dumps(result, ensure_ascii=False)
@@ -1617,7 +1545,7 @@ class Server:
             over = (
                 error_envelope(
                     self.runtime,
-                    review_types.get(name, "soql-query"),
+                    review_types.get(name, "org-identity"),
                     ReviewError("CLI_OUTPUT_TOO_LARGE", "INCOMPLETE"),
                     self.proof,
                 )
@@ -1634,12 +1562,8 @@ class Server:
         message_id = message.get("id")
         if method == "notifications/cancelled":
             request_id = (message.get("params") or {}).get("requestId")
-            request_key = str(request_id)
             with self._cancelled_lock:
-                self._cancelled.add(request_key)
-                cancel_event = self._cancel_events.get(request_key)
-                if cancel_event is not None:
-                    cancel_event.set()
+                self._cancelled.add(str(request_id))
             return
         if not isinstance(method, str) or message_id is None:
             return
@@ -1666,25 +1590,13 @@ class Server:
             return
         if method == "tools/call":
             params = message.get("params") or {}
-            request_key = str(message_id)
-            cancel_event = threading.Event()
-            with self._cancelled_lock:
-                if request_key in self._cancelled:
-                    cancel_event.set()
-                self._cancel_events[request_key] = cancel_event
 
             def run_call() -> None:
-                cancel_token = _CANCEL_EVENT.set(cancel_event)
-                try:
-                    result = self.call_tool(params.get("name"), params.get("arguments") or {})
-                finally:
-                    _CANCEL_EVENT.reset(cancel_token)
+                result = self.call_tool(params.get("name"), params.get("arguments") or {})
                 with self._cancelled_lock:
-                    self._cancel_events.pop(request_key, None)
-                    if request_key in self._cancelled:
-                        # The CLI and lock waits are interrupted cooperatively; the
-                        # response is still suppressed because the client moved on.
-                        self._cancelled.discard(request_key)
+                    if str(message_id) in self._cancelled:
+                        # Cancelled mid-flight: the client stopped waiting; a late
+                        # response for this id must be suppressed (spec minimum).
                         return
                 self.write_message({"jsonrpc": "2.0", "id": message_id, "result": result})
 
@@ -1735,7 +1647,7 @@ def main(argv: "list[str]") -> int:
     try:
         runtime = load_runtime(args.org)
         server = Server(runtime)
-        server.start_background_readiness()
+        server.start()
         server.serve()
     except ReviewError as error:
         _fatal_startup(error.code)

@@ -45,8 +45,8 @@ const { mode, org } = parseArgs(process.argv.slice(2));
 if (mode !== "review") {
   fail(`unsupported mode '${mode ?? ""}'; this MCP launcher supports review mode only`);
 }
-// First never-production wall, pre-contact; the Python server re-checks the alias,
-// authorized host, org-id pins, and deny list during background readiness.
+// First never-production wall, pre-contact; the Python server re-checks it and adds
+// the live host/org-id/IsSandbox proof before serving any tool call.
 if (!org || /(^|[^a-z])(prod|production)([^a-z]|$)/i.test(org)) {
   fail("the org alias is missing or production-like");
 }
@@ -114,7 +114,7 @@ if (!python) {
 }
 
 process.stderr.write(
-  "Salesforce MCP startup: launching the review facade; CLI authorization readiness continues in the background\n",
+  "Salesforce MCP startup: launching the review facade; CLI authorization and live org validation run before tool discovery\n",
 );
 
 const child = spawn(python[0], [...python.slice(1), REVIEW_SERVER, "--org", org], {

@@ -44,7 +44,7 @@
    "name": "dual-transport-salesforce-review-facade",
    "retiredIn": "plan-2026-08-09 F-4",
    "retiredOn": "2026-08-09",
-   "replacement": "scripts/salesforce_review_server.py - single REST transport with configured host/org-id readiness started in the background and stage logs emitted to MCP Output, launched via the interpreter-resolving start_salesforce_mcp.mjs",
+   "replacement": "scripts/salesforce_review_server.py - single REST transport, identity proven at startup and frozen per session, launched via the interpreter-resolving start_salesforce_mcp.mjs",
    "tokens": [
     "salesforce_review_server.mjs",
     "salesforceMcpPackage"

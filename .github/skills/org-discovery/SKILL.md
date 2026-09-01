@@ -11,21 +11,23 @@ question — a one-field question does not need the full sweep.
 
 ## The sequence
 
-1. **`review_installed_packages` — once per session when package facts matter.** Establishes the installed VendorPkg
+1. **`review_org_identity` — once per session.** Confirms which org you are reading and
+   that it is non-production. Everything after is scoped to this identity.
+2. **`review_installed_packages` — once per session.** Establishes the installed VendorPkg
    version. Package-specific facts are version-scoped: note the version in whatever you
    write.
-2. **`review_object_contract` — per object you touch.** The contract gives fields,
+3. **`review_object_contract` — per object you touch.** The contract gives fields,
    relationships, and ownership: the namespace prefix is the ownership signal
    (`VendorNS__` = package-owned; no prefix or your own = subscriber; standard =
    platform).
-3. **`knowledge_context` — per subject.** What the team already knows about the artifact,
+4. **`knowledge_context` — per subject.** What the team already knows about the artifact,
    including recorded `limitations` — read them before relying on the artifact, they are
    the accumulated burn marks.
-4. **`knowledge_impact` (direction: incoming) — before proposing a change to anything
+5. **`knowledge_impact` (direction: incoming) — before proposing a change to anything
    others may consume** (CustomMetadata, RecordType, Layout, shared objects): see what
    already depends on it, computed live from the whole corpus. An empty result is
    normal — continue discovery regardless.
-5. **`review_soql_query` — when the design depends on data shape.** Structure, fill
+6. **`review_soql_query` — when the design depends on data shape.** Structure, fill
    rates, real record shapes: prefer a bounded read over a guess or a blocking question.
    Never paste raw record rows into a design, a knowledge entry, or an ADO artifact —
    derive the counts and shapes you need. When the question outgrows a bounded read — a

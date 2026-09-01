@@ -1657,3 +1657,21 @@ Gate: 690 unit tests OK in ~87 s, 43 safety evals PASS, validate_harness coheren
   capability while tool names, annotations, documentation, and runtime enforcement continue to
   communicate the actual boundary.
 - Approved by: workspace owner directive, 2026-09-01.
+
+## 2026-09-01 — Salesforce review MCP runtime restored to the pre-timeout baseline
+
+- Decision: restore the Salesforce review facade, policy, evidence contract, verifier, and
+  runtime tests to commit `047fa60`. The facade again performs eager startup validation: CLI
+  version, access token, org display, and a live `Organization.IsSandbox` proof complete before
+  tool discovery. Runtime bounds return to the code-owned baseline: 60 seconds for CLI calls,
+  30 seconds for REST reads, 15 seconds for token refresh, and at most 45 seconds for composed
+  SOQL. The schema-v3 configurable 120/60/180 timeout policy and background readiness path are
+  retired.
+- Preserved boundaries: the capability-neutral MCP alias remains `salesforce`; the facade remains
+  read-only. Developer deployments, record mutations, Apex/package/org operations through direct
+  `sf`/`sfdx`, fresh per-invocation confirmation before every real deploy, and the canonical
+  append-only `org-changes.md` requirement are unchanged.
+- Rationale: repeated live `401` and non-terminating query behavior remained after targeted token
+  refresh/cancellation hardening. The owner selected the last known pre-timeout MCP behavior over
+  further incremental changes to the new readiness/timeout design.
+- Approved by: workspace owner directive, 2026-09-01.

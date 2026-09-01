@@ -71,6 +71,7 @@ ALLOWED_TOOLS = {
     "agent",
     "knowledge/*",
     "ado-readonly/*",
+    "salesforce/review_org_identity",
     "salesforce/review_installed_packages",
     "salesforce/review_object_contract",
     "salesforce/review_configured_orgs",
@@ -416,6 +417,7 @@ def check_customizations(audit: Audit, root: Path = ROOT) -> None:
         ),
         ("salesforce/review_soql_query", "the review reconciles design claims against org records"),
         ("salesforce/review_object_contract", "package-namespace claims need the object contract"),
+        ("salesforce/review_org_identity", "evidence must name the org it came from"),
         ("salesforce/review_installed_packages", "package version is part of the evidence"),
     ):
         audit.require(tool in reviewer_tools, f"reviewer needs `{tool}`: {reason}")
@@ -690,7 +692,7 @@ def check_settings_and_mcp(audit: Audit) -> None:
         "salesforce_review_server.py",
     ):
         audit.require(marker in launcher, f"Salesforce MCP launcher is missing runtime gate: {marker}")
-    # The launcher must never contact an org itself: background readiness runs in the facade.
+    # The launcher must never contact an org itself: startup identity proof runs in the facade.
     # (The interpreter probe is local by construction - it imports a Python module.)
     for forbidden in ('"sf"', "org display", "show-access-token", "@salesforce/mcp"):
         audit.require(forbidden not in launcher, f"the launcher must not contact orgs or vendor MCP: {forbidden}")
@@ -702,10 +704,9 @@ def check_settings_and_mcp(audit: Audit) -> None:
         "ALIAS_PRODUCTION_LIKE",
         "NON_PRODUCTION_HOST",
         "denied_org_ids",
-        "start_background_readiness",
-        "readiness started: checking Salesforce CLI authorization",
+        "fail_closed",
         "contains_sensitive_material",
-        "ORG_ID_MISMATCH",
+        "IDENTITY_ORG_ID_MISMATCH",
     ):
         audit.require(marker in py_facade, f"Python review facade is missing runtime gate: {marker}")
 
