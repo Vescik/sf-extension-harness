@@ -13,7 +13,7 @@
     "node": ">=22"
   },
   "dependencies": {
-    "@azure-devops/mcp": "2.8.1"
+    "@azure-devops/mcp": "2.9.0"
   },
   "overrides": {
     "@babel/core": "^7.29.6",
