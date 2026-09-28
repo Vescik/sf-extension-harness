@@ -206,6 +206,80 @@ class TestInventoryIsDiscoveredNotCountPinned(GithubCopyBase):
         self.assertIn("public slash-command names collide", audit.errors)
 
 
+class TestWritingStandardWiring(TempRootBase):
+    """Plan 02 checks shared contract wiring without a language or style linter."""
+
+    LINK = "Apply the [writing standard](../../.ai/contracts/writing-standard.md).\n"
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.contract = self.root / ".ai/contracts/writing-standard.md"
+        self.contract.parent.mkdir(parents=True)
+        self.contract.write_text("# Writing standard\nKeep source quotations intact.\n", encoding="utf-8")
+        self.agent_dir = self.root / ".github/agents"
+        self.agent_dir.mkdir(parents=True)
+        self.kernel = self.root / ".github/copilot-instructions.md"
+        self.kernel.write_text("Use `.ai/contracts/writing-standard.md`.\n", encoding="utf-8")
+        # Enumerate the actual roles; a newly added role must inherit the same check.
+        for path in (ROOT / ".github/agents").glob("*.agent.md"):
+            (self.agent_dir / path.name).write_text(
+                "---\nname: example\n---\n" + self.LINK, encoding="utf-8"
+            )
+
+    def audit(self) -> validate_harness.Audit:
+        return self.run_audit(validate_harness.check_writing_standard, root=self.root)
+
+    def test_linked_roles_pass_without_style_or_source_language_checks(self) -> None:
+        with self.contract.open("a", encoding="utf-8") as stream:
+            stream.write('\nSource quote: "Pole może pozostać puste".\n')
+        self.assertEqual(self.audit().errors, [])
+
+    def test_missing_or_empty_contract_is_reported(self) -> None:
+        self.contract.unlink()
+        self.assertTrue(any("unreadable" in error for error in self.audit().errors))
+        self.contract.write_text(" \n", encoding="utf-8")
+        self.assertTrue(any("must not be empty" in error for error in self.audit().errors))
+
+    def test_kernel_names_contract_without_forcing_a_markdown_link(self) -> None:
+        self.kernel.write_text("Use the writing rules.\n", encoding="utf-8")
+        self.assertTrue(any("plain-text path" in error for error in self.audit().errors))
+
+    def test_each_current_role_requires_a_resolved_link(self) -> None:
+        for path in sorted(self.agent_dir.glob("*.agent.md")):
+            original = path.read_text(encoding="utf-8")
+            with self.subTest(role=path.name):
+                path.write_text(original.replace(self.LINK, ""), encoding="utf-8")
+                errors = self.audit().errors
+                self.assertEqual(len(errors), 1, errors)
+                self.assertIn(path.name, errors[0])
+                path.write_text(original, encoding="utf-8")
+
+    def test_new_role_without_link_is_discovered(self) -> None:
+        path = self.agent_dir / "future-role.agent.md"
+        path.write_text("---\nname: future-role\n---\nRead the writing rules.\n", encoding="utf-8")
+        self.assertTrue(any(path.name in error for error in self.audit().errors))
+        with path.open("a", encoding="utf-8") as stream:
+            stream.write(self.LINK)
+        self.assertEqual(self.audit().errors, [])
+
+    def test_wrong_target_and_unlinked_mentions_do_not_satisfy_role_wiring(self) -> None:
+        path = next(self.agent_dir.glob("*.agent.md"))
+        original = path.read_text(encoding="utf-8")
+        for replacement in (
+            "Use `.ai/contracts/writing-standard.md`.\n",
+            "Apply [writing standard](../../.ai/contracts/execution-contract.md).\n",
+            "Apply [writing standard](https://example.test/writing-standard.md).\n",
+        ):
+            with self.subTest(replacement=replacement):
+                path.write_text(original.replace(self.LINK, replacement), encoding="utf-8")
+                self.assertTrue(any(path.name in error for error in self.audit().errors))
+        path.write_text(
+            original.replace("writing-standard.md)", "writing-standard.md#rules)"),
+            encoding="utf-8",
+        )
+        self.assertEqual(self.audit().errors, [])
+
+
 class TestPlaceholdersBinaryFile(TempRootBase):
     def test_binary_asset_is_skipped_not_a_crash(self) -> None:
         github = self.root / ".github"

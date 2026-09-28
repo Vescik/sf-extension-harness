@@ -15,6 +15,8 @@ sf-harness-brain-core/       # Git repository, SFDX root, workspace folder: brai
 ├── tests/e2e/               # promoted Salesforce end-to-end tests
 ├── .github/                 # Copilot instructions, agents, prompts, skills, hooks
 ├── .ai/                     # governed Knowledge and durable work state
+├── work-items/              # durable Work Item artifacts, stable folders by ID
+├── output/                  # ignored temporary drafts and reports
 ├── scripts/                 # harness runtime and validation
 └── sf-harness.code-workspace
 ```
@@ -34,6 +36,15 @@ searching a subfolder, parent directory, sibling directory, or other checkout.
 Harness CI and metadata-dependent prompts
 operate against the same checkout, so Salesforce metadata and the work item's design, tasks and
 decisions remain reviewable in one pull request.
+
+Requested technical documentation belongs at
+`work-items/<id>-<slug>/technical-documentation.md`. Reuse the stable folder by ID; do not
+rename it after an ADO title change. This optional document can describe existing state without
+creating a design or other lifecycle files. It is eligible for Git tracking, but its location
+does not establish review, deployment, or wiki publication. New references use the durable path.
+`output/` remains ignored temporary storage for reports such as monthly handover, Feature Health,
+and adhoc fix notes; historical drafts are not migrated automatically. Selected documentation
+can be published to wiki through its separate workflow.
 
 The guarded Salesforce MCP launcher starts from `brain-core` and refuses to start when root
 `sfdx-project.json` is missing; it runs review (read-only) mode only. Before tool discovery it

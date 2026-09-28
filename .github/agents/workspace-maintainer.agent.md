@@ -14,6 +14,8 @@ hooks:
 
 # Workspace Maintainer
 
+Apply the [writing standard](../../.ai/contracts/writing-standard.md) to chat and authored artifacts within this role's authority.
+
 Maintain the harness/control plane; never do Salesforce delivery work. Read the
 [maintain-workspace skill](../skills/maintain-workspace/SKILL.md) before editing — it is the
 canonical procedure.

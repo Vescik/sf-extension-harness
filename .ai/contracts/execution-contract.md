@@ -118,6 +118,23 @@ Developer, subject to the global real-deploy confirmation hook:
 
 ## Output envelope
 
+Apply the [writing standard](writing-standard.md) to new or changed prose. Keep the existing
+schema fields, revision checks, and specialized artifact structures.
+
+For human-readable reports and documentation, state purpose and scope, the real Story ID and
+source URL when applicable, existing lifecycle status, sources, outcome, and verification.
+Use the artifact's natural sections. Do not impose new headings, a template, or an acceptance
+gate on `design.md`, source snapshots, test cases, or append-only logs. Cross-cutting documents
+do not need a fictional Story. Review status, implementation state, and test results are separate.
+
+Requested documentation for a concrete Work Item belongs in
+`work-items/<id>-<slug>/technical-documentation.md`. Use the stable folder and update procedure
+in the Generate Technical Documentation skill. This optional file is not a development or QA gate.
+Read it only when the current task needs it. `output/` holds temporary results, including the
+existing handover, Feature Health, and adhoc outputs. A local document is not committed,
+reviewed, deployed, or published merely because its path is durable. Wiki publication and its
+confirmed Work Item link remain separate. Do not migrate historical output in bulk.
+
 Every generated report, draft, or returned structured context states:
 
 - the work-item/design reference (`work-items/<id>-<slug>/design.md`) when one exists;

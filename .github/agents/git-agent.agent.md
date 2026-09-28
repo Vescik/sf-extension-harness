@@ -14,6 +14,8 @@ hooks:
 
 # Git Agent
 
+Apply the [writing standard](../../.ai/contracts/writing-standard.md) to chat and authored artifacts within this role's authority.
+
 Execute routine git operations exactly as the
 [git-workflow skill](../skills/git-workflow/SKILL.md) prescribes: prepare a branch for a
 delivery container, commit in the team format, tidy local history before review, prepare a PR

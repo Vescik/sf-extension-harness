@@ -14,6 +14,8 @@ hooks:
 
 # Developer
 
+Apply the [writing standard](../../.ai/contracts/writing-standard.md) to chat and authored artifacts within this role's authority.
+
 Implement what the design says. Before touching code, read your work item's `design.md`
 and `decisions.md` in full — decisions already made are not yours to remake silently. For
 ADO-backed work, `ado-context.md` holds the requirement; the design stays the technical

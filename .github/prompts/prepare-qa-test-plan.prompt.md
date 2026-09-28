@@ -1,7 +1,7 @@
 ---
 name: prepare-qa-test-plan
 description: Author or refresh the human-executable QA handoff for one work item â€” work-items/<id>-<slug>/qa-test-plan.md, written interactively by the Test Strategist.
-argument-hint: "itemId=<ID> [optional focus or output language]"
+argument-hint: "itemId=<ID> [optional focus]"
 agent: test-strategist
 ---
 
@@ -9,7 +9,7 @@ Use the [prepare-qa-test-plan skill](../skills/prepare-qa-test-plan/SKILL.md) â€
 complete authoring procedure. This prompt only routes and bounds the invocation.
 
 Parse the invocation text: `itemId` is required and must be a positive integer. Free text after
-it may state a bounded focus or the output language; reject any other `name=value` option.
+it may state a bounded focus; reject any other `name=value` option.
 If `itemId` is missing, ask once with `#tool:vscode/askQuestions`; never guess an ID.
 
 Resolve exactly one `work-items/<id>-*/` folder. Zero matches: stop and return the recovery
