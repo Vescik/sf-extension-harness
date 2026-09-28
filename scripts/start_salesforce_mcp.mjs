@@ -45,10 +45,10 @@ const { mode, org } = parseArgs(process.argv.slice(2));
 if (mode !== "review") {
   fail(`unsupported mode '${mode ?? ""}'; this MCP launcher supports review mode only`);
 }
-// First never-production wall, pre-contact; the Python server re-checks it and adds
-// the live host/org-id/IsSandbox proof before serving any tool call.
-if (!org || /(^|[^a-z])(prod|production)([^a-z]|$)/i.test(org)) {
-  fail("the org alias is missing or production-like");
+// The bounded read-only server proves the live host, Org ID and IsSandbox before tools.
+// Alias naming does not classify the environment or grant permissions.
+if (!org) {
+  fail("the org alias is missing");
 }
 
 let config;
@@ -64,13 +64,12 @@ try {
   fail(`cannot read valid ${CONFIG_PATH}: ${error.message}`);
 }
 
-const entry = config?.salesforce?.orgs?.find((candidate) => candidate?.alias === org);
-const environment = entry ? String(entry.environment).trim().toLowerCase() : null;
-if (environment === "production") {
-  fail(`alias '${org}' is marked production in local configuration`);
-}
-if (entry && !new Set(["development", "qa", "uat"]).has(environment)) {
-  fail(`alias '${org}' has an unsupported environment classification`);
+const matches = config?.salesforce?.orgs?.filter((candidate) => candidate?.alias === org) ?? [];
+if (matches.length > 1) fail("duplicate configured alias");
+const entry = matches[0];
+const environment = entry ? String(entry.environment) : null;
+if (entry && !new Set(["dev", "uat", "stage", "prod", "development", "production"]).has(environment)) {
+  fail(`alias '${org}' requires an explicit dev/uat/stage/prod environment (legacy qa has no automatic mapping)`);
 }
 if (config?.salesforce?.review?.enabled !== true) {
   fail("Salesforce org review is disabled in local configuration");

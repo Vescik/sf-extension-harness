@@ -44,6 +44,13 @@ def run_scenario(scenario: dict[str, Any], temporary: Path) -> tuple[bool, str]:
         ]
     else:
         return False, f"unknown guard {guard!r}"
+    # Deterministic synthetic local config/identity; never inspect developer credentials.
+    bootstrap = (
+        "import runpy,sys; from tests.salesforce_policy_fixture import configured_policy; "
+        "sys.argv=sys.argv[1:]; "
+        "ctx=configured_policy(); ctx.__enter__(); runpy.run_path(sys.argv[0],run_name='__main__')"
+    )
+    command = [command[0], "-c", bootstrap, *command[1:]]
     completed = subprocess.run(
         command,
         input=json.dumps(event),

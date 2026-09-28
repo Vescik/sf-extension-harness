@@ -2,7 +2,9 @@
 
 This is the practical runbook for running the brain-core harness on **Windows** in VS Code + GitHub
 Copilot. The configured MCP surface is read-only on every platform. The Developer uses direct
-`sf`/`sfdx` for Salesforce deployments and org mutations. Every real deploy stops for a fresh
+`sf`/`sfdx` for reviewed Salesforce deployments and org mutations on `dev`/`uat`/`stage`.
+Production CLI permits only verified metadata retrieve; other production reads use the existing
+MCP within role limits. Test Strategist cannot target production, including MCP. Every real deploy stops for a fresh
 chat confirmation that names the target and scope and warns that changes will be deployed to the
 org; dry runs, retrieve, status/report/resume/cancel, and data mutations do not use that gate.
 
@@ -40,7 +42,7 @@ have reviewed it.
 ## Step 3 — Install dependencies (guided)
 
 From the repo root, run the onboarding script (it checks prerequisites, installs the pinned
-dependencies, creates `config\harness.local.json`, collects ADO settings, and walks sandbox
+dependencies, creates `config\harness.local.json`, collects ADO settings, and walks selected-org
 authorization). It is plain Python — no PowerShell execution policy is involved, so it also works
 in organizations where `.ps1` scripts are blocked:
 
@@ -116,14 +118,13 @@ schema now rejects (`first_launch.py` reports schema errors until they are delet
 `safety.batchDevToolApproval`, `cache.adoItemMaxAgeMinutes`, `cache.testCaseMaxAgeMinutes`,
 `workspace.promotedTestsPath`, and the `browser` section — see the migration note in SETUP.md §3.
 
-## Step 6 — Authorize a sandbox (review-only)
+## Step 6 — Authorize the intended org (review-only)
 
-Salesforce MCP is **review (read-only)** only. Authorize any non-production org — a sandbox
-(`*--*.sandbox.my.salesforce.com`), a scratch org, or a Developer Edition
-(`*.develop.my.salesforce.com`); no toggle is needed (owner decision 2026-08-04). A Developer
-Edition reports `IsSandbox=false` by design and is still proven live — the host signature and
-that value must agree, on every tool call in the review facade. Production stays refused
-everywhere, and `salesforce.review.deniedOrganizationIds` can hard-block specific org IDs.
+Salesforce MCP is **review (read-only)** only. Choose the exact target within role limits and
+prove its live identity; production reads are permitted through existing tools, while Test
+Strategist cannot target production. `salesforce.review.deniedOrganizationIds` remains binding.
+The example below is a sandbox login; use the intended org's login URL for another org type.
+`IsSandbox=false` alone grants no CLI permission.
 
 ```powershell
 # alias MUST match the alias in harness.local.json
@@ -132,16 +133,16 @@ sf org display --target-org mpsa_dev_sbx --json
 #   copy instanceUrl host -> expectedInstanceHost, id -> expectedOrganizationId in the config
 ```
 
-> **There is no development/write MCP server** (removed 2026-07-14 — it produced the expected but
-> confusing `exit code 2` startup error on Windows). Agents never mutate the org: reads go through
-> the `salesforce` facade tools; metadata comes into the project only
-> via human-approved `sf project retrieve start`; deploys are a human-run release step.
+> **There is no development/write MCP server.** The Developer may use reviewed CLI operations on
+> `dev`/`uat`/`stage`, with exact confirmation before each real deploy. Production permits only
+> verified CLI metadata retrieve and existing MCP reads within role limits. Confirmation cannot
+> authorize a forbidden production operation. See [the channel contract](production-read-only.md).
 
 ## Step 7 — Start the MCP servers
 
 When VS Code prompts *"The MCP servers … may have new tools … Start them now?"*, start
 **`salesforce`** and **`ado-readonly`** (the only configured servers). When prompted for
-the `sf_review_org` input, enter your authorized sandbox alias (e.g. `mpsa_dev_sbx`).
+the `sf_review_org` input, enter your explicitly selected alias (e.g. `mpsa_dev_sbx`).
 
 ## Step 8 — Pre-approve tools (fewer clicks)
 
@@ -157,7 +158,7 @@ the `sf_review_org` input, enter your authorized sandbox alias (e.g. `mpsa_dev_s
 .\.venv\Scripts\python.exe scripts\validate_harness.py          # structure OK
 ```
 
-There is no separate readiness command: Salesforce MCP proves the selected org's non-production
+There is no separate readiness command: Salesforce MCP proves the selected org's live
 identity before tool discovery; ADO scope is checked on every tool call. Optional single-org
 diagnostic: `.\.venv\Scripts\python.exe scripts\verify_salesforce_org.py --org <alias>`.
 
@@ -183,7 +184,7 @@ Get-Content .cache\denials.log -Tail 20
 | `Organization name is required. Provide it as a parameter…` | ADO MCP URL is org-less because the env var is unset | Step 4 |
 | ADO tool call denied: "ADO runtime organization does not match local policy" | env var missing or mismatched | Step 4 (exact match, no trailing spaces) |
 | `Salesforce MCP startup blocked: development mode is disabled on Windows` / `exit code 2` | Stale MCP config — the `salesforce-development` server was removed 2026-07-14 | Pull the latest `main` and reload VS Code; only `salesforce` and `ado-readonly` should be listed |
-| A review tool answers `BLOCKED` with `IDENTITY_HOST_MISMATCH` / `IDENTITY_ORG_ID_MISMATCH` / `NOT_SANDBOX` / `ORG_ID_DENIED` | the org is production, the host signature and live `IsSandbox` disagree, the pins point at a different org, or the org ID is on `deniedOrganizationIds`. A Developer Edition reporting `IsSandbox=false` is expected | Step 5/6: authorize a non-production org; fix or remove the pins; check the denylist. Sanity-check with `python scripts/verify_salesforce_org.py --org <alias>` |
+| A review tool answers `BLOCKED` with `IDENTITY_HOST_MISMATCH` / `IDENTITY_ORG_ID_MISMATCH` / `NOT_SANDBOX` / `ORG_ID_DENIED` | the host signature and live identity disagree, the pins point at a different org, or the org ID is on `deniedOrganizationIds`. `IsSandbox=false` alone is not a failure | Step 5/6: verify the intended identity and correct stale pins; check the denylist and role limits. Sanity-check with `python scripts/verify_salesforce_org.py --org <alias>` |
 | `webidl.util.markAsUncloneable is not a function` | Node < 22 | Install Node 22+ (Step 1) |
 | ADO call still runs without being scoped / lists all orgs | Known hook-matching gap (see below) | Track the hardening fix; interim, do not rely on the hook to block bare-named MCP tools |
 

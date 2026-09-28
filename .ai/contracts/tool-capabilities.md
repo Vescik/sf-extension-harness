@@ -11,10 +11,10 @@ upgrade.
 | Reconciled allowlisted object contract | `salesforce/review_object_contract` | investigator, design, review, QA |
 | Scoped enumeration of configured org aliases (requires `safety.allowScopedEnumeration`) | `salesforce/review_configured_orgs` | investigator |
 | Composed read-only SOQL incl. record reads (verbatim, facade REST transport, unredacted single-source rows) | `salesforce/review_soql_query` | investigator, design, review, development, knowledge curation |
-| Salesforce metadata retrieve and dry-run validation | direct `sf`/`sfdx` terminal command | Developer |
-| Real metadata deployment, including quick, destructive, and production deployment | direct `sf`/`sfdx`; global hook asks before every exact invocation with target, scope, and real-org-change warning | Developer |
-| Record create/update/upsert/delete and bulk data operations | direct `sf data`/legacy `sfdx` terminal command | Developer |
-| Apex execution/testing, package operations, and org lifecycle | direct `sf`/`sfdx` terminal command | Developer |
+| Salesforce metadata retrieve; dry-run validation only on `dev`/`uat`/`stage` | direct `sf`/`sfdx` terminal command | Developer |
+| Real metadata deployment, including quick and destructive, only on `dev`/`uat`/`stage` | direct `sf`/`sfdx`; global hook asks before every exact invocation with target, scope, and real-org-change warning | Developer |
+| Record create/update/upsert/delete and bulk data operations on `dev`/`uat`/`stage` | direct `sf data`/legacy `sfdx` terminal command | Developer |
+| Apex execution/testing, package operations, and org lifecycle on `dev`/`uat`/`stage` | direct `sf`/`sfdx` terminal command | Developer |
 | Optional legacy check-only validation helper | `python scripts/validate_salesforce_deploy.py start\|status` | Developer |
 | Interactive human confirmation | `vscode/askQuestions` | prompts and approval gates |
 | Subagent delegation | `agent` plus explicit `agents` allowlist | Designer, Developer |
@@ -47,8 +47,8 @@ desirable).
 
 ## Salesforce tools used
 
-The model-facing read server is a narrow local facade bound to one configured, exact non-production
-alias. It exposes only the review tools above (configured-orgs enumeration is additionally gated
+The model-facing read server is a narrow local facade bound to one explicitly selected, exact
+alias within the active role's limits. It exposes only the review tools above (configured-orgs enumeration is additionally gated
 by `safety.allowScopedEnumeration` and reflects local configuration only — never unconfigured
 orgs, ids, or hosts). Internally it executes fixed, checked-in query
 profiles — plus validated composed read-only statements for `review_soql_query` — through the
@@ -88,16 +88,17 @@ and recommended whenever a task depends on record data structure — through the
 and config-investigator roles. The 2026-08-04 decision removed the statement
 blockade entirely: no grammar validation, no secret-adjacent object deny-set, no LIMIT
 policing, no value redaction. The statement executes verbatim over the facade's REST transport
-child — never the CLI — against the identity-proven non-production org, and rows return
+child — never the CLI — against the identity-proven org within role limits, and rows return
 unredacted (`attributes` noise stripped), bounded only by payload size and timeout. An
 absent `review.allowedObjectApiNames` key means all objects (equivalent to `["*"]`) — an explicit
 list remains supported and honored for orgs holding sensitive data. The facade remains the
 preferred evidence path; the Developer may also use direct CLI when task execution requires it.
 
-The read facade retains its configured identity and non-production evidence contract. That
-constraint applies to the facade only; it is not a global denial for Developer CLI commands.
-Direct CLI may target development, QA, UAT, production, scratch orgs, or Developer Edition, using
-explicit flags or the normal project/default target context.
+The read facade retains its live identity, denylist, allowlist and data limits. It may read
+production within existing role permissions. Test Strategist remains prohibited from every
+production target, including MCP; the owner accepts this instruction-level restriction.
+Direct CLI access follows the shared production policy before any deployment confirmation.
+Aliases and technical org types do not grant permissions.
 
 Record-level reads run through `review_soql_query` alone: the guarded
 `scripts/salesforce_read.py` CLI wrapper (structured record reads, cached metadata retrieve,
@@ -109,12 +110,16 @@ opts into every object. On a full-copy sandbox that means record reads can reach
 production data across all objects — prefer an explicit list when the org holds sensitive
 data.
 
-The first cutover uses one canonical write path: direct Salesforce CLI in the Developer role.
-The launcher continues to spawn only the read facade; no write MCP or separate Deployment Agent
-is required. The global safety hook allows direct `sf`/`sfdx`, including record mutations,
-production targets, destructive deploys, package work, and org lifecycle. It returns `ask` only
-for commands or future MCP tools that start a real deployment, with the required warning:
-`This will be a real deployment of changes to Salesforce org <target>. Scope: <scope>. Should I
-run this deployment?` The host confirmation binds to that exact tool invocation, so every new
-deploy, quick deploy, or redeploy asks again. Dry runs, retrieve, deploy status/report/resume/
-cancel, and record mutations do not use this deployment-specific confirmation gate.
+The canonical write path remains direct Salesforce CLI in the Developer role on `dev`/`uat`/`stage`.
+The launcher spawns only the read facade; no write MCP or separate Deployment Agent is introduced.
+Every exact real deployment needs fresh target/scope confirmation. Production CLI permits only
+verified metadata retrieve; all other production CLI reads and writes are denied, including dry-run
+validation and deploy job commands. Internal fixed MCP identity calls grant no direct CLI access.
+
+Configuration uses `dev`, `uat`, `stage`, `prod`; `development` and `production` normalize to their
+canonical values, while legacy `qa` requires explicit assignment. Any valid alias is supported and
+multiple aliases may share an environment. Missing targets, conflicting identity, errors and timeouts
+never authorize execution. Unknown CLI targets remain denied; the trusted one-operation question
+and remaining nonprod/latest compatibility are deferred to plan 01a. No persistent consent store
+or agent-written classification flag is introduced. See `docs/production-read-only.md` for allowed
+retrieve forms, migration and owner-side destination acceptance.

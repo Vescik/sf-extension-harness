@@ -37,7 +37,7 @@ distributions) to the governed record reads instead of rejecting them (owner dec
    checked and how — enumeration scope, method, pagination bounds, and limitations — and
    state absence as an observation within those bounds, never as proof. Whether that
    coverage suffices is the reviewer's judgment, not a precondition for reporting.
-4. Call `review_org_identity` first. Stop unless it is `VERIFIED` for the exact configured org with `nonProduction: true` (a Developer Edition legitimately reports `isSandbox: false`).
+4. Call `review_org_identity` first. Stop unless it is `VERIFIED` for the exact selected org within the active role's limits. Production MCP reads are allowed where the role permits them; `nonProduction: true` is not a general read prerequisite.
 5. Call only the necessary guarded review tool:
    - `review_installed_packages` for package identity/version;
    - `review_object_contract` for an allowlisted object's accessible existence/field contract.
@@ -56,6 +56,9 @@ distributions) to the governed record reads instead of rejecting them (owner dec
    forgetting it should not be.
 
 ## Entry-lane org sampling (governed persistence)
+
+This existing persistence lane keeps its non-production containment contract. A permitted live
+production MCP read does not widen `entry-org-attach` or the Knowledge approval model.
 
 When the selected Salesforce review MCP session has started and proven its non-production
 identity (successful review tool evidence from this session), org sampling is the

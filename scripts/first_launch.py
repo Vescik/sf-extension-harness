@@ -43,6 +43,11 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+try:
+    from scripts import salesforce_operation_policy as sf_policy
+except ModuleNotFoundError:
+    import salesforce_operation_policy as sf_policy
+
 from urllib.parse import urlsplit
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -56,6 +61,7 @@ SCRATCH_HOST_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]*\.scratch\.my\.salesforce
 # Developer Editions (owner decision 2026-07-31), so the one org shape a tester is most likely
 # to have could not be onboarded at all and had to be hand-written into the config.
 DEV_EDITION_HOST_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]*\.develop\.my\.salesforce\.com$")
+PRODUCTION_HOST_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]*(?:\.my)?\.salesforce\.com$")
 MIN_PYTHON = (3, 11)
 IS_WINDOWS = os.name == "nt"
 
@@ -229,27 +235,42 @@ def classify_non_production_host(host: str) -> tuple[bool, bool] | None:
     return None
 
 
-def authorize_sandboxes(sf_path: str, pending: dict[str, object]) -> None:
-    step("Non-production org authorization for the read-only review MCP")
+def classify_salesforce_host(host: str) -> tuple[str, bool] | None:
+    """Return the technical org type and expected IsSandbox for a Salesforce host."""
+    if host in {"login.salesforce.com", "test.salesforce.com", "auth.salesforce.com"}:
+        return None
+    if SANDBOX_HOST_PATTERN.fullmatch(host):
+        return "sandbox", True
+    if SCRATCH_HOST_PATTERN.fullmatch(host):
+        return "scratch", True
+    if DEV_EDITION_HOST_PATTERN.fullmatch(host):
+        return "developer-edition", False
+    if PRODUCTION_HOST_PATTERN.fullmatch(host):
+        return "production", False
+    return None
+
+
+def authorize_salesforce_orgs(sf_path: str, pending: dict[str, object]) -> None:
+    step("Salesforce org authorization for the read-only review MCP")
     warn(
-        "Accepted: sandbox (*--*.sandbox.my.salesforce.com), scratch org, or Developer "
-        "Edition (*.develop.my.salesforce.com). Production is refused. Organization.IsSandbox "
-        "must match the host: true for sandbox/scratch, false for Developer Edition."
+        "Production, Sandbox, Scratch Org, and Developer Edition use the same read workflow. "
+        "Organization.IsSandbox must match the resolved instance host."
     )
-    for env_name in ("development", "qa", "uat"):
-        answer = prompt(f"Authorize the '{env_name}' sandbox now? [y/N]").lower()
-        if answer not in {"y", "yes"}:
-            warn(f"skipped '{env_name}' (placeholders remain; workflows that need it fail closed)")
+    while True:
+        env_name = prompt("Org environment [dev/uat/stage/prod; Enter to finish]").lower()
+        if not env_name:
+            break
+        if env_name not in sf_policy.ENVIRONMENTS:
+            warn("Choose dev, uat, stage or prod explicitly. qa has no automatic mapping.")
             continue
-
         alias = prompt(f"Alias to use for '{env_name}'")
-        if not alias:
-            warn("no alias entered; skipping")
+        if not sf_policy.ALIAS.fullmatch(alias):
+            warn("invalid alias; use 1-80 alphanumeric, dot, underscore or hyphen characters")
             continue
 
-        login_url = prompt("Sandbox login URL [https://test.salesforce.com]")
+        login_url = prompt("Salesforce login URL [https://login.salesforce.com]")
         if not login_url:
-            login_url = "https://test.salesforce.com"
+            login_url = "https://login.salesforce.com"
 
         print(f"    Launching browser login for alias '{alias}' ...")
         login = run([sf_path, "org", "login", "web", "--instance-url", login_url, "--alias", alias])
@@ -266,15 +287,13 @@ def authorize_sandboxes(sf_path: str, pending: dict[str, object]) -> None:
         org_id = result.get("id") or result.get("orgId") or ""
         host = urlsplit(instance_url).hostname or ""
 
-        classified = classify_non_production_host(host)
+        classified = classify_salesforce_host(host)
         if classified is None:
             warn(
-                f"REFUSED: '{host}' is not a recognized non-production host (needs "
-                "*--*.sandbox.my.salesforce.com, *.scratch.my.salesforce.com, or "
-                "*.develop.my.salesforce.com). Not recorded."
+                f"REFUSED: '{host}' is not a recognized Salesforce instance host. Not recorded."
             )
             continue
-        _, expected_is_sandbox = classified
+        environment_type, expected_is_sandbox = classified
 
         query = sf_json(
             sf_path,
@@ -295,21 +314,43 @@ def authorize_sandboxes(sf_path: str, pending: dict[str, object]) -> None:
             )
             continue
 
-        pending[f"org.{env_name}"] = {"alias": alias, "host": host, "orgId": org_id}
-        ok(f"recorded '{env_name}': {alias} -> {host} ({org_id})")
+        pending[f"org.{alias}"] = {"environment": env_name, "alias": alias, "host": host,
+                                  "orgId": org_id, "environmentType": environment_type}
+        ok(f"recorded '{env_name}': {alias} -> {host} ({org_id}); environment type: {environment_type}")
 
 
 def collect_review_allowlist(pending: dict[str, object]) -> None:
-    step("Review allowlist (objects the agent may read through the review facade)")
-    objects = prompt("Comma-separated object API names (Enter to keep current)")
-    if objects:
-        pending["review.objects"] = [part.strip() for part in objects.split(",") if part.strip()]
+    step("Read-only Salesforce review MCP")
+    answer = prompt("Enable bounded Salesforce reads after setting an object allowlist? [y/N]").lower()
+    if answer not in {"y", "yes"}:
+        warn("Salesforce review enablement is unchanged; review.enabled must be true to start MCP.")
+        return
+    objects = [part.strip() for part in prompt(
+        "Comma-separated object API names (required; use * only after reviewing that scope)"
+    ).split(",") if part.strip()]
+    if not objects:
+        warn("No object allowlist entered; Salesforce review was not enabled.")
+        return
+    pending["review.enabled"] = True
+    pending["review.objects"] = objects
 
 
 def apply_config(pending: dict[str, object]) -> None:
     step("Writing configuration")
     with CONFIG_PATH.open(encoding="utf-8") as fh:
         cfg = json.load(fh)
+
+    # Remove only exact, untouched org rows from the shipped template when the
+    # user actually supplies orgs. Never match/delete by environment, and preserve
+    # partially edited rows so their unresolved identity is reported for repair.
+    if any(key.startswith("org.") for key in pending):
+        example = json.loads(EXAMPLE_PATH.read_text(encoding="utf-8"))
+        templates = [org for org in example.get("salesforce", {}).get("orgs", [])
+                     if all(PLACEHOLDER.fullmatch(str(org.get(key, ""))) for key in
+                            ("alias", "expectedOrganizationId"))
+                     and PLACEHOLDER.search(str(org.get("expectedInstanceHost", "")))]
+        cfg["salesforce"]["orgs"] = [org for org in cfg["salesforce"]["orgs"]
+                                      if not any(org == template for template in templates)]
 
     ado_org = pending.get("ado.organization")
     if ado_org:
@@ -320,16 +361,32 @@ def apply_config(pending: dict[str, object]) -> None:
     if pending.get("ado.releaseQueryId"):
         cfg["ado"]["releaseQueryId"] = pending["ado.releaseQueryId"]
 
-    for env_name in ("development", "qa", "uat"):
-        entry = pending.get(f"org.{env_name}")
-        if not entry:
+    for key, entry in pending.items():
+        if not key.startswith("org."):
             continue
-        for org in cfg["salesforce"]["orgs"]:
-            if org.get("environment") == env_name:
-                org["alias"] = entry["alias"]
-                org["expectedInstanceHost"] = entry["host"]
-                org["expectedOrganizationId"] = entry["orgId"]
+        env_name = sf_policy.normalize_environment(entry.get("environment", key[4:]))
+        orgs = cfg["salesforce"]["orgs"]
+        matching = [org for org in orgs if org.get("alias") == entry["alias"]]
+        if len(matching) > 1:
+            raise ValueError("Duplicate org alias; resolve configuration before onboarding")
+        related = [org for org in orgs if org in matching or
+                   str(org.get("expectedOrganizationId", ""))[:15] == entry["orgId"][:15]]
+        for org in related:
+            if org.get("environment") in ("prod", "production") and env_name != "prod":
+                raise ValueError("Known production identity cannot be reclassified by onboarding")
+            if org not in matching and sf_policy.normalize_environment(org.get("environment")) != env_name:
+                raise ValueError("The same Org ID cannot have conflicting environment classifications")
+            if org in matching and org.get("expectedOrganizationId") and org["expectedOrganizationId"][:15] != entry["orgId"][:15]:
+                raise ValueError("Alias identity changed; resolve the conflict explicitly")
+        updated = {"alias": entry["alias"], "environment": env_name,
+                   "expectedInstanceHost": entry["host"], "expectedOrganizationId": entry["orgId"]}
+        if matching:
+            matching[0].update(updated)
+        else:
+            orgs.append(updated)
 
+    if pending.get("review.enabled") is True:
+        cfg["salesforce"]["review"]["enabled"] = True
     if pending.get("review.objects"):
         cfg["salesforce"]["review"]["allowedObjectApiNames"] = pending["review.objects"]
 
@@ -389,6 +446,18 @@ def local_config_findings(config_text: str, schema_text: "str | None") -> list[s
                 "config schema check skipped: jsonschema is not importable by this "
                 "interpreter (install dependencies, then re-run)"
             )
+    salesforce = config.get("salesforce") if isinstance(config, dict) else None
+    if isinstance(salesforce, dict):
+        for index, entry in enumerate(salesforce.get("orgs", [])):
+            if not isinstance(entry, dict):
+                continue
+            value = entry.get("environment")
+            if value in ("development", "production", "qa"):
+                target = sf_policy.LEGACY_ENVIRONMENTS.get(value, "an explicitly selected dev/uat/stage/prod")
+                findings.append(f"salesforce.orgs[{index}].environment ({entry.get('alias')}): migrate {value} to {target}")
+        review = salesforce.get("review")
+        if isinstance(review, dict) and review.get("enabled") is not True:
+            findings.append("salesforce.review.enabled must be true before starting the read-only Salesforce MCP")
     return findings
 
 
@@ -433,12 +502,12 @@ def main() -> None:
     pending: dict[str, object] = {}
     if args.non_interactive:
         warn(
-            "Non-interactive: leaving ADO and sandbox values as-is. "
+            "Non-interactive: leaving ADO and Salesforce org values as-is. "
             "Fill them later and re-run without --non-interactive."
         )
     else:
         collect_ado(pending)
-        authorize_sandboxes(resolved["sf"], pending)
+        authorize_salesforce_orgs(resolved["sf"], pending)
         collect_review_allowlist(pending)
 
     if pending:
@@ -462,7 +531,7 @@ def main() -> None:
         ok("config/harness.local.json parses, matches the schema, and has no placeholders")
     print(
         "\n    Salesforce and ADO are validated when their tools run: the Salesforce "
-        "review MCP proves\n    the selected org's non-production identity at startup, "
+        "review MCP proves\n    the selected org's identity at startup, "
         "and ADO scope is checked on every\n    tool call. Optional org diagnostic: "
         "python scripts/verify_salesforce_org.py --org <alias>."
     )
@@ -473,8 +542,9 @@ def main() -> None:
         "authorized alias."
     )
     print(
-        "  - The Salesforce MCP is review-only; Developer org changes use direct sf/sfdx, "
-        "with fresh chat confirmation before every real deploy."
+        "  - The Salesforce MCP is review-only; Developer org changes use direct sf/sfdx "
+        "on dev/uat/stage, with fresh chat confirmation before every real deploy. "
+        "Production CLI permits only verified metadata retrieve."
     )
     print("  - config/harness.local.json is gitignored and never leaves this machine.")
 

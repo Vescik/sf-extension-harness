@@ -24,6 +24,20 @@ SPEC.loader.exec_module(first_launch)
 
 
 class HostClassificationTests(unittest.TestCase):
+    def test_generic_host_classifier_accepts_production_and_preserves_nonprod_types(self) -> None:
+        for host, result in (
+            ("acme.my.salesforce.com", ("production", False)),
+            ("na123.salesforce.com", ("production", False)),
+            ("acme--dev.sandbox.my.salesforce.com", ("sandbox", True)),
+            ("mpsadev.scratch.my.salesforce.com", ("scratch", True)),
+            ("orgfarm-x-dev-ed.develop.my.salesforce.com", ("developer-edition", False)),
+            ("login.salesforce.com", None),
+            ("test.salesforce.com", None),
+            ("acme.my.salesforce.com.evil.test", None),
+        ):
+            with self.subTest(host=host):
+                self.assertEqual(first_launch.classify_salesforce_host(host), result)
+
     def test_sandbox_and_scratch_expect_is_sandbox_true(self) -> None:
         for host in (
             "acme--dev.sandbox.my.salesforce.com",
@@ -51,12 +65,31 @@ class HostClassificationTests(unittest.TestCase):
 
 
 class ConfigWritingTests(unittest.TestCase):
+    def test_review_collection_requires_explicit_yes_and_nonempty_scope(self) -> None:
+        for answers, expected in (
+            (["no"], {}), (["yes", ""], {}),
+            (["yes", "Account"], {"review.enabled": True, "review.objects": ["Account"]}),
+        ):
+            pending = {}
+            with patch.object(first_launch, "prompt", side_effect=answers):
+                first_launch.collect_review_allowlist(pending)
+            self.assertEqual(pending, expected)
+
+    def test_legacy_production_context_writes_canonical_environment(self) -> None:
+        with tempfile.TemporaryDirectory() as name:
+            path = Path(name) / "harness.local.json"
+            path.write_text(json.dumps({"ado": {}, "salesforce": {"orgs": [], "review": {}}}))
+            with patch.object(first_launch, "CONFIG_PATH", path):
+                first_launch.apply_config({"org.production": {"alias": "prod-read",
+                    "host": "acme.my.salesforce.com", "orgId": "00D000000000002AAA"}})
+            self.assertEqual(json.loads(path.read_text())["salesforce"]["orgs"][0]["environment"], "prod")
+
     def test_developer_edition_writes_pins_and_no_flags(self) -> None:
         """Owner 2026-08-04: onboarding writes identity pins only — no allowAgent* flags
         and no allowAnyNonProduction toggle (both retired with the read-anywhere convention)."""
         cfg = {
             "ado": {},
-            "salesforce": {"orgs": [{"environment": "development"}], "review": {}},
+            "salesforce": {"orgs": [], "review": {}},
         }
         pending = {
             "org.development": {
@@ -82,7 +115,7 @@ class ConfigWritingTests(unittest.TestCase):
     def test_sandbox_onboarding_does_not_touch_the_toggle(self) -> None:
         cfg = {
             "ado": {},
-            "salesforce": {"orgs": [{"environment": "development"}], "review": {}},
+            "salesforce": {"orgs": [], "review": {}},
         }
         pending = {
             "org.development": {
@@ -138,3 +171,52 @@ class LocalConfigFindingsTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class MultipleOrgMigrationTests(unittest.TestCase):
+    def apply(self, orgs, pending):
+        with tempfile.TemporaryDirectory() as name:
+            path = Path(name)/'harness.local.json'
+            cfg = {'ado':{}, 'salesforce':{'orgs':orgs,'review':{}}}
+            path.write_text(json.dumps(cfg))
+            before=path.read_text()
+            with patch.object(first_launch,'CONFIG_PATH',path):
+                try:
+                    first_launch.apply_config(pending)
+                except ValueError:
+                    self.assertEqual(path.read_text(),before)
+                    raise
+            return json.loads(path.read_text())['salesforce']['orgs']
+
+    def test_add_and_update_only_one_alias_with_same_environment(self):
+        a={'alias':'team-alpha','environment':'dev','expectedOrganizationId':'00D000000000001AAA','expectedInstanceHost':'a--dev.sandbox.my.salesforce.com'}
+        b={'alias':'prod-copy','environment':'dev','expectedOrganizationId':'00D000000000002AAA','expectedInstanceHost':'b--dev.sandbox.my.salesforce.com'}
+        pending={'org.anything':{'environment':'stage','alias':'prod-copy','orgId':b['expectedOrganizationId'],'host':b['expectedInstanceHost']}}
+        result=self.apply([a,b],pending)
+        self.assertEqual(result[0],a)
+        self.assertEqual(result[1]['environment'],'stage')
+        pending['org.third']={'environment':'dev','alias':'unrelated-name','orgId':'00D000000000003AAA','host':'c--dev.sandbox.my.salesforce.com'}
+        result=self.apply([a,b],pending)
+        self.assertEqual(len(result),3)
+        self.assertEqual(result[0],a)
+
+    def test_production_identity_cannot_be_downgraded_by_new_alias(self):
+        for spelling in ['prod','production']:
+            with self.subTest(spelling=spelling),self.assertRaises(ValueError):
+                self.apply([{'alias':'team-alpha','environment':spelling,'expectedOrganizationId':'00D000000000001AAA'}],
+                           {'org.prod-copy':{'environment':'dev','alias':'prod-copy','orgId':'00D000000000001AAA','host':'sample.my.salesforce.com'}})
+
+    def test_qa_requires_explicit_assignment_and_diagnostics_name_entry(self):
+        with self.assertRaises(ValueError):
+            self.apply([],{'org.qa':{'alias':'qa-team','orgId':'00D000000000001AAA','host':'a--qa.sandbox.my.salesforce.com'}})
+        cfg={'salesforce':{'orgs':[{'alias':'qa-team','environment':'qa'}]}}
+        findings=first_launch.local_config_findings(json.dumps(cfg),None)
+        self.assertTrue(any('salesforce.orgs[0].environment (qa-team)' in s and 'explicitly' in s for s in findings))
+
+    def test_schema_matches_runtime_migration_contract(self):
+        from jsonschema import Draft202012Validator
+        schema=json.loads((ROOT/'schemas/harness-config.schema.json').read_text())['properties']['salesforce']['properties']['orgs']['items']
+        validator=Draft202012Validator(schema)
+        for value in ['dev','uat','stage','prod','development','production']:
+            self.assertEqual(list(validator.iter_errors({'alias':'team-alpha','environment':value})),[])
+        for value in ['qa','dynamic','sandbox']:
+            self.assertTrue(list(validator.iter_errors({'alias':'team-alpha','environment':value})))

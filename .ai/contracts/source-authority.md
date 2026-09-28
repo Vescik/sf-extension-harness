@@ -53,7 +53,7 @@ Every evidence receipt records:
 
 - source type and reproducible locator;
 - an independence key shared by observations that come from the same underlying authority;
-- non-production environment and configured org key when applicable;
+- observed environment and configured org key when applicable; production reads must remain within the active role's MCP permissions;
 - observation and retrieval timestamps;
 - collector/tool name and version;
 - source revision, package version, or repository commit when applicable;

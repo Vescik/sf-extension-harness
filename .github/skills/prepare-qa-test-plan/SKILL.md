@@ -188,3 +188,10 @@ Return: the path; created/updated/unchanged; the verdict; the evidence route use
 completeness; unresolved questions; whether implementation evidence was available; reusable
 Knowledge candidates, if any; and the exact next action. Never claim QA executed or passed
 anything.
+
+## Salesforce role boundary
+
+Test Strategist must not target production, including read-only Salesforce MCP, in either QA
+workflow. Use only an explicitly known `dev`/`uat`/`stage` target. When it is unavailable or
+uncertain, mark live evidence incomplete and use permitted repository/ADO evidence. A request
+or confirmation does not widen this role. Do not infer the MCP target from CLI defaults.

@@ -12,7 +12,8 @@ question — a one-field question does not need the full sweep.
 ## The sequence
 
 1. **`review_org_identity` — once per session.** Confirms which org you are reading and
-   that it is non-production. Everything after is scoped to this identity.
+   its live identity. Everything after is scoped to this identity and the active role.
+   Test Strategist must never select production, including read-only MCP.
 2. **`review_installed_packages` — once per session.** Establishes the installed VendorPkg
    version. Package-specific facts are version-scoped: note the version in whatever you
    write.

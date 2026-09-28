@@ -205,7 +205,8 @@ class FacadeHarness(unittest.TestCase):
             encoding="utf-8",
         )
 
-    def write_config(self, allowed_objects=None, denied=None, allow_enumeration: bool = False, extra_orgs=None) -> None:
+    def write_config(self, allowed_objects=None, denied=None, allow_enumeration: bool = False,
+                     extra_orgs=None, environment="development", expected_host=SANDBOX_HOST) -> None:
         review = {
             "enabled": True,
             "apiVersion": "64.0",
@@ -226,8 +227,8 @@ class FacadeHarness(unittest.TestCase):
                         "orgs": [
                             {
                                 "alias": ALIAS,
-                                "environment": "development",
-                                "expectedInstanceHost": SANDBOX_HOST,
+                                "environment": environment,
+                                "expectedInstanceHost": expected_host,
                                 "expectedOrganizationId": ORG_ID_18,
                             },
                             *(extra_orgs or []),
@@ -557,12 +558,13 @@ class RefreshAndWalls(FacadeHarness):
             self.assertEqual(envelope["status"], "BLOCKED")
             self.assertIn("IDENTITY_ORG_ID_MISMATCH", envelope["warnings"])
 
-    def test_production_shaped_host_refuses_to_start(self) -> None:
+    def test_production_shaped_host_is_allowed_for_read_only_review(self) -> None:
+        MockSalesforce.state["is_sandbox"] = False
         self.write_cli_state(instance_url="https://acme.my.salesforce.com")
+        self.write_config(environment="production", expected_host="acme.my.salesforce.com")
         process = self.spawn()
         stdout, stderr = process.communicate(b"", timeout=60)
-        self.assertEqual(process.returncode, 2)
-        self.assertIn(b"IDENTITY_HOST_MISMATCH", stderr)
+        self.assertEqual(process.returncode, 0, stderr.decode("utf-8", "replace"))
         self.assertEqual(stdout, b"")
 
     def test_denied_org_id_refuses_to_start(self) -> None:
@@ -572,9 +574,7 @@ class RefreshAndWalls(FacadeHarness):
         self.assertEqual(process.returncode, 2)
         self.assertIn(b"ORG_ID_DENIED", stderr)
 
-    def test_production_like_alias_refused_before_any_org_contact(self) -> None:
-        # Second never-production wall (ported from the .mjs): `sf org display` performs
-        # refreshAuth, so a production-named alias must be refused pre-contact.
+    def test_production_like_alias_is_not_a_special_case(self) -> None:
         process = subprocess.Popen(
             [sys.executable, str(SERVER), "--org", "prod-sandbox"],
             stdin=subprocess.PIPE,
@@ -584,13 +584,31 @@ class RefreshAndWalls(FacadeHarness):
             cwd=str(ROOT),
         )
         _, stderr = process.communicate(b"", timeout=60)
-        self.assertEqual(process.returncode, 2)
-        self.assertIn(b"ALIAS_PRODUCTION_LIKE", stderr)
-        self.assertEqual(
+        self.assertEqual(process.returncode, 0, stderr.decode("utf-8", "replace"))
+        self.assertIn(
+            '["org", "display"',
             (self.tmp_path / "cli-calls.log").read_text(encoding="utf-8"),
-            "",
-            "the refusal must happen before any sf CLI invocation",
         )
+
+    def test_read_only_identity_and_query_support_canonical_and_migration_environments(self) -> None:
+        for environment in ("dev", "uat", "stage", "prod", "development", "production"):
+            with self.subTest(environment=environment):
+                production = environment in ("prod", "production")
+                host = "acme.my.salesforce.com" if production else SANDBOX_HOST
+                MockSalesforce.state["is_sandbox"] = not production
+                self.write_cli_state(instance_url=f"https://{host}")
+                self.write_config(environment=environment, expected_host=host)
+                responses, _ = self.roundtrip([
+                    self.initialize_message(), self.call(2, "review_org_identity"),
+                    self.call(3, "review_soql_query", {"query": "SELECT Id FROM Account LIMIT 1"}),
+                ])
+                for message_id in (2, 3):
+                    envelope = self.envelope_of(responses, message_id)
+                    self.assertEqual(envelope["status"], "VERIFIED")
+                    self.assertEqual(envelope["target"]["environment"],
+                                     {"development": "dev", "production": "prod"}.get(environment, environment))
+                    self.assertEqual(envelope["target"]["nonProduction"], not production)
+                    validate_salesforce_review_envelope(ROOT, envelope)
 
     def test_is_sandbox_mismatch_refuses_to_start(self) -> None:
         # A sandbox-shaped host must prove IsSandbox=true live; a false answer means
@@ -778,7 +796,7 @@ class ObjectContractAndDiagnostics(FacadeHarness):
         responses, _ = self.roundtrip([self.initialize_message(), self.call(2, "review_configured_orgs")])
         envelope = self.envelope_of(responses, 2)
         validate_salesforce_review_envelope(ROOT, envelope)
-        self.assertEqual(envelope["facts"]["orgs"], [{"alias": ALIAS, "environment": "development"}])
+        self.assertEqual(envelope["facts"]["orgs"], [{"alias": ALIAS, "environment": "dev"}])
 
 
 class LargeDescribePayloadBounds(FacadeHarness):

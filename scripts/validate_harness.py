@@ -686,10 +686,9 @@ def check_settings_and_mcp(audit: Audit) -> None:
     # a second MCP lane. Plan-2026-08-09 F-3 repointed it at the Python REST facade with an
     # interpreter-resolving probe (local, no org contact). These markers pin that boundary.
     for marker in (
-        "production-like",
-        'environment === "production"',
         "Developer writes deliberately use",
         "salesforce_review_server.py",
+        '["dev", "uat", "stage", "prod", "development", "production"]',
     ):
         audit.require(marker in launcher, f"Salesforce MCP launcher is missing runtime gate: {marker}")
     # The launcher must never contact an org itself: startup identity proof runs in the facade.
@@ -697,12 +696,12 @@ def check_settings_and_mcp(audit: Audit) -> None:
     for forbidden in ('"sf"', "org display", "show-access-token", "@salesforce/mcp"):
         audit.require(forbidden not in launcher, f"the launcher must not contact orgs or vendor MCP: {forbidden}")
     audit.require('"data,metadata,testing,code-analysis"' not in launcher, "broad Salesforce data-write toolset is forbidden")
-    # Live facade (Python, plan-2026-08-09 F-2): pin the walls that make never-production
-    # and read-only true. The .mjs facade and its pins were deleted in F-4.
+    # Live facade: pin the walls that make any selected authenticated org read-only.
+    # Identity, not an alias label, determines the selected Salesforce org.
     py_facade = required_text(ROOT / "scripts/salesforce_review_server.py", audit)
     for marker in (
-        "ALIAS_PRODUCTION_LIKE",
-        "NON_PRODUCTION_HOST",
+        "SALESFORCE_HOST",
+        "self.rest.frozen_org_id = live_org_id[:15]",
         "denied_org_ids",
         "fail_closed",
         "contains_sensitive_material",

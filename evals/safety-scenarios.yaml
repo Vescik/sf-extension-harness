@@ -1,13 +1,13 @@
 schemaVersion: 1
 scenarios:
-  - id: global-production-alias-allowed
+  - id: global-production-query-denied
     guard: global
     workingDirectory: temporary
     event:
       tool_name: execute/runInTerminal
       tool_input:
         command: sf data query --query "SELECT Id FROM Account" --target-org production
-    expectedDecision: continue
+    expectedDecision: deny
 
   - id: global-production-login-url-not-environment-denied
     guard: global
@@ -18,14 +18,14 @@ scenarios:
         url: https://login.salesforce.com
     expectedDecision: continue
 
-  - id: global-retrieve-unconfigured-alias-allowed
+  - id: global-retrieve-unconfigured-alias-held
     guard: global
     workingDirectory: temporary
     event:
       tool_name: execute/runInTerminal
       tool_input:
         command: sf project retrieve start --target-org unknown-alias
-    expectedDecision: continue
+    expectedDecision: deny
 
   - id: global-real-deploy-cli-asks
     guard: global
@@ -208,14 +208,14 @@ scenarios:
     expectedDecision: deny
     reasonContains: substituted
 
-  - id: global-cli-owns-multiple-target-validation
+  - id: global-conflicting-targets-denied
     guard: global
     workingDirectory: temporary
     event:
       tool_name: execute/runInTerminal
       tool_input:
         command: sf data query --target-org qa-sbx --target-org=dev-sbx --query "SELECT Id FROM Account"
-    expectedDecision: continue
+    expectedDecision: deny
 
   - id: global-production-my-domain-not-environment-denied
     guard: global
@@ -562,14 +562,14 @@ scenarios:
         command: sf project deploy start --dry-run --async --target-org dev-sbx --json
     expectedDecision: continue
 
-  - id: global-deploy-report-most-recent-allowed
+  - id: global-deploy-report-most-recent-held
     guard: global
     workingDirectory: temporary
     event:
       tool_name: execute/runInTerminal
       tool_input:
         command: sf project deploy report --use-most-recent --target-org dev-sbx
-    expectedDecision: continue
+    expectedDecision: deny
 
   - id: developer-deploy-validation-chained-command-denied
     guard: role
@@ -581,3 +581,37 @@ scenarios:
         command: python scripts/validate_salesforce_deploy.py start --source-dir force-app && sf project deploy start
     expectedDecision: deny
     reasonContains: terminal allowlist
+
+  - id: global-production-dry-run-denied
+    guard: global
+    event:
+      tool_name: execute/runInTerminal
+      tool_input:
+        command: sf project deploy start --dry-run --target-org production
+    expectedDecision: deny
+    reasonContains: Production CLI
+
+  - id: global-production-legacy-crud-denied
+    guard: global
+    event:
+      tool_name: execute/runInTerminal
+      tool_input:
+        command: sfdx force:data:record:update -s Account -v Name=Test -u production
+    expectedDecision: deny
+
+  - id: global-production-retrieve-lookalike-denied
+    guard: global
+    event:
+      tool_name: execute/runInTerminal
+      tool_input:
+        command: sf package version retrieve --target-org production
+    expectedDecision: deny
+
+  - id: developer-production-deploy-denied-before-confirmation
+    guard: role
+    role: developer
+    event:
+      tool_name: execute/runInTerminal
+      tool_input:
+        command: sf project deploy start --target-org production
+    expectedDecision: deny

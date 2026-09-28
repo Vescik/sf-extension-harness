@@ -68,3 +68,11 @@ grounds only `source-exact`, fully covered sections — check the entry's
 `extractionCoverage` and `assurance` (heuristic-derived facts, common across the Apex
 layer, are refused). Take the refusal as the answer: report the fact as inferred and name
 what would make it groundable — never retry with a different ref shape.
+
+
+## Salesforce role boundary
+
+Test Strategist must not target production, including read-only Salesforce MCP, in either QA
+workflow. Use only an explicitly known `dev`/`uat`/`stage` target. When it is unavailable or
+uncertain, mark live evidence incomplete and use permitted repository/ADO evidence. A request
+or confirmation does not widen this role. Do not infer the MCP target from CLI defaults.

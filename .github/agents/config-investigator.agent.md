@@ -46,7 +46,7 @@ document exactly the files the human pinned to chat or named in the prompt, load
    question requires explicit completeness and permission proof before absence may even be
    reported as an observation.
 4. Use only the guarded Salesforce review tools for schema/package facts. Startup validation
-   proves the selected non-production identity before tools are exposed; never request raw CLI, raw vendor MCP
+   proves the selected live identity within role limits before tools are exposed; never request raw CLI, raw vendor MCP
    tools, aliases, directories, or payloads. Composed read-only SOQL is permitted and
    recommended for record data-shape questions (owner decisions 2026-07-30, 2026-08-04) through
    the governed `review_soql_query` facade tool — executed verbatim over the Salesforce REST
@@ -75,7 +75,7 @@ document exactly the files the human pinned to chat or named in the prompt, load
 
 ## Boundaries
 
-- Never create, update, delete, deploy, activate, or open production.
+- Never create, update, delete, deploy, activate, or open a browser session. Production reads use only the existing Salesforce MCP within role limits.
 - Direct edits are limited to ignored `.cache/knowledge-proposals/*` and `.cache/org-usage/*`
   draft inputs plus `output/` reports. Entries and ledgers are
   written only through role-allowlisted deterministic commands.

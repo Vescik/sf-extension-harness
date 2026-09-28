@@ -11,6 +11,7 @@ from typing import Any
 from unittest.mock import patch
 
 from scripts import copilot_safety_hook as safety
+from tests.salesforce_policy_fixture import configured_policy, ROWS
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -23,8 +24,14 @@ def hook_decision(output: dict[str, Any]) -> str:
 
 
 def run_hook(script: str, event: dict[str, Any], *args: str) -> dict[str, Any]:
+    # Test subprocess uses a fixed synthetic identity provider, never machine credentials.
+    bootstrap = (
+        "import runpy,sys; from tests.salesforce_policy_fixture import configured_policy; "
+        "sys.argv=sys.argv[1:]; "
+        "ctx=configured_policy(); ctx.__enter__(); runpy.run_path(sys.argv[0],run_name='__main__')"
+    )
     completed = subprocess.run(
-        [sys.executable, str(ROOT / "scripts" / script), *args],
+        [sys.executable, "-c", bootstrap, str(ROOT / "scripts" / script), *args],
         input=json.dumps(event),
         text=True,
         capture_output=True,
@@ -49,7 +56,7 @@ def write_local_config(root: Path) -> None:
                 },
                 {
                     "alias": "qa-sbx",
-                    "environment": "qa",
+                    "environment": "uat",
                     "expectedInstanceHost": "example--qa.sandbox.my.salesforce.com",
                     "expectedOrganizationId": "00D000000000002AAA",
                 },
@@ -113,6 +120,12 @@ class GlobalSafetyHookTests(unittest.TestCase):
         stdout = StringIO()
         with (
             patch.object(safety, "HARNESS_ROOT", root),
+            patch.object(safety.sf_policy, "local_authorizations", return_value=ROWS),
+            patch.object(safety.sf_policy.os, "environ", {}),
+            # Windows cannot resolve Path.home() after its environment is cleared.
+            # Keep home/default discovery synthetic on every test platform.
+            patch.object(safety.sf_policy.Path, "home", return_value=root),
+            patch.object(safety.sf_policy, "_defaults", return_value=[]),
             patch("sys.stdin", StringIO(json.dumps(event))),
             patch("sys.stdout", stdout),
         ):
@@ -142,21 +155,11 @@ class GlobalSafetyHookTests(unittest.TestCase):
                 "sf project retrieve start --target-org dev-sbx --target-org qa-sbx",
             ):
                 with self.subTest(command=command):
-                    self.assertEqual(self._hook_decision_in_repo(root, command), "continue")
+                    self.assertEqual(self._hook_decision_in_repo(root, command), "deny")
 
-    def test_project_retrieve_without_local_config_is_allowed(self) -> None:
+    def test_project_retrieve_without_local_config_is_denied(self) -> None:
         with tempfile.TemporaryDirectory() as name:
-            output = run_hook(
-                "copilot_safety_hook.py",
-                {
-                    "cwd": name,
-                    "tool_name": "execute/runInTerminal",
-                    "tool_input": {
-                        "command": "sf project retrieve start --target-org dev-sbx"
-                    },
-                },
-            )
-            self.assertEqual(hook_decision(output), "continue")
+            self.assertEqual(self._hook_decision_in_repo(Path(name), "sf project retrieve start -o dev-sbx"), "deny")
 
     def test_repository_paths_containing_sf_token_are_not_salesforce_commands(self) -> None:
         # Regression (Windows pilot, 2026-07-14): the repo directory name `sf-harness-brain-core`
@@ -187,10 +190,10 @@ class GlobalSafetyHookTests(unittest.TestCase):
 
     def test_direct_sf_commands_are_allowed_and_real_deploy_asks(self) -> None:
         for command, expected in (
-            ("sf org list", "continue"),
+            ("sf org display -o dev-sbx", "continue"),
             ("sf.exe data query --query x --target-org dev-sbx", "continue"),
             ("/usr/local/bin/sf project deploy start --target-org dev-sbx", "ask"),
-            ("./sf org display --target-org dev-sbx", "continue"),
+            ("./sf org display --target-org dev-sbx", "deny"),
         ):
             with self.subTest(command=command):
                 output = run_hook(
@@ -297,8 +300,8 @@ class GlobalSafetyHookTests(unittest.TestCase):
     def test_quote_and_backslash_spliced_salesforce_commands_follow_same_policy(self) -> None:
         for command, expected in (
             ("s''f project deploy start --target-org dev-sbx", "ask"),
-            ('s""f org delete --target-org dev-sbx', "continue"),
-            ("s\\f org delete --target-org dev-sbx", "continue"),
+            ('s""f org limits --target-org dev-sbx', "continue"),
+            ("s\\f org delete --target-org dev-sbx", "deny"),
         ):
             with self.subTest(command=command):
                 output = run_hook(
@@ -322,7 +325,7 @@ class GlobalSafetyHookTests(unittest.TestCase):
                     "tool_input": {"component": "Example__c"},
                 },
             )
-            self.assertEqual(hook_decision(output), "ask")
+            self.assertEqual(hook_decision(output), "deny")
 
     def test_future_quick_deploy_mcp_uses_the_explicit_deploy_prompt(self) -> None:
         output = run_hook(
@@ -332,10 +335,8 @@ class GlobalSafetyHookTests(unittest.TestCase):
                 "tool_input": {"jobId": "0Af000000000001AAA", "targetOrg": "production"},
             },
         )
-        self.assertEqual(hook_decision(output), "ask")
-        reason = output["hookSpecificOutput"]["permissionDecisionReason"]
-        self.assertIn("Salesforce org production", reason)
-        self.assertIn("Should I run this deployment?", reason)
+        self.assertEqual(hook_decision(output), "deny")
+        self.assertIn("not an available channel", output["hookSpecificOutput"]["permissionDecisionReason"])
 
     def test_default_target_context_is_allowed(self) -> None:
         with tempfile.TemporaryDirectory() as name:
@@ -354,7 +355,7 @@ class GlobalSafetyHookTests(unittest.TestCase):
     def test_real_deploy_confirmation_is_exact_scoped_and_stateless(self) -> None:
         command = (
             "sf project deploy start --manifest manifest/release.xml "
-            "--post-destructive-changes manifest/post.xml --target-org production"
+            "--post-destructive-changes manifest/post.xml --target-org dev-sbx"
         )
         event = {
             "tool_name": "execute/runInTerminal",
@@ -365,19 +366,19 @@ class GlobalSafetyHookTests(unittest.TestCase):
         for output in (first, second):
             self.assertEqual(hook_decision(output), "ask")
             reason = output["hookSpecificOutput"]["permissionDecisionReason"]
-            self.assertIn("Salesforce org production", reason)
+            self.assertIn("Salesforce org dev-sbx", reason)
             self.assertIn("manifest/release.xml", reason)
             self.assertIn("manifest/post.xml", reason)
             self.assertIn("exact invocation", reason)
 
     def test_non_deploy_salesforce_mutations_do_not_use_deploy_confirmation(self) -> None:
         for command in (
-            "sf data create record --sobject Account --values Name=Test --target-org production",
+            "sf data create record --sobject Account --values Name=Test --target-org dev-sbx",
             "sf data update record --sobject Account --record-id 001x --values Name=Changed",
-            "sf data delete record --sobject Account --record-id 001x --target-org production",
+            "sf data delete record --sobject Account --record-id 001x --target-org dev-sbx",
             "sf org delete scratch --target-org scratch-one --no-prompt",
-            "sf package install --package 04tx --target-org production --no-prompt",
-            "sfdx force:data:record:update -s Account -i 001x -v Name=Changed -u production",
+            "sf package install --package 04tx --target-org dev-sbx --no-prompt",
+            "sfdx force:data:record:update -s Account -i 001x -v Name=Changed -u dev-sbx",
         ):
             with self.subTest(command=command):
                 output = run_hook(
@@ -388,10 +389,10 @@ class GlobalSafetyHookTests(unittest.TestCase):
 
     def test_legacy_sfdx_deploy_has_same_real_deploy_gate(self) -> None:
         cases = (
-            ("sfdx force:source:deploy -p force-app -u production", "ask"),
-            ("sfdx force:source:deploy -p force-app -u production --checkonly", "continue"),
-            ("sfdx force:source:deploy -p force-app -u production --checkonly=false", "ask"),
-            ("sfdx force:mdapi:deploy -d mdapi -u production", "ask"),
+            ("sfdx force:source:deploy -p force-app -u dev-sbx", "ask"),
+            ("sfdx force:source:deploy -p force-app -u dev-sbx --checkonly", "continue"),
+            ("sfdx force:source:deploy -p force-app -u dev-sbx --checkonly=false", "ask"),
+            ("sfdx force:mdapi:deploy -d mdapi -u dev-sbx", "ask"),
         )
         for command, expected in cases:
             with self.subTest(command=command):
@@ -407,7 +408,7 @@ class GlobalSafetyHookTests(unittest.TestCase):
             {
                 "tool_name": "execute/runInTerminal",
                 "tool_input": {
-                    "command": "sf project deploy start --dry-run=false --target-org production"
+                    "command": "sf project deploy start --dry-run=false --target-org dev-sbx"
                 },
             },
         )
@@ -700,7 +701,7 @@ class RoleGuardTests(unittest.TestCase):
             "sed -i s/a/b/ file.md",
             "curl https://example.com",
             "python -c import os",
-            "sf org list",
+            "sf org display -o dev-sbx",
             "cat README.md; rm -rf /",     # chaining still blocked by metachar gate
         )
         for command in denied:
@@ -729,6 +730,7 @@ class RoleGuardTests(unittest.TestCase):
                     role_guard.allowed_role_command(command, ROOT, "test-strategist")
                 )
 
+    @configured_policy()
     def test_developer_may_run_direct_salesforce_cli(self) -> None:
         from scripts import copilot_role_guard as role_guard
 
@@ -739,7 +741,7 @@ class RoleGuardTests(unittest.TestCase):
                 self.assertFalse(role_guard.allowed_role_command(command, ROOT, role))
         for command in (
             "sf project deploy start --target-org dev-sbx",
-            "sf org list",
+            "sf org display -o dev-sbx",
             "sfdx force:data:record:update -s Account -i 001x -v Name=Changed",
         ):
             with self.subTest(command=command):
@@ -1394,8 +1396,8 @@ class SafetyClassificationTests(unittest.TestCase):
             ("core_list_orgs", {}, "deny"),
             ("core_list_projects", {}, "deny"),
             ("list_all_orgs", {}, "deny"),
-            ("run_soql_query", {"query": "SELECT Id FROM Account"}, "continue"),
-            ("deploy_metadata", {"sourceDir": "/etc"}, "ask"),
+            ("run_soql_query", {"query": "SELECT Id FROM Account"}, "deny"),
+            ("deploy_metadata", {"sourceDir": "/etc"}, "deny"),
         )
         for name, tool_input, expected in cases:
             with self.subTest(tool=name):
@@ -1940,6 +1942,7 @@ class DeployValidationWrapperTests(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertFalse(role_guard.allowed_role_command(command, ROOT, "developer"))
 
+    @configured_policy()
     def test_direct_dry_run_deploy_is_available_only_to_developer_role(self) -> None:
         from scripts import copilot_role_guard as role_guard
 
@@ -1963,7 +1966,7 @@ class DeployValidationWrapperTests(unittest.TestCase):
                 ("sf project deploy quick --job-id 0Af000000000001AAA --target-org dev-sbx", "ask"),
                 ("sf project deploy cancel --job-id 0Af000000000001AAA --target-org dev-sbx", "continue"),
                 ("sf project deploy resume --job-id 0Af000000000001AAA --target-org dev-sbx", "continue"),
-                ("sf project deploy report --use-most-recent --target-org dev-sbx", "continue"),
+                ("sf project deploy report --use-most-recent --target-org dev-sbx", "deny"),
                 ("sf project deploy report --job-id 0Af000000000001AAA --target-org dev-sbx", "continue"),
             ):
                 with self.subTest(command=command):

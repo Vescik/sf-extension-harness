@@ -23,7 +23,7 @@ those customizations; the package itself is vendor-owned and closed.
 
 Namespace or package ownership does not create a harness-level edit or deployment denial.
 The Developer may use direct `sf`/`sfdx` commands for deployments, record mutations, Apex,
-package operations, and org lifecycle work when the task requires them. Before every real
+package operations, and org lifecycle work on `dev`/`uat`/`stage` when the task requires them. Before every real
 deployment, tell the user that changes will be deployed to the selected Salesforce org,
 identify the target and scope, and obtain chat confirmation for that exact invocation. A new
 deploy, quick deploy, or redeploy requires a new confirmation. Dry runs, retrieve, deploy
@@ -41,3 +41,32 @@ the MCP tools, existing knowledge entries for the artifacts you touch. Questions
 human are for business meaning and vendor guarantees only — never for facts a tool call
 can return. Ask the human when a decision embeds a policy choice; decide and record when
 it is merely technical.
+
+## Salesforce environment policy (plan 01)
+
+`config/harness.local.json` classifies orgs as `dev`, `uat`, `stage`, or `prod`.
+Aliases are arbitrary valid CLI aliases; their names and prefixes grant no permissions.
+Multiple orgs can share one environment. `development` normalizes to `dev` and
+`production` to `prod`. Legacy `qa` needs an explicit assignment by purpose.
+
+On `prod`, direct `sf`/`sfdx` can only retrieve metadata with a verified command form.
+Query, describe, org display, limits, other job reports, deploy, validation/dry-run,
+tests, CRUD, Apex, packages, permissions and lifecycle operations are denied.
+Chat confirmation cannot override known production. Use the existing read-only
+Salesforce MCP tools within the active role, data limits and live identity checks.
+No suitable MCP tool means report the capability gap, never fall back to forbidden CLI.
+Internal fixed MCP authentication transport does not grant direct CLI access.
+
+For `dev`/`uat`/`stage`, existing role and exact real-deploy confirmation rules apply.
+Environment classification precedes that confirmation. Missing targets, conflicts,
+identity errors and timeouts never authorize execution. Unconfigured CLI targets remain
+denied in this release. The trusted one-operation environment-answer flow and remaining
+nonprod/latest compatibility work are deferred to plan 01a. Do not write a classification
+or approval flag on the user's behalf. No persistent consent store is used. See `docs/production-read-only.md` for the command
+contract, migration and remaining host acceptance evidence.
+
+Test Strategist retains its prohibition on all production targets, including the existing
+read-only Salesforce MCP, for both QA workflows (owner decision, 2026-09-28). Other roles retain
+their existing MCP permissions. The owner accepts this as an instruction-level role restriction;
+additional MCP role/target runtime enforcement is not required by this release. No such runtime
+guarantee is claimed. See `docs/production-read-only-revision-handoff.md` for release scope.

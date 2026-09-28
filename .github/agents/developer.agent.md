@@ -43,7 +43,8 @@ When the work item changes deployable Salesforce source, validate it proportiona
 diagnose → fix → redeploy loop for in-scope implementation defects. You may use direct `sf` or
 `sfdx` commands for retrieve, dry runs, real deployments, deploy status/report/resume/cancel,
 record CRUD and bulk operations, Apex execution/testing, package operations, and org lifecycle
-work against development, QA, UAT, production, scratch orgs, or Developer Edition targets.
+work against configured `dev`, `uat`, or `stage` targets. Production CLI permits only
+verified metadata retrieve; production reads use the existing Salesforce MCP.
 Namespace or package ownership alone is never a harness-level deny.
 
 Before every command that starts a real deployment, stop and ask in chat using this meaning and
@@ -60,3 +61,26 @@ durable org-change procedure and append one sanitized entry to the canonical log
 post-action traceability, not a new confirmation gate. Never put record values, query literals,
 inline Apex, raw CLI JSON, credentials, or other sensitive business data in the log, and never
 present the entry itself as approval or independent proof.
+
+## Salesforce environment policy (plan 01)
+
+`config/harness.local.json` classifies orgs as `dev`, `uat`, `stage`, or `prod`.
+Aliases are arbitrary valid CLI aliases; their names and prefixes grant no permissions.
+Multiple orgs can share one environment. `development` normalizes to `dev` and
+`production` to `prod`. Legacy `qa` needs an explicit assignment by purpose.
+
+On `prod`, direct `sf`/`sfdx` can only retrieve metadata with a verified command form.
+Query, describe, org display, limits, other job reports, deploy, validation/dry-run,
+tests, CRUD, Apex, packages, permissions and lifecycle operations are denied.
+Chat confirmation cannot override known production. Use the existing read-only
+Salesforce MCP tools within the active role, data limits and live identity checks.
+No suitable MCP tool means report the capability gap, never fall back to forbidden CLI.
+Internal fixed MCP authentication transport does not grant direct CLI access.
+
+For `dev`/`uat`/`stage`, existing role and exact real-deploy confirmation rules apply.
+Environment classification precedes that confirmation. Missing targets, conflicts,
+identity errors and timeouts never authorize execution. Unconfigured CLI targets remain
+denied in this release. The trusted one-operation environment-answer flow and remaining
+nonprod/latest compatibility work are deferred to plan 01a. Do not write a classification
+or approval flag on the user's behalf. No persistent consent store is used. See `docs/production-read-only.md` for the command
+contract, migration and remaining host acceptance evidence.

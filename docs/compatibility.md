@@ -40,15 +40,18 @@ Customizations** and **Chat Diagnostics** on each supported platform and record:
 
 The harness configures no write-mode Salesforce MCP server in the first cutover. The Developer
 uses direct `sf`/`sfdx` for deployments, record mutations, Apex, package operations, and org
-lifecycle. The global hook asks before every real deploy and includes target, scope, and a clear
+lifecycle on `dev`/`uat`/`stage`. Production CLI permits only verified metadata retrieve;
+other production reads use existing MCP within role limits. Test Strategist cannot use
+production, including MCP. The global hook asks before every nonprod real deploy and includes target, scope, and a clear
 warning that changes will be deployed to the org. Each invocation requires fresh confirmation;
 dry runs, retrieve, status/report/resume/cancel, and data mutations do not. The configured facade
 remains read-only and is preferred for structured evidence. Browser automation tooling remains
 denied outright.
 
-The certified external-work surface is limited to the six repository custom agents in a dedicated
-pilot environment with no production authorization or browser session. Built-in/default Agent and
-arbitrary terminal modes are not certified; hooks are not a general shell sandbox.
+The governed external-work surface is limited to repository custom agents within their role
+limits. Use the credential-free portable pilot for rejection tests and least-privileged real
+accounts for owner-side destination checks. Built-in/default Agent and arbitrary terminal modes
+are not certified; hooks are not a general shell sandbox.
 
 ## Upgrade policy
 
@@ -71,3 +74,15 @@ The current 24 non-critical npm findings were investigated on 2026-07-13 and are
 accepted risk: all are transitive to vendor-pinned Salesforce tooling, no stable upgrade resolves
 them, and an in-range update was tested and rejected because it worsened the posture. See the
 2026-07-13 entry in `.ai/memory/decisions-log.md` before attempting another upgrade.
+
+## Production read-only migration and acceptance
+
+Use [the production access contract](production-read-only.md) before org operations.
+Canonical environment values are `dev`, `uat`, `stage`, `prod`; aliases remain unchanged.
+Old `production` stays protected. Legacy `qa` requires a deliberate assignment by org purpose.
+VS Code Local approval binding, host failure/timeout behavior and Windows/macOS acceptance
+are NOT VERIFIED. Deterministic tests are not proof of host enforcement.
+
+For a copied template, use the [credential-free portable pilot](production-policy-pilot.md).
+Generate it on the destination machine; do not copy the author's private config or Python paths.
+It distinguishes process tests, Local host evidence and real-org installation checks.

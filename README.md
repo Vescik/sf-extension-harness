@@ -36,7 +36,7 @@ the working tree on 2026-08-11; they remain in git history under the tag `docs-h
 | Knowledge and contracts | `.ai/knowledge/`, `.ai/contracts/` | Schema-governed one-file Knowledge entries, human approvals, source authority |
 | Work state and QA | `work-items/`, `.ai/memory/` | Per-item ADO context/design/tasks/decisions/QA test plan, optional Feature delivery map, and durable decisions |
 | Salesforce project | `sfdx-project.json`, `force-app/`, `manifest/`, `tests/e2e/` | Root SFDX project, source, manifests, and Salesforce tests |
-| Runtime | `.vscode/mcp.json`, `.github/hooks/`, `scripts/` | Reconciled MCP/hidden-CLI review, guarded non-production tools, deterministic checks |
+| Runtime | `.vscode/mcp.json`, `.github/hooks/`, `scripts/` | Reconciled MCP/hidden-CLI review, guarded Salesforce channels, deterministic checks |
 | Local/generated data | `.cache/`, `output/` | Ignored raw cache and human-review drafts |
 
 ## Changing the release-handover document shape
@@ -80,7 +80,7 @@ npm run lint
 
 `validate_harness.py` validates static repository integrity; `first_launch.py` validates
 installation and local-config shape. External capabilities are proven at the point of use: the
-Salesforce review MCP proves the selected org's non-production identity live at startup, and ADO
+Salesforce review MCP proves the selected org's live identity live at startup, and ADO
 scope is checked on every tool call. `python scripts/verify_salesforce_org.py --org <alias>` is
 an optional human diagnostic for one org.
 

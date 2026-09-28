@@ -361,6 +361,78 @@ class TestAttachHappyPath(OrgUsageBase):
         self.assertEqual("approved-current", lane["lane"])
 
 
+class TestEnvironmentMigration(OrgUsageBase):
+    def test_canonical_evidence_matches_legacy_config_without_changing_approval(self) -> None:
+        frontmatter, body = self.base_entry()
+        self.approve(frontmatter, body)
+        path = self.write_entry(frontmatter, body)
+        approval_before = store.LEDGER_PATH.read_bytes()
+        reviewed_before = store.reviewed_content_digest(frontmatter, body)
+        canned = json.loads(json.dumps(CANNED))
+        for item in canned.values():
+            item["target"]["environment"] = "dev"
+
+        result, _ = self.attach(canned=canned)
+
+        self.assertEqual("ORG_ATTACHED", result["outcome"])
+        written, new_body = store.split_entry(path.read_text(encoding="utf-8"))
+        self.assertEqual("dev", written["orgUsage"]["orgs"]["dev-sbx"]["environment"])
+        self.assertEqual(reviewed_before, store.reviewed_content_digest(written, new_body))
+        self.assertEqual(approval_before, store.LEDGER_PATH.read_bytes())
+        self.assertEqual([], store.validate_entry(written, new_body))
+
+    def test_canonical_nonproduction_config_and_evidence_attach(self) -> None:
+        for environment in ("dev", "uat", "stage"):
+            with self.subTest(environment=environment):
+                self.write_local_config(environment=environment)
+                frontmatter, body = self.base_entry()
+                path = self.write_entry(frontmatter, body)
+                canned = json.loads(json.dumps(CANNED))
+                for item in canned.values():
+                    item["target"]["environment"] = environment
+                result, _ = self.attach(canned=canned)
+                self.assertEqual("ORG_ATTACHED", result["outcome"])
+                written, new_body = store.split_entry(path.read_text(encoding="utf-8"))
+                self.assertEqual(environment, written["orgUsage"]["orgs"]["dev-sbx"]["environment"])
+                self.assertEqual([], store.validate_entry(written, new_body))
+
+    def test_production_or_unmigrated_qa_config_stays_refused(self) -> None:
+        frontmatter, body = self.base_entry()
+        path = self.write_entry(frontmatter, body)
+        before = path.read_bytes()
+        args = type("Args", (), {})()
+        args.identity = IDENTITY
+        args.org = "dev-sbx"
+        args.probes_file = self.probes_file(self.default_probes())
+        for environment in ("prod", "production", "qa"):
+            with self.subTest(environment=environment):
+                self.write_local_config(environment=environment)
+                with unittest.mock.patch.object(store, "_facade_call") as facade:
+                    with self.assertRaisesRegex(store.StoreError, "not attachable|migration required"):
+                        store.command_entry_org_attach(args)
+                    facade.assert_not_called()
+                self.assertEqual(before, path.read_bytes())
+                self.assertFalse(store.ORG_LEDGER_PATH.exists())
+
+    def test_environment_mismatch_and_nonproduction_proof_stay_refused(self) -> None:
+        frontmatter, body = self.base_entry()
+        path = self.write_entry(frontmatter, body)
+        before = path.read_bytes()
+        for target in (
+            {"environment": "prod"},
+            {"environment": "production"},
+            {"environment": "stage"},
+            {"environment": "dev", "nonProduction": False},
+        ):
+            with self.subTest(target=target):
+                canned = json.loads(json.dumps(CANNED))
+                canned[Q_SHAPE]["target"].update(target)
+                with self.assertRaisesRegex(store.StoreError, "mismatch"):
+                    self.attach(canned=canned)
+                self.assertEqual(before, path.read_bytes())
+                self.assertFalse(store.ORG_LEDGER_PATH.exists())
+
+
 class TestDigestExclusion(OrgUsageBase):
     def test_canonical_facts_never_contain_org_usage(self) -> None:
         frontmatter, body = self.base_entry()

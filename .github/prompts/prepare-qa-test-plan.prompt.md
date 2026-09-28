@@ -28,3 +28,10 @@ Return the skill's report: path and created/updated/unchanged; one verdict (`REA
 `INCOMPLETE — NEEDS HUMAN`); the evidence route (custom / managed-package / mixed); AC
 coverage; Test Cases by origin; unresolved questions; any reusable-Knowledge recommendation;
 and the exact next action.
+
+## Salesforce role boundary
+
+Test Strategist must not target production, including read-only Salesforce MCP, in either QA
+workflow. Use only an explicitly known `dev`/`uat`/`stage` target. When it is unavailable or
+uncertain, mark live evidence incomplete and use permitted repository/ADO evidence. A request
+or confirmation does not widen this role. Do not infer the MCP target from CLI defaults.

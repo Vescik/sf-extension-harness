@@ -36,9 +36,11 @@ sys.path.insert(0, str(ROOT))
 try:
     from scripts.knowledge_digest import canonical_digest
     from scripts.relation_kinds import edge_assurance
+    from scripts.salesforce_operation_policy import normalize_environment
 except ModuleNotFoundError:  # invoked as `python scripts/knowledge_store.py`
     from knowledge_digest import canonical_digest  # type: ignore
     from relation_kinds import edge_assurance  # type: ignore
+    from salesforce_operation_policy import normalize_environment  # type: ignore
 
 ARTIFACTS_ROOT = ROOT / ".ai/knowledge/artifacts"
 LEDGER_PATH = ROOT / ".ai/knowledge/artifacts-ledger.jsonl"
@@ -3450,7 +3452,11 @@ def command_entry_org_attach(args: argparse.Namespace) -> dict[str, Any]:
     if frontmatter.get("sensitivity") == "public":
         raise StoreError("org observations cannot attach to a public-sensitivity entry")
     org = configured_org(args.org)
-    if org.get("environment") not in {"development", "qa", "uat"}:
+    try:
+        org_environment = normalize_environment(org.get("environment"))
+    except (ValueError, TypeError) as exc:
+        raise StoreError(f"org {args.org!r}: environment migration required: {exc}") from None
+    if org_environment not in {"dev", "uat", "stage"}:
         raise StoreError(f"org {args.org!r}: environment {org.get('environment')!r} is not attachable")
     expected_org_id = org.get("expectedOrganizationId")
     if not expected_org_id:
@@ -3469,11 +3475,15 @@ def command_entry_org_attach(args: argparse.Namespace) -> dict[str, Any]:
         label = probe["label"]
         envelope = _facade_call(args.org, "review_soql_query", {"query": probe["query"]})
         target = envelope.get("target") or {}
+        try:
+            target_environment = normalize_environment(target.get("environment"))
+        except (ValueError, TypeError):
+            target_environment = None
         if (
             target.get("environment") == "dynamic"
             or target.get("nonProduction") is not True
             or target.get("expectedOrgIdMatched") is not True
-            or target.get("environment") != org.get("environment")
+            or target_environment != org_environment
         ):
             raise StoreError(
                 f"probe {label!r}: org identity/environment mismatch — the whole attach is "
@@ -3520,7 +3530,7 @@ def command_entry_org_attach(args: argparse.Namespace) -> dict[str, Any]:
         raise StoreError("orgUsage.maxOrgUsageAgeDays must be a positive integer")
     expires_at = (_parse_iso(observed_at) + timedelta(days=max_age_days)).strftime("%Y-%m-%dT%H:%M:%SZ")
     block: dict[str, Any] = {
-        "environment": org["environment"],
+        "environment": org_environment,
         "orgIdDigest": org_id_digest(expected_org_id),
         "observedAt": observed_at,
         "expiresAt": expires_at,

@@ -1675,3 +1675,41 @@ Gate: 690 unit tests OK in ~87 s, 43 safety evals PASS, validate_harness coheren
   refresh/cancellation hardening. The owner selected the last known pre-timeout MCP behavior over
   further incremental changes to the new readiness/timeout design.
 - Approved by: workspace owner directive, 2026-09-01.
+
+## 2026-09-26 — Production Salesforce access (approved plan 01)
+
+Authority: user-approved September plan 01; D-025, D-027, D-028. The user explicitly
+requested implementation. Reviewer: requesting human for the policy; independent technical
+review and host acceptance remain pending. This entry does not assert completed acceptance.
+
+SAFE-PROD-001 restricts production CLI to verified metadata retrieve and retains the existing
+read-only MCP under its identity, role and data limits. Configuration uses dev/uat/stage/prod;
+legacy production remains protected and qa needs explicit assignment. Alias names carry no
+permissions. The shared policy runs before deploy confirmation, including the legacy validation
+wrapper's child commands. Unknown-target user-answer binding remains NOT VERIFIED and held
+closed; no agent-generated approval flag or consent registry is introduced. See
+[implementation evidence and migration](../../docs/production-read-only.md).
+
+## 2026-09-28 — Plan 01 review corrections and retained QA boundary
+
+The owner explicitly retained Test Strategist's ban on production targets, including existing
+read-only Salesforce MCP, in both QA lanes. Other roles keep their bounded MCP access. The
+current MCP tool invocation does not attest the selected server org or caller role to the hook;
+role-target runtime enforcement is not claimed. This decision does not authorize an agent-written
+approval field, persistent consent store, production writes or a new arbitrary CLI MCP transport.
+
+Plan 01 corrections cover lifecycle parent/Dev Hub identities, example-based onboarding,
+nonprod previews, duplicate-alias diagnostics and active documentation. The owner authorized a
+local commit only. See `docs/production-read-only-revision-handoff.md` for acceptance gaps.
+
+
+## 2026-09-28 — Isolated plan 01 publication and owner-side acceptance
+
+The owner authorized isolating only plan 01, pushing it to GitHub and merging into main. This
+supersedes the earlier local-commit-only authorization above. The release ports the production
+policy delta onto `0af14c1` and preserves that baseline's Knowledge architecture and ADO workflow.
+Default-target behavior is for the owner to check locally; no fix is claimed. Test Strategist's
+production prohibition remains and its agent instruction is sufficient for this release; no new
+runtime role/target enforcement requirement is added. Unknown-org P1-02 and remaining nonprod/latest
+compatibility move to plan 01a with existing denials preserved. Destination host/live acceptance
+remains owner-side and is not established by local tests. See the isolated release handoff.

@@ -10,7 +10,7 @@ Two public shapes, nothing else:
     python scripts/validate_salesforce_deploy.py status --job-id <0Af...> --org <alias>
 
 `start` resolves the PROJECT-LOCAL VS Code `target-org` (a global default is never
-accepted), requires that alias to be configured `environment: development` in
+accepted), requires that alias to be configured `environment: dev` (legacy development is normalized) in
 config/harness.local.json, re-proves its live non-production identity through
 scripts/verify_salesforce_org.py, validates one bounded scope form, derives an honest
 test level, and submits exactly `sf project deploy start --dry-run --async ... --json`.
@@ -36,6 +36,11 @@ import subprocess
 import sys
 import xml.etree.ElementTree as ElementTree
 from pathlib import Path
+try:
+    from scripts import salesforce_operation_policy as sf_policy
+except ModuleNotFoundError:
+    import salesforce_operation_policy as sf_policy
+
 from typing import Any, Callable
 
 try:
@@ -147,11 +152,14 @@ def prove_development_org(alias: str, runner: Callable[..., Any]) -> tuple[bool,
             f"alias '{alias}' is not configured in config/harness.local.json; "
             "unconfigured aliases are valid for governed reads but never for dry-run validation"
         )
-    environment = str(entry.get("environment", "")).lower()
-    if environment != "development":
+    try:
+        environment = sf_policy.normalize_environment(entry.get("environment"))
+    except (ValueError, TypeError):
+        environment = "migration-required"
+    if environment != "dev":
         return False, (
             f"alias '{alias}' is configured as '{environment or 'unset'}'; dry-run "
-            "validation targets only a configured 'development' org"
+            "validation targets only a configured 'dev' org"
         )
     identity = org_proof.configured_identity(alias)
     if isinstance(identity, str):
@@ -355,6 +363,12 @@ def normalized_failures(result: dict[str, Any]) -> dict[str, Any]:
 def run_cli_json(
     command: list[str], runner: Callable[..., Any]
 ) -> tuple[dict[str, Any] | None, str]:
+    decision = sf_policy.evaluate(
+        command, REPO_ROOT, config=org_proof.load_config(),
+        inventory=lambda root, env: sf_policy.local_authorizations(root, env, runner=runner),
+    )
+    if not decision.allowed:
+        return None, decision.reason
     try:
         completed = runner(
             command,

@@ -19,17 +19,17 @@ authoritative source. If you have not installed the workspace yet, start with
 | Human owns | Agent helps with |
 |---|---|
 | Business intent and acceptance criteria | Evidence collection and structured design |
-| Vendor guarantees not established by evidence | Repository review and read-only non-production org review |
+| Vendor guarantees not established by evidence | Repository review and read-only org review within role limits |
 | Approval of scope, designs, and Knowledge | Drafting, comparison, and traceable artifacts |
 | Merge and release decisions; confirmation of each exact real deploy | Repository edits and in-scope Salesforce CLI execution within the Developer role |
 
 Four points hold across every path:
 
-- The Developer may deploy or mutate an org with direct Salesforce CLI. Every exact real deploy
-  first requires your chat confirmation of its target and bounded scope; data and other
-  non-deploy mutations do not use that deploy-specific gate.
-- Structured org review remains read-only through the guarded Salesforce facade; direct CLI
-  execution is a separate Developer capability and may target production when the task requires it.
+- The Developer may deploy or mutate `dev`/`uat`/`stage` through reviewed Salesforce CLI commands.
+  Every exact real deploy requires your confirmation of its target and bounded scope.
+- On `prod`, direct CLI permits only verified metadata retrieve. Other production reads use the
+  existing read-only Salesforce facade within role limits. Confirmation cannot override a
+  production denial. Test Strategist cannot use production, including MCP, in either QA lane.
 - You decide whether a proposed design, scope, or Knowledge approval proceeds.
 - Durable work belongs in repository artifacts (`work-items/`, `output/`, `.ai/knowledge/`),
   not in chat memory. A conversation is not a record.
@@ -259,7 +259,7 @@ Diagnosis: <expected behavior, actual behavior, and the defective element>
 ```
 
 (The component and org alias above are fictional; use your own diagnosed component and a
-configured non-production review alias.)
+configured review alias within role limits.)
 
 ### What the agent will do
 
