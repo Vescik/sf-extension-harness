@@ -159,6 +159,12 @@ jobs:
           node --check scripts/start_salesforce_mcp.mjs
           node --check scripts/knowledge_mcp_server.mjs
 
+      - name: Test and package native Salesforce operation tool
+        run: |
+          npm run native:test
+          npm run native:build
+          npm run native:package
+
       - name: Validate harness structure and contracts
         run: python scripts/validate_harness.py
 

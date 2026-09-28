@@ -69,3 +69,58 @@ class PortablePilotTests(unittest.TestCase):
         events = [json.loads(line) for line in (self.root / '.cache/executor.jsonl').read_text().splitlines()]
         self.assertTrue(events)
         self.assertTrue(all(event['kind'] == 'inventory' for event in events))
+
+
+class HostProtocolProbeTests(unittest.TestCase):
+    def make_probe(self, mode):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        return prepare(Path(tmp.name) / 'protocol probe', host_probe=mode)
+
+    def run_probe(self, root, event):
+        result = subprocess.run([sys.executable, str(root / 'scripts/pilot_host_probe.py')],
+                                input=json.dumps(event), text=True, capture_output=True, cwd=root, timeout=5)
+        self.assertEqual(result.returncode, 0)
+        return json.loads(result.stdout)
+
+    def test_rewrite_preserves_tool_schema_fields_and_binds_fixed_fixture_job(self):
+        root = self.make_probe('rewrite')
+        event = {'hook_event_name': 'PreToolUse', 'tool_use_id': 'synthetic-call',
+                 'tool_name': 'execute/runInTerminal', 'tool_input': {
+                     'command': 'sf project deploy report --use-most-recent',
+                     'isBackground': False, 'timeout': 1000, 'explanation': 'Synthetic fixture'}}
+        response = self.run_probe(root, event)['hookSpecificOutput']
+        self.assertEqual(response['permissionDecision'], 'ask')
+        updated = response['updatedInput']
+        self.assertEqual(updated['timeout'], 1000)
+        self.assertEqual(updated['explanation'], 'Synthetic fixture')
+        self.assertNotIn('most-recent', updated['command'])
+        self.assertIn('0Af000000000001AAA', updated['command'])
+        # A protocol experiment only: emulate execution of the returned input after
+        # the fixture cache changes, never mistake that driver for a host proof.
+        (root / 'home/.sf/deploy-cache.json').write_text(json.dumps({
+            '0Af000000000002AAA': {'target-org': 'team-alpha'}}))
+        import shlex
+        argv = shlex.split(updated['command'])[1:]
+        subprocess.run([sys.executable, str(root / 'scripts/pilot_cli.py'), *argv],
+                       capture_output=True, check=True)
+        record = json.loads((root / '.cache/executor.jsonl').read_text().splitlines()[-1])
+        self.assertEqual(record['argvSha256'], hashlib.sha256(json.dumps(argv).encode()).hexdigest())
+        self.assertEqual(self.run_probe(root, {**event, 'tool_input': updated})['hookSpecificOutput']['updatedInput'], updated)
+        self.assertEqual(self.run_probe(root, {**event, 'tool_use_id': ''})['hookSpecificOutput']['permissionDecision'], 'deny')
+
+    def test_ask_probe_is_not_environment_authorization_or_policy_acceptance(self):
+        root = self.make_probe('ask')
+        event = {'hook_event_name': 'PreToolUse', 'tool_use_id': 'synthetic-call',
+                 'tool_name': 'execute/runInTerminal',
+                 'tool_input': {'command': 'sf data query -o unclassified --query SELECT'}}
+        self.assertEqual(self.run_probe(root, event)['hookSpecificOutput']['permissionDecision'], 'ask')
+        self.assertFalse((root / '.cache/executor.jsonl').exists())
+        self.assertEqual(self.run_probe(root, {**event, 'tool_input': {'command': 'sf apex run -o team-alpha'}})
+                         ['hookSpecificOutput']['permissionDecision'], 'deny')
+        result = subprocess.run([sys.executable, str(root / 'scripts/pilot_check.py')],
+                                capture_output=True, text=True, cwd=root, timeout=5)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('not a policy baseline', result.stderr)
+        (root / 'pilot-mode.json').unlink()
+        self.assertEqual(self.run_probe(root, event)['hookSpecificOutput']['permissionDecision'], 'deny')

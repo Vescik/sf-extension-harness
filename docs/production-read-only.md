@@ -79,10 +79,12 @@ additional MCP role/target runtime enforcement is not required or claimed. Other
 existing read permissions and limits. The existing Knowledge persistence/approval model stays
 unchanged; production MCP read permission does not widen its separate org-sampling containment.
 
-Unknown CLI targets remain denied. The trusted one-operation environment-answer flow (P1-02)
-and remaining nonprod/latest command compatibility are deferred to plan 01a. They are not
-implemented by this backport. No agent-written approval/classification flag, persistent consent
-registry, production write exception or new Salesforce MCP tool is introduced.
+The plan 01 backport originally deferred unknown environments and latest-job compatibility.
+Plan 01a now adds a [native Developer operation tool](native-salesforce-operations.md) for these
+flows. Direct terminal commands still deny unknown targets and mutable latest selectors. Native
+selection is one-operation only; no agent-written approval/classification flag, persistent consent
+registry, production write exception or new Salesforce MCP tool is introduced. Installation and
+host/live evidence remain separate from local implementation.
 
 ## Owner-side destination acceptance
 

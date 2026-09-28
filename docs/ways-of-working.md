@@ -527,3 +527,13 @@ action — supply it, or stop the work.
 
 This table lists the entry points behind the playbooks above, not the whole catalog — the
 Copilot slash menu shows the full current set of public prompts.
+
+
+## Native one-operation Salesforce tool (plan 01a)
+
+Install the reviewed local VSIX using [the native operation guide](native-salesforce-operations.md) when Developer
+needs an unconfigured environment question or supported latest-job operation. The tool owns
+native dialogs and one invocation's dispatch; terminal helpers and model-supplied approval or
+environment fields remain forbidden. Existing production retrieve-only and MCP role limits apply.
+Local tests/build are separate from actual VS Code Local and live-org acceptance; consult the
+current plan 01a handoff before claiming either verified.

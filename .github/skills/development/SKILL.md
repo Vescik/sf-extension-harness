@@ -74,6 +74,9 @@ artifacts, agent configuration, tooling) never triggers it.
    `sfdx` deploy, state: `This will be a real deployment of changes to Salesforce org
    <target>. Scope: <scope>. Should I run this deployment?` Wait for an unambiguous answer.
    The confirmation binds only the exact invocation. Ask again for every retry or redeploy.
+   For native operations, the extension's modal supplies that exact execution confirmation;
+   a chat answer or generic tool approval cannot answer the modal. Use the native tool for
+   unconfigured environments and supported latest selectors; never launch private helpers.
 4. **Execute and check**: run the exact confirmed command. Use deploy report/status/resume/cancel
    as needed; these status-management calls do not need a new deploy confirmation. Preserve the
    job ID and verify the resulting org state.
@@ -248,8 +251,11 @@ Internal fixed MCP authentication transport does not grant direct CLI access.
 
 For `dev`/`uat`/`stage`, existing role and exact real-deploy confirmation rules apply.
 Environment classification precedes that confirmation. Missing targets, conflicts,
-identity errors and timeouts never authorize execution. Unconfigured CLI targets remain
-denied in this release. The trusted one-operation environment-answer flow and remaining
-nonprod/latest compatibility work are deferred to plan 01a. Do not write a classification
-or approval flag on the user's behalf. No persistent consent store is used. See `docs/production-read-only.md` for the command
-contract, migration and remaining host acceptance evidence.
+identity errors and timeouts never authorize execution. Direct terminal commands still deny
+unconfigured targets and mutable latest selectors. The Developer uses the native
+`sf-harness.salesforce-operations/salesforceOperation` tool for a one-operation org/environment
+selection or supported latest-job operation. Pass only `arguments: string[]`, without the
+executable. The installed extension owns dialogs, rechecks and dispatch; a chat answer or an
+agent-written environment/approval flag is never authority. Nothing persists as classification
+or consent. Cancellation means no execution. See `docs/native-salesforce-operations.md` for
+installation, the private-runtime boundary and remaining host/live acceptance.

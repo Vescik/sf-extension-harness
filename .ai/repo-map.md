@@ -22,6 +22,7 @@ the deep directory tree lives in `docs/workspace-topology.md`.
 | `config` | Harness config (harness.local.json), policies, seed |
 | `docs` | Setup, architecture, compatibility docs |
 | `evals` | Safety scenarios, agent scenarios, schema fixtures |
+| `extensions` | Native VS Code tools and packages |
 | `force-app` | The only SFDX source root |
 | `manifest` | package.xml starter manifest |
 | `output` | Reviewed deliverables: docs, designs, tests, handover |

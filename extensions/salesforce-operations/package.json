@@ -1,0 +1,42 @@
+{
+  "name": "salesforce-operations",
+  "displayName": "Salesforce Harness Operations",
+  "description": "Native, one-operation Salesforce environment selection and execution for the harness Developer agent.",
+  "version": "0.1.0",
+  "publisher": "sf-harness",
+  "license": "UNLICENSED",
+  "engines": { "vscode": "^1.100.0" },
+  "categories": ["Other"],
+  "main": "./src/extension.cjs",
+  "extensionKind": ["workspace"],
+  "activationEvents": ["onStartupFinished"],
+  "capabilities": {
+    "untrustedWorkspaces": { "supported": false },
+    "virtualWorkspaces": { "supported": false }
+  },
+  "contributes": {
+    "languageModelTools": [{
+      "name": "sf_harness_run_operation",
+      "toolReferenceName": "salesforceOperation",
+      "displayName": "Run Salesforce operation",
+      "userDescription": "Assess and run one Salesforce operation, using native target, environment and deployment dialogs when required.",
+      "modelDescription": "Developer only in the supported Salesforce harness workspace. Supply Salesforce arguments without sf/sfdx. The native host owns target selection, one-use environment selection and required real-deployment confirmation. Production allows only verified metadata retrieve. No role, consent, environment or continuation token may be supplied. The tool returns bounded command results, never reusable authorization. Cancelled or denied assessment does not execute. Existing read-only Salesforce MCP remains the production data-read channel.",
+      "canBeReferencedInPrompt": true,
+      "icon": "$(shield)",
+      "when": "isWorkspaceTrusted && workspaceFolderCount == 1",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["arguments"],
+        "properties": {
+          "arguments": {
+            "type": "array", "minItems": 1, "maxItems": 128,
+            "items": { "type": "string", "minLength": 1, "maxLength": 8192 },
+            "description": "Exact Salesforce subcommand and individual arguments, excluding the executable. No shell syntax, approval fields or environment declarations."
+          }
+        }
+      }
+    }]
+  },
+  "scripts": { "test": "node --test test/*.test.mjs", "build": "node build.mjs", "package": "node package.mjs" }
+}

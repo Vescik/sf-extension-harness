@@ -272,3 +272,13 @@ are NOT VERIFIED. Deterministic tests are not proof of host enforcement.
 Before connecting real orgs, generate the [portable policy pilot](production-policy-pilot.md)
 on the destination host. It uses synthetic identities and a non-networked executor. Successful
 fixture tests do not replace host approval checks or bounded live MCP/retrieve installation tests.
+
+
+## Native one-operation Salesforce tool (plan 01a)
+
+Install the reviewed local VSIX using [the native operation guide](native-salesforce-operations.md) when Developer
+needs an unconfigured environment question or supported latest-job operation. The tool owns
+native dialogs and one invocation's dispatch; terminal helpers and model-supplied approval or
+environment fields remain forbidden. Existing production retrieve-only and MCP role limits apply.
+Local tests/build are separate from actual VS Code Local and live-org acceptance; consult the
+current plan 01a handoff before claiming either verified.

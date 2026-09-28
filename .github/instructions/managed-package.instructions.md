@@ -31,7 +31,8 @@ change that conflicts with them is wrong even if it works.
 - **SAFE-DEPLOY-CONFIRM-001 — confirm every real deploy in chat.** Immediately before a real
   deployment, the Developer states: `This will be a real deployment of changes to Salesforce
   org <target>. Scope: <scope>. Should I run this deployment?` The user must confirm that exact
-  invocation. Every new deploy, quick deploy, or redeploy requires fresh confirmation. Dry runs,
+  invocation. Native operations obtain this confirmation in their own modal; chat text and generic
+  tool approval do not replace it. Every new deploy, quick deploy, or redeploy requires fresh confirmation. Dry runs,
   retrieve, report/status, resume, cancel, and record mutations do not require this
   deployment-specific confirmation.
 
@@ -74,8 +75,11 @@ Internal fixed MCP authentication transport does not grant direct CLI access.
 
 For `dev`/`uat`/`stage`, existing role and exact real-deploy confirmation rules apply.
 Environment classification precedes that confirmation. Missing targets, conflicts,
-identity errors and timeouts never authorize execution. Unconfigured CLI targets remain
-denied in this release. The trusted one-operation environment-answer flow and remaining
-nonprod/latest compatibility work are deferred to plan 01a. Do not write a classification
-or approval flag on the user's behalf. No persistent consent store is used. See `docs/production-read-only.md` for the command
-contract, migration and remaining host acceptance evidence.
+identity errors and timeouts never authorize execution. Direct terminal commands still deny
+unconfigured targets and mutable latest selectors. The Developer uses the native
+`sf-harness.salesforce-operations/salesforceOperation` tool for a one-operation org/environment
+selection or supported latest-job operation. Pass only `arguments: string[]`, without the
+executable. The installed extension owns dialogs, rechecks and dispatch; a chat answer or an
+agent-written environment/approval flag is never authority. Nothing persists as classification
+or consent. Cancellation means no execution. See `docs/native-salesforce-operations.md` for
+installation, the private-runtime boundary and remaining host/live acceptance.
