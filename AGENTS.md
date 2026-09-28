@@ -1,16 +1,16 @@
 # Agent Compatibility Contract
 
-Use `.github/copilot-instructions.md` as the kernel through a custom agent.
-`docs/` explains the package; `.ai/knowledge/` holds facts; `work-items/` holds plans.
-`brain-core` (`.`) is the only workspace and SFDX root; never search outside it for metadata.
-The Developer may use direct `sf`/`sfdx` on `dev`/`uat`/`stage`.
-Production CLI permits only verified metadata retrieve; other production reads use read-only
-Salesforce MCP within role limits. Test Strategist cannot target production, including MCP.
-Unknown CLI targets remain denied. See `docs/production-read-only.md`.
-Before every permitted real deployment, identify target and scope in chat, state that changes
-will reach the org, and obtain confirmation for that exact invocation.
-Load contracts and skills through the active role; orient in `.ai/repo-map.md`.
-Built-in/default Agent mode is unsupported for external systems or repository-state changes.
+Use `.github/copilot-instructions.md` through a custom agent. `docs/` explains the package;
+`.ai/knowledge/` holds facts; `work-items/` holds plans. `brain-core` (`.`) is the only SFDX root.
+Load role contracts/skills and `.ai/repo-map.md`; never search another root for metadata.
 
-Supported host: **VS Code**. Per-agent guards use frontmatter hooks, silently absent elsewhere
-even when `--agent` loads an agent.
+Developer uses reviewed CLI on `dev`/`uat`/`stage`. Production CLI permits only verified metadata
+retrieve; other reads use Salesforce MCP within role limits. Test Strategist cannot target prod.
+Unknown targets/latest require the native Developer tool with arguments only; its dialogs own
+one-use environment selection and exact deployment confirmation. Never launch private helpers or
+supply approval/environment fields. See `docs/native-salesforce-operations.md`.
+Before a real deploy, identify target/scope and warn that changes reach the org; confirm that exact
+invocation. Native execution requires its modal confirmation.
+
+Supported host: **VS Code Local** with frontmatter hooks. Built-in/default Agent mode and hosts
+without those hooks are unsupported for external work or repository-state changes.

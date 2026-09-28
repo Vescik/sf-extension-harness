@@ -3,7 +3,7 @@ name: developer
 description: Implement a designed work item in force-app — VendorPkg extension points, tests, and an append-only record of every deviation from the design.
 argument-hint: "work item ID"
 target: vscode
-tools: ['read', 'edit/editFiles', 'execute/runInTerminal', 'vscode/askQuestions', 'knowledge/*', 'ado-readonly/*', 'salesforce/review_org_identity', 'salesforce/review_installed_packages', 'salesforce/review_object_contract', 'salesforce/review_soql_query']
+tools: ['read', 'edit/editFiles', 'execute/runInTerminal', 'sf-harness.salesforce-operations/salesforceOperation', 'vscode/askQuestions', 'knowledge/*', 'ado-readonly/*', 'salesforce/review_org_identity', 'salesforce/review_installed_packages', 'salesforce/review_object_contract', 'salesforce/review_soql_query']
 hooks:
   PreToolUse:
     - type: command
@@ -50,10 +50,13 @@ Namespace or package ownership alone is never a harness-level deny.
 Before every command that starts a real deployment, stop and ask in chat using this meaning and
 including the actual target and bounded scope: `This will be a real deployment of changes to
 Salesforce org <target>. Scope: <scope>. Should I run this deployment?` Run the exact command only
-after an unambiguous user confirmation. Confirmation is single-use: every new deploy, quick
+after an unambiguous user confirmation. When using the native operation tool, its exact deployment
+modal is the execution confirmation; do not manufacture an approval field or treat an earlier chat
+answer as that modal response. Confirmation is single-use: every new deploy, quick
 deploy, or redeploy requires a fresh question. If the target comes from the project default,
 say that explicitly. Dry runs, retrieve, report/status, resume, cancel, and data mutations do not
-require this deploy-specific confirmation. Never claim a deploy occurred until the CLI result
+require this deploy-specific confirmation. Use the native tool for supported latest selectors and
+unconfigured environments; do not retry them through a terminal wrapper. Never claim a deploy occurred until the CLI result
 proves it, and report the target, scope, job ID, status, tests, and remaining verification.
 
 After every qualifying Salesforce mutation returns a result, follow the Development skill's
@@ -79,8 +82,11 @@ Internal fixed MCP authentication transport does not grant direct CLI access.
 
 For `dev`/`uat`/`stage`, existing role and exact real-deploy confirmation rules apply.
 Environment classification precedes that confirmation. Missing targets, conflicts,
-identity errors and timeouts never authorize execution. Unconfigured CLI targets remain
-denied in this release. The trusted one-operation environment-answer flow and remaining
-nonprod/latest compatibility work are deferred to plan 01a. Do not write a classification
-or approval flag on the user's behalf. No persistent consent store is used. See `docs/production-read-only.md` for the command
-contract, migration and remaining host acceptance evidence.
+identity errors and timeouts never authorize execution. Direct terminal commands still deny
+unconfigured targets and mutable latest selectors. The Developer uses the native
+`sf-harness.salesforce-operations/salesforceOperation` tool for a one-operation org/environment
+selection or supported latest-job operation. Pass only `arguments: string[]`, without the
+executable. The installed extension owns dialogs, rechecks and dispatch; a chat answer or an
+agent-written environment/approval flag is never authority. Nothing persists as classification
+or consent. Cancellation means no execution. See `docs/native-salesforce-operations.md` for
+installation, the private-runtime boundary and remaining host/live acceptance.

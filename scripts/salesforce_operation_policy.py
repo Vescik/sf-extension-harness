@@ -136,29 +136,35 @@ def command_words(parts: list[str]) -> tuple[str, ...]:
     return tuple(words)
 
 
-def is_retrieve(parts: list[str]) -> bool:
-    """Exact CLI 2.145.6 command/flag grammar; no flags-dir, plugins or job guesses."""
+def is_retrieve(parts: list[str], *, nonprod: bool = False) -> bool:
+    """Reviewed retrieve grammar; production flags stay narrower than CLI 2.151.7 nonprod."""
     words = command_words(parts)
     if words not in RETRIEVE_COMMANDS:
         return False
     args = parts[1 + len(words):]
+    multi = RETRIEVE_MULTI | ({"--root-type-with-dependencies"} if nonprod else set())
     i = 0
     while i < len(args):
         flag, sep, value = args[i].partition("=")
         if flag in RETRIEVE_BOOL:
             if sep:  # do not infer boolean semantics
                 return False
-        elif flag in RETRIEVE_VALUES | RETRIEVE_MULTI:
+        elif flag in RETRIEVE_VALUES | multi:
             if sep:
                 if not value:
                     return False
+                values = [value]
             else:
                 i += 1
                 if i >= len(args) or args[i].startswith("-"):
                     return False
-                if flag in RETRIEVE_MULTI:
+                start = i
+                if flag in multi:
                     while i + 1 < len(args) and not args[i + 1].startswith("-"):
                         i += 1
+                values = args[start:i + 1]
+            if flag == "--root-type-with-dependencies" and any(v not in {"Bot", "AiAgentDefinitionVersion"} for v in values):
+                return False
         else:
             return False
         i += 1
@@ -167,6 +173,27 @@ def is_retrieve(parts: list[str]) -> bool:
 
 # Closed set of understood org-facing command paths. New plugin commands need review.
 KNOWN_COMMANDS = set(RETRIEVE_COMMANDS) | {tuple(x.split()) for x in (
+    "project delete source",
+    "project delete tracking",
+    "project reset tracking",
+    "org enable tracking",
+    "org disable tracking",
+    "org list metadata",
+    "org list metadata-types",
+    "org list sobject record-counts",
+    "org refresh sandbox",
+    "data search",
+    "data create file",
+    "data update bulk",
+    "data bulk results",
+    "force:data:bulk:status",
+    "apex tail log",
+    "logic run test",
+    "logic get test",
+    "package install report",
+    "package uninstall report",
+    "package version create list",
+    "package version create report",
     "project deploy start", "project deploy validate", "project deploy quick",
     "project deploy report", "project deploy resume", "project deploy cancel", "deploy metadata",
     "project deploy preview", "project retrieve preview", "deploy metadata preview", "retrieve metadata preview",
@@ -187,6 +214,102 @@ KNOWN_COMMANDS = set(RETRIEVE_COMMANDS) | {tuple(x.split()) for x in (
     "force:package:install", "force:package:uninstall", "force:org:display",
     "force:user:permset:assign",
 )}
+# CLI 2.151.7 manifest aliases, reviewed against the same command implementations.
+# Static map: installing a plugin never grants another command. No argv is rewritten at
+# execution; these are CLI-equivalent spellings used only for policy classification.
+REGISTERED_COMMANDS = {
+    'apex get log': 'apex:get:log force:apex:log:get',
+    'apex get test': 'apex:get:test force:apex:test:report',
+    'apex list log': 'apex:list:log force:apex:log:list',
+    'apex run': 'apex:run force:apex:execute',
+    'apex run test': 'apex:run:test force:apex:test:run',
+    'apex tail log': 'apex:tail:log force:apex:log:tail',
+    'data bulk results': 'data:bulk:results',
+    'data create file': 'data:create:file',
+    'data create record': 'data:create:record force:data:record:create',
+    'data delete bulk': 'data:delete:bulk',
+    'data delete record': 'data:delete:record force:data:record:delete',
+    'data export bulk': 'data:export:bulk',
+    'data export tree': 'data:export:tree force:data:tree:export',
+    'data get record': 'data:get:record force:data:record:get',
+    'data import bulk': 'data:import:bulk',
+    'data import tree': 'data:import:tree force:data:tree:import',
+    'data query': 'data:query force:data:soql:query',
+    'data resume': 'data:resume',
+    'data search': 'data:search',
+    'data update bulk': 'data:update:bulk',
+    'data update record': 'data:update:record force:data:record:update',
+    'data upsert bulk': 'data:upsert:bulk',
+    'force:data:bulk:delete': 'force:data:bulk:delete',
+    'force:data:bulk:status': 'force:data:bulk:status',
+    'force:data:bulk:upsert': 'force:data:bulk:upsert',
+    'force:user:permset:assign': 'force:user:permset:assign',
+    'logic get test': 'logic:get:test',
+    'logic run test': 'logic:run:test',
+    'org assign permset': 'org:assign:permset',
+    'org assign permsetlicense': 'org:assign:permsetlicense',
+    'org create sandbox': 'env:create:sandbox org:create:sandbox',
+    'org create scratch': 'env:create:scratch org:create:scratch',
+    'org delete sandbox': 'env:delete:sandbox org:delete:sandbox',
+    'org delete scratch': 'env:delete:scratch org:delete:scratch',
+    'org disable tracking': 'org:disable:tracking',
+    'org display': 'force:org:display org:display',
+    'org enable tracking': 'org:enable:tracking',
+    'org list limits': 'force:limits:api:display limits:api:display org:list:limits',
+    'org list metadata': 'force:mdapi:listmetadata org:list:metadata',
+    'org list metadata-types': 'force:mdapi:describemetadata org:list:metadata-types',
+    'org list sobject record-counts': 'force:limits:recordcounts:display limits:recordcounts:display org:list:sobject:record-counts',
+    'org refresh sandbox': 'org:refresh:sandbox',
+    'org resume sandbox': 'env:resume:sandbox org:resume:sandbox',
+    'org resume scratch': 'env:resume:scratch org:resume:scratch',
+    'package create': 'force:package:create package:create',
+    'package delete': 'force:package:delete package:delete',
+    'package install': 'force:package:install package:install',
+    'package install report': 'force:package:install:report package:install:report',
+    'package installed list': 'force:package:installed:list package:installed:list',
+    'package list': 'force:package:list package:list',
+    'package uninstall': 'force:package:uninstall package:uninstall',
+    'package uninstall report': 'force:package:uninstall:report package:uninstall:report',
+    'package update': 'force:package:update package:update',
+    'package version create': 'force:package:version:create package:version:create',
+    'package version create list': 'force:package:version:create:list package:version:create:list',
+    'package version create report': 'force:package:version:create:report package:version:create:report',
+    'package version delete': 'force:package:version:delete package:version:delete',
+    'package version list': 'force:package:version:list package:version:list',
+    'package version promote': 'force:package:version:promote package:version:promote',
+    'package version report': 'force:package:version:report package:version:report',
+    'package version update': 'force:package:version:update package:version:update',
+    'project delete source': 'force:source:delete project:delete:source',
+    'project delete tracking': 'force:source:tracking:clear project:delete:tracking',
+    'project deploy cancel': 'deploy:metadata:cancel project:deploy:cancel',
+    'project deploy preview': 'deploy:metadata:preview project:deploy:preview',
+    'project deploy quick': 'deploy:metadata:quick project:deploy:quick',
+    'project deploy report': 'deploy:metadata:report project:deploy:report',
+    'project deploy resume': 'deploy:metadata:resume project:deploy:resume',
+    'project deploy start': 'deploy:metadata project:deploy:start',
+    'project deploy validate': 'deploy:metadata:validate project:deploy:validate',
+    'project reset tracking': 'force:source:tracking:reset project:reset:tracking',
+    'project retrieve preview': 'project:retrieve:preview retrieve:metadata:preview',
+    'project retrieve start': 'project:retrieve:start retrieve:metadata',
+    'sobject describe': 'force:schema:sobject:describe sobject:describe',
+    'sobject list': 'force:schema:sobject:list sobject:list',
+}
+COMMAND_ALIASES = {
+    alias: tuple(canonical.split())
+    for canonical, spellings in REGISTERED_COMMANDS.items()
+    for spelling in spellings.split()
+    for alias in {(spelling,), tuple(spelling.split(":"))}
+    if alias != tuple(canonical.split())
+}
+
+
+
+def canonical_command(parts: list[str]) -> list[str]:
+    words = command_words(parts)
+    canonical = COMMAND_ALIASES.get(words, words)
+    return [parts[0], *canonical, *parts[1 + len(words):]] if parts else []
+
+
 JOB_COMMANDS = {("project", "deploy", name) for name in ("quick", "report", "resume", "cancel")}
 
 
@@ -355,7 +478,7 @@ def _identity(target: str, rows: list[dict]) -> dict | None:
 def classify_target(target: str, entries: list[dict], rows: list[dict]) -> Decision:
     identity = _identity(target, rows)
     if identity is None:
-        return Decision("unresolved", "Target identity is unresolved. Ask the user for this operation's environment; execution remains blocked pending a verified host response.")
+        return Decision("identity-unresolved", "Target identity is not proven. Resolve the authentication/alias identity before asking about environment; an environment answer cannot authorize this operation.")
     matches = []
     for index, entry in enumerate(entries):
         if not isinstance(entry, dict) or not ALIAS.fullmatch(str(entry.get("alias", ""))):
@@ -380,13 +503,14 @@ def classify_target(target: str, entries: list[dict], rows: list[dict]) -> Decis
     if len(set(matches)) > 1:
         raise PolicyError("conflict", "The same Org ID has conflicting environment classifications.")
     if not matches:
-        return Decision("unresolved", "Authenticated target has no configured environment. Ask the user for this operation's environment; execution remains blocked pending a verified host response.", organization_id=identity["id"])
+        return Decision("environment-required", f"Authenticated Org ID {identity['id']} has no environment classification. Use the installed native Salesforce operation tool to ask the user: dev, uat, stage or prod for this exact displayed command and arguments only. Do not change configuration or reuse the answer. Terminal execution cannot consume this native answer.", organization_id=identity["id"])
     return Decision("resolved", "Target classified by authorized Org ID.", matches[0], identity["id"])
 
 
 def evaluate(parts: list[str], root: Path, *, config: dict | None = None,
              env: Mapping[str, str] | None = None, home: Path | None = None,
-             inventory=None) -> Decision:
+             inventory=None, job_target: str | None = None,
+             lifecycle_target: str | None = None) -> Decision:
     """Caller already enforces a plain single command and role. Fail closed on every error."""
     try:
         if parts and "/" in parts[0].replace("\\", "/"):
@@ -404,6 +528,7 @@ def evaluate(parts: list[str], root: Path, *, config: dict | None = None,
             return Decision("allow", "Local command help.")
         if any(p == "--flags-dir" or p.startswith("--flags-dir=") for p in parts):
             return Decision("deny", "Flag files can change the assessed target and scope; use explicit arguments.")
+        parts = canonical_command(parts)
         cfg = config if config is not None else _read_json(root / "config/harness.local.json")
         entries = cfg["salesforce"]["orgs"]
         if not isinstance(entries, list):
@@ -417,14 +542,16 @@ def evaluate(parts: list[str], root: Path, *, config: dict | None = None,
         words = command_words(parts)
         if words not in KNOWN_COMMANDS:
             return Decision("deny", "Unknown or unverified Salesforce command semantics; no operation authorized.")
-        if words in RETRIEVE_COMMANDS and not is_retrieve(parts):
+        if words in RETRIEVE_COMMANDS and not is_retrieve(parts, nonprod=True):
             return Decision("deny", "Unverified retrieve flags or argument form.")
         if words in JOB_COMMANDS:
-            cached_target = _job_target(parts, effective_home)
+            # Native execution may supply the privately resolved immutable job binding.
+            # No CLI flag or model input reaches these parameters.
+            cached_target = job_target if job_target is not None else _job_target(parts, effective_home)
             if cached_target:
                 targets.append(cached_target)
         if words in {("org", "resume", "sandbox"), ("org", "resume", "scratch")}:
-            cached_target = _resume_target(parts, effective_home, words[-1] == "sandbox")
+            cached_target = lifecycle_target if lifecycle_target is not None else _resume_target(parts, effective_home, words[-1] == "sandbox")
             if cached_target:
                 targets.append(cached_target)
         is_hub = any(words[:len(prefix)] == prefix for prefix in HUB_COMMANDS)

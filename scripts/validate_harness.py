@@ -66,6 +66,7 @@ ALLOWED_TOOLS = {
     "search",
     "edit/editFiles",
     "execute/runInTerminal",
+    "sf-harness.salesforce-operations/salesforceOperation",
     "web/fetch",
     "vscode/askQuestions",
     "agent",
@@ -357,6 +358,10 @@ def check_customizations(audit: Audit, root: Path = ROOT) -> None:
             legacy = sorted(set(tools) & LEGACY_TOOLS)
             audit.require(not unknown, f"{relative(path)}: unknown tools: {unknown}")
             audit.require(not legacy, f"{relative(path)}: legacy tools: {legacy}")
+            audit.require(
+                ("sf-harness.salesforce-operations/salesforceOperation" in tools) == (name == "developer"),
+                f"{relative(path)}: native Salesforce operation tool belongs only to Developer",
+            )
             if data.get("agents"):
                 audit.require("agent" in tools, f"{relative(path)}: agents allowlist requires the agent tool")
         if isinstance(name, str):
@@ -1376,6 +1381,46 @@ def check_deploy_validation_wiring(audit: Audit) -> None:
     )
 
 
+def check_native_operation_wiring(audit: Audit) -> None:
+    """The native UI owns authorization; the model sees only bounded command arguments."""
+    package = load_json(ROOT / "extensions/salesforce-operations/package.json", audit)
+    audit.require(package.get("publisher") == "sf-harness" and package.get("name") == "salesforce-operations",
+                  "native extension identity must match Developer's full tool reference")
+    tools = package.get("contributes", {}).get("languageModelTools", [])
+    audit.require(len(tools) == 1, "native extension must contribute exactly one operation tool")
+    tool = tools[0] if len(tools) == 1 and isinstance(tools[0], dict) else {}
+    audit.require(tool.get("name") == "sf_harness_run_operation"
+                  and tool.get("toolReferenceName") == "salesforceOperation",
+                  "native operation runtime and reference names must match the exact hook identities")
+    schema = tool.get("inputSchema", {})
+    properties = schema.get("properties", {})
+    audit.require(schema.get("type") == "object" and schema.get("additionalProperties") is False
+                  and schema.get("required") == ["arguments"] and set(properties) == {"arguments"},
+                  "native model input must contain only arguments, never authority fields")
+    arguments = properties.get("arguments", {})
+    items = arguments.get("items", {})
+    audit.require(arguments.get("type") == "array" and arguments.get("minItems") == 1
+                  and arguments.get("maxItems") == 128 and items.get("type") == "string"
+                  and items.get("minLength") == 1 and items.get("maxLength") == 8192,
+                  "native argument schema must preserve the reviewed size bounds")
+    guard = required_text(ROOT / "scripts/copilot_role_guard.py", audit)
+    safety = required_text(ROOT / "scripts/copilot_safety_hook.py", audit)
+    for text, name in ((guard, "role guard"), (safety, "global safety hook")):
+        audit.require('"sf_harness_run_operation"' in text and "native_operation_input_error" in text,
+                      f"{name} must recognize and validate the native operation input")
+    for path in ("scripts/salesforce_operation_session.py", "scripts/salesforce_job_selection.py",
+                 "scripts/salesforce_job_executor.mjs"):
+        audit.require((ROOT / path).is_file(), f"native private runtime missing: {path}")
+        audit.require(f'"{path}"' in guard, f"native private runtime must remain root of trust: {path}")
+    audit.require('"extensions/salesforce-operations/"' in guard,
+                  "native extension sources and packaging must remain root of trust")
+    root_package = load_json(ROOT / "package.json", audit)
+    ci = required_text(ROOT / ".github/workflows/harness-ci.yml", audit)
+    for command in ("native:test", "native:build", "native:package"):
+        audit.require(command in root_package.get("scripts", {}) and f"npm run {command}" in ci,
+                      f"native operation check must run in full harness CI: {command}")
+
+
 def check_contracts_match_mcp(audit: Audit) -> None:
     """Normative contracts must not advertise MCP servers that mcp.json does not configure.
 
@@ -1515,6 +1560,7 @@ def main() -> int:
             check_grounding_contracts,
             check_contracts_match_mcp,
             check_deploy_validation_wiring,
+            check_native_operation_wiring,
             check_repo_map,
             check_placeholders,
             check_secret_signatures,

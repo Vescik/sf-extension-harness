@@ -28,7 +28,9 @@ def write_json(path: Path, value: object) -> None:
     path.write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")
 
 
-def prepare(destination: Path) -> Path:
+def prepare(destination: Path, *, host_probe: str | None = None) -> Path:
+    if host_probe not in (None, "ask", "rewrite"):
+        raise ValueError("Unknown host probe")
     destination = destination.absolute()
     # Never overlay a real workspace or its local authorization/configuration files.
     destination.mkdir(parents=True, exist_ok=False)
@@ -42,7 +44,7 @@ def prepare(destination: Path) -> Path:
         data = (ROOT / source).read_bytes()
         (destination / source).write_bytes(data)
         hashes[source] = hashlib.sha256(data).hexdigest()
-    for source in ("pilot_cli.py", "pilot_check.py", "pilot_fault.py"):
+    for source in ("pilot_cli.py", "pilot_check.py", "pilot_fault.py", "pilot_host_probe.py"):
         shutil.copyfile(ROOT / "tests/fixtures/production-policy" / source, destination / "scripts" / source)
     shutil.copyfile(ROOT / "docs/production-policy-pilot.md", destination / "README.md")
     entries, inventory = [], []
@@ -56,6 +58,14 @@ def prepare(destination: Path) -> Path:
     write_json(destination / "config/harness.local.json", {"salesforce": {"orgs": entries}})
     write_json(destination / "inventory.json", {"status": 0, "result": inventory})
     write_json(destination / "source-manifest.json", {"sources": hashes, "hostAcceptance": "NOT VERIFIED"})
+    write_json(destination / "pilot-mode.json", {"hostProbe": host_probe})
+    if host_probe:
+        inventory.append({"alias": "unclassified", "username": "unclassified@example.test",
+                          "orgId": "00D000000000009AAA",
+                          "instanceUrl": "https://unclassified--dev.sandbox.my.salesforce.com"})
+        write_json(destination / "inventory.json", {"status": 0, "result": inventory})
+        write_json(destination / "home/.sf/deploy-cache.json", {
+            "0Af000000000001AAA": {"target-org": "prod-copy", "timestamp": "2099-01-01T00:00:00Z"}})
 
     # Pin the Python interpreter at generation time, including paths with spaces.
     interpreter = str(Path(sys.executable).absolute())
@@ -85,7 +95,14 @@ def prepare(destination: Path) -> Path:
                 "windows": subprocess.list2cmdline(argv), "timeout": timeout, "env": environment}
     safety = hook("copilot_safety_hook.py", 10)
     role = hook("copilot_role_guard.py", 5, "--role", "developer")
-    write_json(destination / ".github/hooks/safety.json", {"hooks": {"PreToolUse": [safety]}})
+    if host_probe:
+        # Probe wiring is deliberately separate from normal policy acceptance.
+        safety = hook("pilot_host_probe.py", 10)
+        role = hook("pilot_host_probe.py", 5)
+    hooks = {"PreToolUse": [safety]}
+    if host_probe:
+        hooks["PostToolUse"] = [safety]
+    write_json(destination / ".github/hooks/safety.json", {"hooks": hooks})
     # JSON is a YAML subset; preserve the exact production role/timeout without a YAML dependency.
     frontmatter = {"name": "developer", "description": "Disposable Salesforce policy pilot; synthetic executor only.",
                    "target": "vscode", "tools": ["read", "execute/runInTerminal"],
@@ -110,10 +127,11 @@ def prepare(destination: Path) -> Path:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("destination", type=Path, help="New, disposable directory; existing paths are refused")
+    parser.add_argument("--host-probe", choices=("ask", "rewrite"), help="Synthetic protocol experiment, not policy acceptance")
     args = parser.parse_args()
-    print(prepare(args.destination))
+    print(prepare(args.destination, host_probe=args.host_probe))
     print("Synthetic pilot prepared. No Salesforce credentials, metadata or approval were copied.")
-    print("Run python scripts/pilot_check.py inside it, then follow README.md. Host proof remains NOT VERIFIED.")
+    print("Follow README.md for the selected probe. Normal pilots also run scripts/pilot_check.py. Host proof remains NOT VERIFIED.")
     return 0
 
 

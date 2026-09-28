@@ -91,3 +91,8 @@ Empty Knowledge produces explicit unknowns, not fabricated package facts.
 `manifest/package.xml` is a generic starter manifest, not automatic deployment scope. Before an
 org-facing retrieve, validation, or deployment, bind the scope to the components named by the
 approved design (`work-items/<id>-<slug>/design.md`); wildcard presence is never task scope.
+
+
+For Developer operations requiring a one-use environment answer or supported latest-job selection,
+install the [native Salesforce operation tool](docs/native-salesforce-operations.md). Existing MCP
+and Knowledge contracts stay unchanged; host/live acceptance is recorded separately.

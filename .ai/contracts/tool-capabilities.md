@@ -16,6 +16,7 @@ upgrade.
 | Record create/update/upsert/delete and bulk data operations on `dev`/`uat`/`stage` | direct `sf data`/legacy `sfdx` terminal command | Developer |
 | Apex execution/testing, package operations, and org lifecycle on `dev`/`uat`/`stage` | direct `sf`/`sfdx` terminal command | Developer |
 | Optional legacy check-only validation helper | `python scripts/validate_salesforce_deploy.py start\|status` | Developer |
+| Native one-operation Salesforce environment/target selection and reviewed job execution | `sf-harness.salesforce-operations/salesforceOperation` local VS Code extension, arguments only | Developer only |
 | Interactive human confirmation | `vscode/askQuestions` | prompts and approval gates |
 | Subagent delegation | `agent` plus explicit `agents` allowlist | Designer, Developer |
 
@@ -110,8 +111,9 @@ opts into every object. On a full-copy sandbox that means record reads can reach
 production data across all objects — prefer an explicit list when the org holds sensitive
 data.
 
-The canonical write path remains direct Salesforce CLI in the Developer role on `dev`/`uat`/`stage`.
-The launcher spawns only the read facade; no write MCP or separate Deployment Agent is introduced.
+Developer org execution remains limited to `dev`/`uat`/`stage`: reviewed direct CLI plus the
+native operation tool, whose private job executor binds reviewed job operations to an exact org/ID.
+The MCP launcher still spawns only the read facade; no write MCP or separate Deployment Agent is introduced.
 Every exact real deployment needs fresh target/scope confirmation. Production CLI permits only
 verified metadata retrieve; all other production CLI reads and writes are denied, including dry-run
 validation and deploy job commands. Internal fixed MCP identity calls grant no direct CLI access.
@@ -119,7 +121,9 @@ validation and deploy job commands. Internal fixed MCP identity calls grant no d
 Configuration uses `dev`, `uat`, `stage`, `prod`; `development` and `production` normalize to their
 canonical values, while legacy `qa` requires explicit assignment. Any valid alias is supported and
 multiple aliases may share an environment. Missing targets, conflicting identity, errors and timeouts
-never authorize execution. Unknown CLI targets remain denied; the trusted one-operation question
-and remaining nonprod/latest compatibility are deferred to plan 01a. No persistent consent store
-or agent-written classification flag is introduced. See `docs/production-read-only.md` for allowed
-retrieve forms, migration and owner-side destination acceptance.
+never authorize execution. Unknown targets and mutable latest selectors remain denied in the
+terminal. The native Developer tool owns one-operation org/environment dialogs, rechecks and
+execution; it pins supported latest jobs before dispatch. No persistent consent store or
+agent-written classification flag is introduced. Its private session/executor is not a terminal
+or MCP capability. See `docs/native-salesforce-operations.md` for installation and evidence bounds,
+and `docs/production-read-only.md` for retrieve forms and migration.
