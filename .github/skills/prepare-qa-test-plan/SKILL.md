@@ -24,14 +24,17 @@ solution, and it never repairs a stale requirement/design baseline.
    no write.
 2. `design.md` is required for the normal lane — without it, stop and return
    `/solution-design itemId=<ID>`.
-3. Read the entire current work-item evidence set before authoring: `ado-context.md` when
+3. Read the current work-item evidence before authoring: `ado-context.md` when
    present, `design.md`, `tasks.md`, `decisions.md`, and any existing `qa-test-plan.md` — each
    in full. Absence of tasks/decisions before implementation is normal, never fabricated.
+   Read `technical-documentation.md` only when the task requires it; do not routinely read
+   the whole folder.
 4. Determine whether implementation evidence exists from the item's designed scope and the
    current repository state; do not claim every uncommitted repository change for this item.
-5. An optional free-text request may bound the focus or set the output language. Without an
-   explicit language, keep the dominant language of the requirement and retain canonical
-   Salesforce/ADO terminology.
+5. An optional free-text request may bound the focus. Write authored QA prose and headings
+   in English/STE by default. Preserve source quotations and canonical Salesforce/ADO
+   terminology. An explicit user language instruction applies to this task only; it does
+   not change repository defaults.
 
 ## Requirement/design freshness gate
 
@@ -104,8 +107,7 @@ facts as a separate curation recommendation (`consider /author-feature or /curat
 
 ## The document
 
-Adapt headings to the document language; omit irrelevant optional material; keep a small
-change's plan small. Required semantic content:
+Omit irrelevant optional material; keep a small change's plan small. Required semantic content:
 
 1. **Identity and readiness** — item ID/title; the verdict near the top; requirement baseline;
    design baseline; implementation revision/diff basis when present; provenance without

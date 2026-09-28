@@ -8,13 +8,13 @@ the deep directory tree lives in `docs/workspace-topology.md`.
 | Path | Purpose |
 |---|---|
 | `.ai` | Governed agent state: contracts, knowledge, memory |
-| `.ai/contracts` | Normative execution/knowledge/workflow/tooling contracts, loaded per role |
+| `.ai/contracts` | Normative execution/writing/knowledge/workflow/tooling contracts, loaded as needed |
 | `.ai/knowledge` | One-file Knowledge Entries + approval ledgers, feature entries, keyword taxonomy |
 | `.ai/memory` | Human-curated decisions-log.md |
 | `.ai/templates` | Document templates |
 | `.cache` | Ignored transient caches, drafts, receipts |
 | `.github` | Copilot surface: kernel, agents, prompts, skills, hooks, CI |
-| `.github/agents` | Six role agents with tools, handoffs, role-guard hooks |
+| `.github/agents` | Role agents with tools, handoffs, role-guard hooks |
 | `.github/instructions` | Tiered Principle instruction files, loaded per role |
 | `.github/prompts` | Public slash commands, each linking its skill |
 | `.github/skills` | Internal skill procedures (SKILL.md per folder) |
@@ -25,22 +25,22 @@ the deep directory tree lives in `docs/workspace-topology.md`.
 | `extensions` | Native VS Code tools and packages |
 | `force-app` | The only SFDX source root |
 | `manifest` | package.xml starter manifest |
-| `output` | Reviewed deliverables: docs, designs, tests, handover |
+| `output` | Ignored temporary drafts and reports, including handover, Feature Health, and adhoc fix notes |
 | `schemas` | JSON Schemas for every governed artifact |
 | `scripts` | Guarded scripts: safety hook, role guard, registries, wrappers |
 | `tests` | Harness unit tests + promoted tests/e2e |
-| `work-items` | Current work: one folder per work item — ado-context.md (ADO requirement snapshot, ADO-backed work), design.md (intent), tasks.md (progress), decisions.md (append-only deviations), qa-test-plan.md (optional QA handoff) |
+| `work-items` | Durable work: one stable folder per work item — ado-context.md (ADO requirement snapshot), design.md (intent), tasks.md (progress), decisions.md (deviations), qa-test-plan.md (optional QA handoff), technical-documentation.md (optional change documentation) |
 
 ## Roles (`.github/agents/`)
 
-- **config-investigator** — Read-only evidence collector for allowlisted …. Loads instructions: managed-package; contracts: source-authority, tool-capabilities; skills: inventory-force-app, investigate-config-records, investigate-object, org-discovery, selected-files-knowledge.
-- **designer** — Design subscriber-owned extensions of the …. Loads skills: fetch-ado-item, prepare-delivery-feature, solution-design.
-- **developer** — Implement a designed work item …. Loads skills: development, git-workflow.
-- **git-agent** — Routine git operations by the …. Loads skills: git-workflow.
-- **knowledge-curator** — Maintains governed Knowledge from repository …. Loads instructions: managed-package; contracts: source-authority; skills: approve-knowledge-drafts, curate-knowledge, search-knowledge.
-- **reviewer** — Challenge a design or implementation …. Loads skills: check-against-principles.
-- **test-strategist** — Own the QA perspective — …. Loads instructions: apex; contracts: execution-contract, tool-capabilities; skills: check-feature-coverage, prepare-qa-test-plan, search-knowledge.
-- **workspace-maintainer** — Maintain the workspace control plane …. Loads skills: maintain-workspace.
+- **config-investigator** — Read-only evidence collector for allowlisted …. Loads instructions: managed-package; contracts: source-authority, tool-capabilities, writing-standard; skills: inventory-force-app, investigate-config-records, investigate-object, org-discovery, selected-files-knowledge.
+- **designer** — Design subscriber-owned extensions of the …. Loads contracts: writing-standard; skills: fetch-ado-item, prepare-delivery-feature, solution-design.
+- **developer** — Implement a designed work item …. Loads contracts: writing-standard; skills: development, git-workflow.
+- **git-agent** — Routine git operations by the …. Loads contracts: writing-standard; skills: git-workflow.
+- **knowledge-curator** — Maintains governed Knowledge from repository …. Loads instructions: managed-package; contracts: source-authority, writing-standard; skills: approve-knowledge-drafts, curate-knowledge, search-knowledge.
+- **reviewer** — Challenge a design or implementation …. Loads contracts: writing-standard; skills: check-against-principles.
+- **test-strategist** — Own the QA perspective — …. Loads instructions: apex; contracts: execution-contract, tool-capabilities, writing-standard; skills: check-feature-coverage, prepare-qa-test-plan, search-knowledge.
+- **workspace-maintainer** — Maintain the workspace control plane …. Loads contracts: writing-standard; skills: maintain-workspace.
 
 ## Skills (`.github/skills/`)
 
@@ -53,7 +53,7 @@ the deep directory tree lives in `docs/workspace-topology.md`.
 - `development` — Implement a designed Salesforce work …
 - `fetch-ado-item` — Fetch and normalize one Azure …
 - `generate-release-handover` — Compose a current, sourced monthly …
-- `generate-technical-documentation` — Generate a sourced technical-documentation draft …
+- `generate-technical-documentation` — Generate or update durable technical …
 - `git-workflow` — The team's git conventions — …
 - `inventory-force-app` — Inventory the repository-root Salesforce force-app …
 - `investigate-config-records` — Take a bounded, sanitized snapshot …
@@ -93,6 +93,7 @@ the deep directory tree lives in `docs/workspace-topology.md`.
 - `execution-contract` — Every skill must apply this …
 - `source-authority` — Source authority depends on the …
 - `tool-capabilities` — A formally linked ADO Test …
+- `writing-standard` — Use the conversation language for …
 
 ## Instructions (`.github/instructions/`)
 
@@ -106,4 +107,4 @@ the deep directory tree lives in `docs/workspace-topology.md`.
 - Decisions: `.ai/memory/decisions-log.md`.
 - Search Knowledge first: the `knowledge_context` / `knowledge_search` MCP tools over the entry index (`knowledge_resolve` maps names/paths to identities); terminal fallback lives in the search-knowledge skill's command menu.
 - Deep tree: `docs/workspace-topology.md`; setup: `docs/setup-zero-to-first-prompt.md`.
-- Resume work from work-items/<id>-<slug>/: ado-context.md is the ADO requirement (when ADO-backed), design.md the intent, tasks.md the state, decisions.md the deviations, qa-test-plan.md the QA handoff when one exists — chat is never workflow truth
+- Resume work from work-items/<id>-<slug>/: ado-context.md is the ADO requirement (when ADO-backed), design.md the intent, tasks.md the state, decisions.md the deviations; optional qa-test-plan.md and technical-documentation.md are projections read only when the task needs them — chat is never workflow truth

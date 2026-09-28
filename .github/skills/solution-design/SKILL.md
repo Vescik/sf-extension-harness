@@ -107,7 +107,7 @@ Only after Stage 1 established the applicable local baselines:
   `VendorNS__` components, with the org evidence behind it (MP-DESIGN-001). No package
   impact is also a statement: say it explicitly.
 - **Decisions with alternatives** — for each material choice, what else was considered
-  and why it lost. A decision the human didn't confirm is marked `[niezatwierdzona]`.
+  and why it lost. A decision the human didn't confirm is marked `[unapproved]`.
 - **Acceptance criteria coverage** — the matrix defined below, the canonical (and only)
   AC/requirement coverage representation in the design.
 - **Planned change surface** — the compact component map defined below; there is no
@@ -182,7 +182,7 @@ The design declares its intended logical change surface in one compact table:
 - **Conditional scope is visible, not committed.** When an unresolved decision changes the
   component set, prefix the action with a marker such as
   `[conditional — decision: retry policy] Create`; the decision itself stays
-  `[niezatwierdzona]`.
+  `[unapproved]`.
 - **Material exclusions are prose, not an inventory.** An optional short `Explicit
   exclusions` list after the table may name likely scope-creep non-goals. Do not enumerate every out-of-scope
   component, and do not add confidence percentages, digests, state IDs, timestamps, or

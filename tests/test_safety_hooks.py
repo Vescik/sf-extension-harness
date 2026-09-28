@@ -1101,6 +1101,77 @@ class RoleGuardTests(unittest.TestCase):
         )
         self.assertEqual(hook_decision(output), "continue")
 
+    def test_story_documentation_preserves_role_write_boundaries(self) -> None:
+        # Plan 02 changes the durable documentation path, not role capabilities.
+        for role, expected in (
+            ("developer", "continue"),
+            ("reviewer", "deny"),
+            ("test-strategist", "deny"),
+        ):
+            with self.subTest(role=role):
+                output = run_hook(
+                    "copilot_role_guard.py",
+                    {
+                        "cwd": str(ROOT),
+                        "tool_name": "edit/editFiles",
+                        "tool_input": {
+                            "path": "work-items/242850-approval-notifications/technical-documentation.md"
+                        },
+                    },
+                    "--role",
+                    role,
+                )
+                self.assertEqual(hook_decision(output), expected)
+
+    def test_developer_documentation_cannot_escape_through_traversal(self) -> None:
+        for path in (
+            "work-items/242850-approval-notifications/../../../technical-documentation.md",
+            str(ROOT.parent / "technical-documentation.md"),
+        ):
+            with self.subTest(path=path):
+                output = run_hook(
+                    "copilot_role_guard.py",
+                    {
+                        "cwd": str(ROOT),
+                        "tool_name": "edit/editFiles",
+                        "tool_input": {"path": path},
+                    },
+                    "--role",
+                    "developer",
+                )
+                self.assertEqual(hook_decision(output), "deny")
+
+    def test_developer_documentation_cannot_escape_through_symlink(self) -> None:
+        from scripts import copilot_role_guard as role_guard
+
+        with tempfile.TemporaryDirectory() as name:
+            base = Path(name).resolve()
+            root = base / "repo"
+            work_items = root / "work-items"
+            work_items.mkdir(parents=True)
+            outside = base / "outside"
+            outside.mkdir()
+            linked_folder = work_items / "242850-approval-notifications"
+            try:
+                linked_folder.symlink_to(outside, target_is_directory=True)
+            except OSError as exc:
+                self.skipTest(f"directory symlinks are unavailable on this host: {exc}")
+            event = {
+                "cwd": str(root),
+                "tool_name": "edit/editFiles",
+                "tool_input": {"path": str(linked_folder / "technical-documentation.md")},
+            }
+            stdout = StringIO()
+            with (
+                patch.object(role_guard, "HARNESS_ROOT", root),
+                patch.object(role_guard, "METADATA_ROOT", root),
+                patch("sys.argv", ["copilot_role_guard.py", "--role", "developer"]),
+                patch("sys.stdin", StringIO(json.dumps(event))),
+                patch("sys.stdout", stdout),
+            ):
+                self.assertEqual(role_guard.main(), 0)
+            self.assertEqual(hook_decision(json.loads(stdout.getvalue())), "deny")
+
     def test_org_change_log_write_authority_is_bounded(self) -> None:
         developer_paths = (
             "work-items/242850-approval-notifications/org-changes.md",

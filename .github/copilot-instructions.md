@@ -34,6 +34,16 @@ pre-execution gate and is an agent report, not approval or independent proof.
 The complete trust, credentials, role, and confirmation rules are in
 `.github/instructions/managed-package.instructions.md`.
 
+## Language and writing
+
+Reply in the conversation language, using technical English for English chat. Write new artifact
+prose, including ready-to-use content in chat, in English/STE unless the user explicitly requests
+another language for that result. Preserve sanitized source quotations, code, API names, UI text,
+and evidence. Never change meaning, negation, conditions, or uncertainty for style. Use plain,
+active sentences and one action per procedural step. Details: `.ai/contracts/writing-standard.md`.
+Read them only when needed and absent from context. Writing rules grant no tool or publication
+permission and require no separate rewrite pass.
+
 ## How to work
 
 Read before you propose: the package concept and constraints in `docs/`, the org through

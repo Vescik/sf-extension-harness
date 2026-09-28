@@ -47,6 +47,13 @@ Files appear by lifecycle stage — nothing creates empty placeholders for later
   `org-changes.md` is the sole exception and exists there only when one operation spans the
   prepared Feature's included Work Items. There are no nested folders — the layout stays flat,
   one sibling directory per Work Item.
+- `technical-documentation.md` — OPTIONAL durable documentation, created or updated only by
+  `/document-metadata-change itemId=<ID>`. It describes the requested change or, without a
+  design, the existing state. Its verification section projects the design and recorded
+  deviations; it is not a new requirements or verification authority. New content starts as
+  `draft`; review, implementation, deployment, and test results are separate claims. Its
+  presence does not make it a development or QA prerequisite, and consumers read it only
+  when their task needs it. A local document is not a published wiki page.
 
 Requirement intake and solution design are separate steps: `/fetch-ado-item`
 persists `ado-context.md` and stops; `git-agent: start work item <ID>` creates the
@@ -61,6 +68,24 @@ route back to Solution Design and reconcile the design first.
 
 The folder name is stable by ID: it is never renamed when the ADO title
 changes; the current title lives in `ado-context.md` and Git history.
+Resolve folders with the exact `<id>-` prefix under `work-items/`: reuse one match; stop
+with `INCOMPLETE — NEEDS HUMAN` on duplicates without writing. Documentation with no matching
+folder can create one from the same current ADO read needed to identify the Work Item, and
+write only `technical-documentation.md`. It does not create substitute lifecycle files or
+change the prepared Feature rules above. Reject resolved paths that escape the repository,
+including through symlinks or `..`.
+
+Use English/STE for new prose, while preserving sanitized ADO quotations and literal evidence
+in their source language. Link to the durable document with relative repository links and use
+only the ADO URL established by the source. On updates, preserve human notes outside the requested
+change and do not transfer an earlier review status to new content. No mandatory index,
+design template, or empty sections are added to existing free-form designs.
+
+`output/` remains ignored temporary storage, including monthly handover, Feature Health,
+and adhoc fix notes. Do not migrate its historical drafts automatically. A document in
+`work-items/` is eligible for source control, but is not thereby committed, reviewed, or
+published. Wiki publishes selected documentation through a separate workflow; a local file
+does not remove a handover's `Missing Wiki Link` condition.
 
 After a work item closes: review `decisions.md` and any `org-changes.md` — lessons promote to
 `docs/package-constraints.md` or `docs/package-concept.md`; the folder stays as the

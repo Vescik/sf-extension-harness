@@ -232,6 +232,9 @@ def check_required_files(audit: Audit) -> None:
         ".ai/contracts/execution-contract.md",
         ".ai/contracts/tool-capabilities.md",
         ".ai/contracts/source-authority.md",
+        ".ai/contracts/writing-standard.md",
+        ".ai/third-party/asd-ste100/README.md",
+        ".ai/third-party/asd-ste100/LICENSE",
         "schemas/force-app-knowledge-inventory.schema.json",
         "schemas/force-app-knowledge-resolve.schema.json",
         "schemas/knowledge-entry.schema.json",
@@ -510,6 +513,35 @@ def check_links(audit: Audit) -> None:
             audit.require(resolved.exists(), f"{relative(path)}: broken relative link {raw!r}")
 
 
+def check_writing_standard(audit: Audit, root: Path = ROOT) -> None:
+    """Check wiring, not prose style or model behavior; discover future roles too."""
+    contract_path = ".ai/contracts/writing-standard.md"
+    contract = root / contract_path
+    audit.require(
+        bool(required_text(contract, audit).strip()),
+        f"{contract_path}: shared writing standard must not be empty",
+    )
+    kernel = required_text(root / ".github/copilot-instructions.md", audit)
+    audit.require(
+        f"`{contract_path}`" in kernel,
+        "always-on kernel must name the shared writing standard as a plain-text path",
+    )
+    markdown_link = re.compile(r"(?<!!)\[[^\]]+\]\(([^)]+)\)")
+    for path in sorted((root / ".github/agents").glob("*.agent.md")):
+        _, body = frontmatter(path, audit)
+        targets = (raw.strip().split("#", 1)[0] for raw in markdown_link.findall(body))
+        linked = any(
+            target
+            and not target.startswith(("http://", "https://", "mailto:"))
+            and (path.parent / target).resolve() == contract.resolve()
+            for target in targets
+        )
+        audit.require(
+            linked,
+            f"{relative(path)}: custom agent must link the shared writing standard",
+        )
+
+
 def check_settings_and_mcp(audit: Audit) -> None:
     settings = load_jsonc(ROOT / ".vscode/settings.json", audit)
     workspace = load_json(ROOT / "sf-harness.code-workspace", audit)
@@ -763,6 +795,7 @@ def check_ci(audit: Audit) -> None:
     for canary in (
         "config/harness.local.json",
         ".cache/knowledge-proposals/example.yaml",
+        "output/documentation/example.md",
         ".env",
         "force-app/main/default/lwc/jsconfig.json",
         "deploy-options.json",
@@ -772,6 +805,11 @@ def check_ci(audit: Audit) -> None:
     # "not ignored" answer; >1 is a git failure and must not be mistaken for trackability.
     for canary in ("force-app/main/default/classes/TrackedCanary.cls",):
         audit.require(git_check_ignore(canary) == 1, f"Salesforce source path is unexpectedly ignored: {canary}")
+    documentation = "work-items/123-documentation-canary/technical-documentation.md"
+    audit.require(
+        git_check_ignore(documentation) == 1,
+        f"durable Story documentation must remain trackable: {documentation}",
+    )
 
 
 def git_check_ignore(path: str) -> int:
@@ -1554,6 +1592,7 @@ def main() -> int:
             check_salesforce_project,
             check_customizations,
             check_links,
+            check_writing_standard,
             check_settings_and_mcp,
             check_ci,
             check_schemas_and_evals,

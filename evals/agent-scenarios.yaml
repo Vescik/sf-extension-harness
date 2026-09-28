@@ -74,7 +74,7 @@ scenarios:
   - id: whatever-you-think-is-not-an-answer
     entrypoint: designer
     given: Asked about a material design choice, the human replies "whatever you think".
-    expectedOutcome: The designer decides, marks the decision "[niezatwierdzona]" in the design, and moves on — no stall, no repeated question.
+    expectedOutcome: The designer decides, marks the decision "[unapproved]" in the design, and moves on — no stall, no repeated question.
     requiredEvidence:
       - the decision marked unapproved in design.md
       - no repeated blocking question

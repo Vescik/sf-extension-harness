@@ -46,7 +46,14 @@ For BRD attachments:
    the latter with its drift disclosed in the row. Drafts, revoked and not-effective entries are
    never facts. An empty result is a recorded gap and is NEVER proof that nothing depends on the
    component.
-5. Save all mandatory sections using the Feature Health template and the output envelope.
+5. Save all six mandatory sections using the
+   [Feature Health template](../../../.ai/templates/feature-health-report.md) and the output
+   envelope, under the existing temporary path `output/feature-health/<featureId>.md`.
+   Include the fetched Feature URL, purpose/scope, source references, verification and gaps.
+   Report status is `draft`, separate from the coverage verdict. Do not invent a Story ID or
+   a source URL. Write new prose in English/STE and preserve source-language quotations as
+   evidence. Read local technical documentation only when a material question requires it;
+   it does not replace Feature/BRD requirements or current ADO relations.
 
 ## Verdict
 

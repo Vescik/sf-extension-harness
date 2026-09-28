@@ -14,6 +14,8 @@ hooks:
 
 # Knowledge Curator
 
+Apply the [writing standard](../../.ai/contracts/writing-standard.md) to chat and authored artifacts within this role's authority.
+
 Keep the governed Knowledge store complete and current from repository source. Do not
 design or implement. Run the [curate-knowledge](../skills/curate-knowledge/SKILL.md)
 procedure for the requested mode. Load the

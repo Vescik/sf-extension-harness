@@ -31,8 +31,14 @@ Four points hold across every path:
   existing read-only Salesforce facade within role limits. Confirmation cannot override a
   production denial. Test Strategist cannot use production, including MCP, in either QA lane.
 - You decide whether a proposed design, scope, or Knowledge approval proceeds.
-- Durable work belongs in repository artifacts (`work-items/`, `output/`, `.ai/knowledge/`),
-  not in chat memory. A conversation is not a record.
+- Durable work belongs in repository artifacts (`work-items/`, `.ai/knowledge/`),
+  not in chat memory. `output/` holds ignored temporary drafts and reports.
+
+Agents answer in the conversation language; English chat uses technical English. New artifact
+prose uses English/STE, including copyable document or PR text returned in chat. Sanitized ADO
+quotations, API names, commands, and literal evidence retain their original wording and meaning.
+The shared [writing standard](../.ai/contracts/writing-standard.md) defines the details without
+adding publication or execution permission.
 
 ## Choose your path
 
@@ -142,10 +148,26 @@ From a written requirement:
 - `work-items/<id>-<slug>/decisions.md` — deviations recorded during implementation;
 - `work-items/<id>-<slug>/qa-test-plan.md` — the QA handoff, only when the item goes to a
   tester;
+- `work-items/<id>-<slug>/technical-documentation.md` — durable documentation, only when
+  requested through `/document-metadata-change itemId=<ID>`;
 - scoped repository changes with verification evidence;
 - a PR prepared for your review, when you ask for one.
 
 See [work-items/README.md](../work-items/README.md) for what each durable file means.
+
+Technical documentation uses the existing stable folder identified by Work Item ID, even if
+the ADO title changed. Duplicate folders stop the write. Without a folder or design, the
+workflow can document existing state after the required current ADO read establishes identity;
+it creates only the documentation file. Updates preserve human notes outside the requested
+change. The document starts as `draft`; its review status, implementation state, and test
+results are separate. It projects the design's verification strategy and does not add a
+development or QA prerequisite. Other roles read it only when their task needs it.
+
+Use relative repository links to this durable file. Keeping it in Git does not publish it:
+wiki publication remains a separate step, and release handover still requires a wiki link
+attached to the Work Item. A local document does not clear `Missing Wiki Link`. Historical
+`output/` drafts are not migrated automatically; monthly handover and Feature Health remain
+temporary reports in their existing paths.
 
 ### Done here means
 
@@ -485,10 +507,12 @@ reviewing impact across a curated feature boundary. For the governing detail, se
 | `work-items/<id>-<slug>/design.md` | Accepted intent, scope, trade-offs, verification, and rollback |
 | `work-items/<id>-<slug>/tasks.md` | Current execution checklist |
 | `work-items/<id>-<slug>/decisions.md` | Append-only deviations and rulings |
+| `work-items/<id>-<slug>/qa-test-plan.md` | Optional QA handoff that projects the requirement, design, and deviations |
+| `work-items/<id>-<slug>/technical-documentation.md` | Optional durable documentation of a requested change or existing state; separate from review and wiki publication |
 | `work-items/<id>-<slug>/org-changes.md` | Optional append-only operational history of qualifying Salesforce mutations; an agent report, not approval/evidence |
 | `work-items/<feature-id>-<slug>/delivery-map.md` | Explicit membership and order of an actively prepared ADO Feature's delivery — coordination only (Feature folders only) |
 | `docs/org-changes/**` | Standalone org-change history only when no Work Item or prepared Feature applies |
-| `output/**` | Draft and review artifacts — not automatically authoritative |
+| `output/**` | Ignored temporary drafts and reports, including monthly handover, Feature Health, and adhoc fix notes |
 | `.ai/knowledge/**` | Governed Knowledge, written only through its existing lanes |
 
 See [work-items/README.md](../work-items/README.md) for the work-item files and
@@ -523,6 +547,7 @@ action — supply it, or stop the work.
 | Investigate reference/config records | `/investigate-config-records objectApiName=<API name> org=<alias>` |
 | Author Feature Knowledge | `/author-feature <slug-or-name>` |
 | Assess feature coverage | `/feature-health itemId=<Feature ID>` |
+| Document one Work Item's change or existing state | `/document-metadata-change itemId=<ID>` |
 | Prepare routine Git work or push with a copyable PR handoff | `git-agent` custom agent |
 
 This table lists the entry points behind the playbooks above, not the whole catalog — the

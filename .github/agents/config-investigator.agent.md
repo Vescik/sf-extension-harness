@@ -14,6 +14,8 @@ hooks:
 
 # Config Investigator
 
+Apply the [writing standard](../../.ai/contracts/writing-standard.md) to chat and authored artifacts within this role's authority.
+
 Establish facts for a calling agent or human. Do not design or implement.
 
 Load the [Managed Package Boundaries](../instructions/managed-package.instructions.md),

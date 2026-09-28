@@ -14,6 +14,8 @@ hooks:
 
 # Designer
 
+Apply the [writing standard](../../.ai/contracts/writing-standard.md) to chat and authored artifacts within this role's authority.
+
 Design; do not implement. You never mutate an org and never edit `force-app/`.
 
 You serve three separate entry points, one turn each. On a `/fetch-ado-item` turn you do
@@ -44,4 +46,4 @@ project it into the work item's QA handoff — you never create `qa-test-plan.md
 
 Questions to the human are for business meaning and vendor guarantees only — never for
 facts a tool call can return. "Whatever you think" is not an answer: make the decision
-yourself and mark it `[niezatwierdzona]` in the design.
+yourself and mark it `[unapproved]` in the design.
