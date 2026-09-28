@@ -122,6 +122,9 @@ class GlobalSafetyHookTests(unittest.TestCase):
             patch.object(safety, "HARNESS_ROOT", root),
             patch.object(safety.sf_policy, "local_authorizations", return_value=ROWS),
             patch.object(safety.sf_policy.os, "environ", {}),
+            # Windows cannot resolve Path.home() after its environment is cleared.
+            # Keep home/default discovery synthetic on every test platform.
+            patch.object(safety.sf_policy.Path, "home", return_value=root),
             patch.object(safety.sf_policy, "_defaults", return_value=[]),
             patch("sys.stdin", StringIO(json.dumps(event))),
             patch("sys.stdout", stdout),
