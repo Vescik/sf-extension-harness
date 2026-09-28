@@ -10,6 +10,18 @@ import shlex
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+try:
+    try:
+        from scripts import salesforce_operation_policy as sf_policy
+    except ModuleNotFoundError:
+        import salesforce_operation_policy as sf_policy
+except Exception:
+    # A partially copied template must not become a nonblocking host exit code 1.
+    print(json.dumps({"continue": False, "hookSpecificOutput": {
+        "hookEventName": "PreToolUse", "permissionDecision": "deny",
+        "permissionDecisionReason": "Salesforce policy could not load; operation was not authorized."}}))
+    raise SystemExit(0)
+
 from typing import Any
 from urllib.parse import unquote, urlparse
 
@@ -415,7 +427,7 @@ def direct_sf_command(command: str) -> list[str] | None:
     if re.search(r"[;&|`$<>\n\r]", command):
         raise ValueError("compound, redirected, or substituted Salesforce commands are forbidden")
     try:
-        parts = shlex.split(command)
+        parts = shlex.split(command.replace("\\", "/"))
     except ValueError as exc:
         raise ValueError(f"Salesforce command could not be parsed: {exc}") from exc
     if not parts or Path(parts[0]).name.lower() not in {
@@ -442,11 +454,13 @@ def is_real_deploy_command(parts: list[str]) -> bool:
     lowered = [part.lower() for part in parts]
     executable = Path(lowered[0]).name.removesuffix(".exe").removesuffix(".cmd")
     args = lowered[1:]
-    if executable == "sf":
-        if args[:3] == ["project", "deploy", "start"] or args[:2] == ["deploy", "metadata"]:
+    if executable in {"sf", "sfdx"}:
+        words = sf_policy.command_words(lowered)
+        if words in {("project", "deploy", "start"), ("deploy", "metadata")}:
             return not _flag_enabled(args, "--dry-run")
-        return args[:3] == ["project", "deploy", "quick"]
-    if executable == "sfdx" and args and args[0] in {"force:source:deploy", "force:mdapi:deploy"}:
+        if words == ("project", "deploy", "quick"):
+            return True
+    if executable in {"sf", "sfdx"} and args and args[0] in {"force:source:deploy", "force:mdapi:deploy"}:
         return not _flag_enabled(args, "--checkonly", "-c")
     return False
 
@@ -599,7 +613,7 @@ def main() -> int:
     try:
         event = json.load(sys.stdin)
     except json.JSONDecodeError as exc:
-        print(json.dumps(hook_response("ask", f"Safety hook could not parse input: {exc}")))
+        print(json.dumps(hook_response("deny", "Safety hook could not parse input.")))
         return 0
 
     tool_name = str(event.get("tool_name", ""))
@@ -681,17 +695,22 @@ def main() -> int:
             )
             return 0
     if is_sf_dev:
-        if is_real_deploy_tool(tool_name):
-            print(json.dumps(hook_response("ask", real_deploy_confirmation_reason([], tool_input))))
-            return 0
+        print(json.dumps(hook_response("deny", "Salesforce development MCP is not an available channel. Use the governed direct CLI or existing read-only review tools.")))
+        return 0
     try:
         sf_parts = direct_sf_command(command)
     except ValueError as exc:
         print(json.dumps(hook_response("deny", f"Salesforce command blocked: {exc}.")))
         return 0
     if sf_parts is not None:
+        decision = sf_policy.evaluate(sf_parts, root)
+        if not decision.allowed:
+            print(json.dumps(hook_response("deny", decision.reason)))
+            return 0
         if is_real_deploy_command(sf_parts):
-            print(json.dumps(hook_response("ask", real_deploy_confirmation_reason(sf_parts))))
+            reason = real_deploy_confirmation_reason(sf_parts)
+            reason += f" Resolved Org ID: {decision.organization_id}; environment: {decision.environment}."
+            print(json.dumps(hook_response("ask", reason)))
             return 0
         print(json.dumps(hook_response()))
         return 0
@@ -747,4 +766,9 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except Exception:
+        # Local treats generic nonzero exits as non-blocking. Emit a valid deny instead.
+        print(json.dumps(hook_response("deny", "Guard failed; operation was not authorized.")))
+        raise SystemExit(0)

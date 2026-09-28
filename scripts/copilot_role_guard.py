@@ -11,6 +11,18 @@ import shlex
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+try:
+    try:
+        from scripts import salesforce_operation_policy as sf_policy
+    except ModuleNotFoundError:
+        import salesforce_operation_policy as sf_policy
+except Exception:
+    # A partially copied template must not become a nonblocking host exit code 1.
+    print(json.dumps({"continue": False, "hookSpecificOutput": {
+        "hookEventName": "PreToolUse", "permissionDecision": "deny",
+        "permissionDecisionReason": "Salesforce policy could not load; operation was not authorized."}}))
+    raise SystemExit(0)
+
 from typing import Any, Iterable
 
 
@@ -689,9 +701,8 @@ def allowed_role_command(command: str, root: Path, role: str) -> bool:
     if role == "developer" and executable.removesuffix(".exe").removesuffix(".cmd") in {
         "sf", "sfdx"
     }:
-        # The global safety hook independently asks before each exact real-deploy invocation.
-        # Dry runs, reads, data mutations, package/org lifecycle, and status commands pass through.
-        return True
+        # Environment denial precedes the global hook's real-deploy confirmation.
+        return sf_policy.evaluate(parts, root).allowed
     if executable not in {"python", "python3", "py", "python.exe", "python3.exe", "py.exe"}:
         return False
     index = 1
@@ -835,7 +846,7 @@ def main() -> int:
     try:
         event = json.load(sys.stdin)
     except json.JSONDecodeError as exc:
-        print(json.dumps(response("ask", f"Role guard could not parse hook input: {exc}")))
+        print(json.dumps(response("deny", "Role guard could not parse hook input.")))
         return 0
 
     tool_name = str(event.get("tool_name", ""))
@@ -980,4 +991,9 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except Exception:
+        # Local treats generic nonzero exits as non-blocking. Emit a valid deny instead.
+        print(json.dumps(response("deny", "Guard failed; operation was not authorized.")))
+        raise SystemExit(0)

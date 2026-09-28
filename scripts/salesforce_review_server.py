@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
-"""Read-only, non-production-only Salesforce review facade (single REST transport).
+"""Read-only Salesforce review facade (single REST transport).
 
 Python rewrite of the retired dual-transport .mjs facade (owner-approved rewrite,
 decisions D-1..D-7 recorded 2026-08-09 in .ai/memory/decisions-log.md). The model never receives a
 command string, an org alias it did not configure, a raw token, or an unbounded
-vendor response. One allowlisted non-production alias is bound at startup: the
+vendor response. One selected alias is bound at startup: the
 Salesforce CLI is invoked a fixed number of times ONCE per server session (version
-gate, access token, org display), the org's non-production identity is proven live
+gate, access token, org display), the org's identity is proven live
 and frozen, and every subsequent tool call is a single HTTPS request over a pooled
 session — no child processes per call, no per-call identity round-trips.
 
 Hard walls (enforced here, not by prompts):
-- Startup refuses to run against anything but a sandbox/scratch/Developer Edition
+- Startup accepts Salesforce production/sandbox/scratch/Developer Edition
   host shape whose org id passes the configured pins and denied-list; the proven
   identity is frozen for the session and re-proven live after every 401 token
   refresh. An identity mismatch after refresh fail-closes the whole session.
@@ -45,6 +45,11 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
+try:
+    from scripts import salesforce_operation_policy as sf_policy
+except ModuleNotFoundError:
+    import salesforce_operation_policy as sf_policy
+
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parent
@@ -115,17 +120,20 @@ MIN_CLI_VERSION = (2, 136, 8)  # sf org auth show-access-token ships here
 OBJECT_API_NAME = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,79}$")
 ALIAS = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$")
 ORG_ID = re.compile(r"^00D[A-Za-z0-9]{12}(?:[A-Za-z0-9]{3})?$")
-NON_PRODUCTION_HOST = re.compile(
+SALESFORCE_HOST = re.compile(
     r"^(?:[a-z0-9][a-z0-9-]*--[a-z0-9][a-z0-9-]*\.sandbox\.my\.salesforce\.com"
     r"|[a-z0-9][a-z0-9-]*\.scratch\.my\.salesforce\.com"
-    r"|[a-z0-9][a-z0-9-]*\.develop\.my\.salesforce\.com)$",
+    r"|[a-z0-9][a-z0-9-]*\.develop\.my\.salesforce\.com"
+    r"|[a-z0-9][a-z0-9-]*\.my\.salesforce\.com"
+    r"|[a-z0-9][a-z0-9-]*\.salesforce\.com)$",
     re.IGNORECASE,
 )
 DEV_EDITION_HOST = re.compile(r"^[a-z0-9][a-z0-9-]*\.develop\.my\.salesforce\.com$", re.IGNORECASE)
-# Second, pre-contact never-production wall (ported from the .mjs): a production-named
-# alias is refused before ANY org contact - `sf org display` performs refreshAuth, so
-# even reading identity from a production alias would touch the production org.
-ALIAS_PRODUCTION_LIKE = re.compile(r"(^|[^a-z])(prod|production)([^a-z]|$)", re.IGNORECASE)
+AUTH_ENDPOINT_HOSTS = frozenset({"login.salesforce.com", "test.salesforce.com", "auth.salesforce.com"})
+SANDBOX_HOST = re.compile(
+    r"^[a-z0-9][a-z0-9-]*--[a-z0-9][a-z0-9-]*\.sandbox\.my\.salesforce\.com$", re.IGNORECASE
+)
+SCRATCH_HOST = re.compile(r"^[a-z0-9][a-z0-9-]*\.scratch\.my\.salesforce\.com$", re.IGNORECASE)
 
 # GUI-launched VS Code on macOS inherits launchd's PATH, which misses every standard
 # `sf` install location (observed live 2026-08-04). Colour is neutralised for every
@@ -188,8 +196,6 @@ def read_json(path: Path, failure_code: str) -> dict:
 def load_runtime(alias: str) -> dict:
     if not ALIAS.match(alias or ""):
         raise ReviewError("CONFIG_INVALID")
-    if ALIAS_PRODUCTION_LIKE.search(alias):
-        raise ReviewError("ALIAS_PRODUCTION_LIKE")
     config = read_json(CONFIG_PATH, "CONFIG_MISSING")
     policy = read_json(POLICY_PATH, "CONFIG_MISSING")
     salesforce = config.get("salesforce") or {}
@@ -202,24 +208,24 @@ def load_runtime(alias: str) -> dict:
         # checked - an unrelated stale entry must not block a valid session.
         raise ReviewError("CONFIG_INVALID")
     configured = matching[0] if matching else None
-    if configured and configured.get("environment") == "production":
-        raise ReviewError("ALIAS_MARKED_PRODUCTION")
-    # Owner decision 2026-08-04: any alias is admitted on live identity proof alone;
-    # environment=production stays a hard deny marker and deniedOrganizationIds the
-    # org-level brake. Unconfigured aliases run the dynamic-discovery lane.
+    # Bounded read-only access retains live identity proof and the org-level denied list.
+    # Unconfigured aliases keep the existing dynamic-discovery lane.
     dynamic = configured is None
     entry = configured or {"alias": alias, "environment": "dynamic"}
     if review.get("enabled") is not True:
         raise ReviewError("REVIEW_DISABLED")
-    if configured and entry.get("environment") not in ("development", "qa", "uat"):
-        raise ReviewError("CONFIG_INVALID")
+    if configured:
+        try:
+            entry = {**entry, "environment": sf_policy.normalize_environment(entry.get("environment"))}
+        except (ValueError, TypeError):
+            raise ReviewError("CONFIG_INVALID") from None
     has_host_pin = bool(configured) and "expectedInstanceHost" in entry
     has_org_pin = bool(configured) and "expectedOrganizationId" in entry
     if has_host_pin != has_org_pin:
         raise ReviewError("CONFIG_INVALID")
     pinned = has_host_pin and has_org_pin
     if pinned:
-        if not NON_PRODUCTION_HOST.match(str(entry.get("expectedInstanceHost") or "")):
+        if not SALESFORCE_HOST.match(str(entry.get("expectedInstanceHost") or "")):
             raise ReviewError("CONFIG_INVALID")
         if not ORG_ID.match(str(entry.get("expectedOrganizationId") or "")):
             raise ReviewError("CONFIG_INVALID")
@@ -908,7 +914,7 @@ def review_org_identity(server: "Server") -> dict:
         facts={
             "identityPolicyMatched": True,
             "isSandbox": server.proof["isSandbox"] is True,
-            "nonProduction": True,
+            "nonProduction": server.proof["nonProduction"] is True,
         },
         reconciliation={
             "status": "MATCH",
@@ -1139,11 +1145,14 @@ def review_configured_orgs(server: "Server") -> dict:
     config = read_json(CONFIG_PATH, "CONFIG_MISSING")
     if (config.get("safety") or {}).get("allowScopedEnumeration") is not True:
         return make_envelope(runtime, "configured-orgs", "BLOCKED", warnings=["SCOPED_ENUMERATION_DISABLED"])
-    orgs = [
-        {"alias": entry["alias"], "environment": entry.get("environment")}
-        for entry in (config.get("salesforce") or {}).get("orgs") or []
-        if isinstance(entry, dict) and isinstance(entry.get("alias"), str)
-    ]
+    try:
+        orgs = [
+            {"alias": entry["alias"], "environment": sf_policy.normalize_environment(entry.get("environment"))}
+            for entry in (config.get("salesforce") or {}).get("orgs") or []
+            if isinstance(entry, dict) and isinstance(entry.get("alias"), str)
+        ]
+    except (ValueError, TypeError):
+        raise ReviewError("CONFIG_INVALID") from None
     return make_envelope(
         runtime,
         "configured-orgs",
@@ -1277,8 +1286,8 @@ STEER_EVIDENCE = (
 TOOL_DEFINITIONS = [
     {
         "name": "review_org_identity",
-        "title": "Review the configured non-production Salesforce identity",
-        "description": "Re-prove the session-frozen non-production org identity live over REST. " + STEER_EVIDENCE,
+        "title": "Review the selected Salesforce identity",
+        "description": "Re-prove the session-frozen selected org identity live over REST. " + STEER_EVIDENCE,
         "inputSchema": {"type": "object", "additionalProperties": False},
         "annotations": {"readOnlyHint": True, "destructiveHint": False, "openWorldHint": False},
     },
@@ -1317,7 +1326,7 @@ TOOL_DEFINITIONS = [
     {
         "name": "review_soql_query",
         "title": "Execute one composed read-only SOQL statement",
-        "description": "Execute one model-composed read-only SOQL statement verbatim against the identity-proven non-production org over REST. Rows return unredacted, bounded by payload size, row cap and timeout. Add a LIMIT yourself: an overflowing result set returns INCOMPLETE/RESULT_TRUNCATED - make several narrower queries instead of one broad one.",
+        "description": "Execute one model-composed read-only SOQL statement verbatim against the identity-proven selected org over REST. Rows return unredacted, bounded by payload size, row cap and timeout. Add a LIMIT yourself: an overflowing result set returns INCOMPLETE/RESULT_TRUNCATED - make several narrower queries instead of one broad one.",
         "inputSchema": {
             "type": "object",
             "additionalProperties": False,
@@ -1423,13 +1432,13 @@ class Server:
             raise ReviewError("ORG_ID_DENIED")
         self.rest = RestClient(self.runtime, instance_url, self.runtime["review"]["apiVersion"], token)
         # Live probe: proves the token works, freezes the identity, and doubles as the
-        # latency baseline. wantSandbox comes from the host shape - a Developer Edition
-        # legitimately reports IsSandbox=false (the comment convention from the .mjs).
+        # latency baseline. Production and Developer Edition hosts report IsSandbox=false;
+        # sandbox and scratch hosts report true.
         record = self.rest.identity_record()
         live_org_id = str(record.get("Id") or "")
         if not ORG_ID.match(live_org_id) or live_org_id[:15] != display_org_id[:15]:
             raise ReviewError("IDENTITY_ORG_ID_MISMATCH")
-        want_sandbox = not DEV_EDITION_HOST.match(host)
+        want_sandbox = bool(SANDBOX_HOST.fullmatch(host) or SCRATCH_HOST.fullmatch(host))
         if record.get("IsSandbox") is not want_sandbox:
             raise ReviewError("NOT_SANDBOX")
         self.rest.frozen_org_id = live_org_id[:15]
@@ -1438,9 +1447,7 @@ class Server:
             "expectedHostMatched": True,
             "expectedOrgIdMatched": True,
             "isSandbox": record.get("IsSandbox") is True,
-            # Reaching this point already proves it: the live host passed
-            # NON_PRODUCTION_HOST and IsSandbox matched what that host shape implies.
-            "nonProduction": True,
+            "nonProduction": bool(want_sandbox or DEV_EDITION_HOST.fullmatch(host)),
         }
         self.cli_source = {
             "kind": "salesforce-cli",
@@ -1472,7 +1479,8 @@ class Server:
             or parts.query
             or parts.fragment
             or host != expected_host
-            or not NON_PRODUCTION_HOST.match(host)
+            or host in AUTH_ENDPOINT_HOSTS
+            or not SALESFORCE_HOST.match(host)
         ):
             raise ReviewError("IDENTITY_HOST_MISMATCH")
         return host
@@ -1577,7 +1585,7 @@ class Server:
                         "capabilities": {"tools": {"listChanged": False}},
                         "serverInfo": {"name": "sf-harness-salesforce-review", "version": SERVER_VERSION},
                         "instructions": "Use only normalized evidence. " + STEER_EVIDENCE
-                        + " review_soql_query returns single-source sandbox rows UNREDACTED so unusual configuration can be understood - they are bounded and timestamped, nothing more. Never paste raw rows into a design, an entry or an ADO artifact.",
+                        + " review_soql_query returns single-source rows from the selected org UNREDACTED so unusual configuration can be understood - they are bounded and timestamped, nothing more. Never paste raw rows into a design, an entry or an ADO artifact.",
                     },
                 }
             )

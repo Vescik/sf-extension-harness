@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 from scripts import copilot_role_guard as role_guard
 from scripts import copilot_safety_hook as safety
+from tests.salesforce_policy_fixture import ROWS
 
 
 ORIGIN = "https://acme--dev.sandbox.my.salesforce.com"
@@ -48,6 +49,8 @@ def run_hook(tool_name: str, tool_input: dict, config: dict | None) -> tuple[str
         patch("sys.stdin", StringIO(json.dumps(event))),
         patch("sys.stdout", stdout),
         patch.object(safety, "load_config", lambda root: config),
+        patch.object(safety.sf_policy, "_read_json", return_value=config),
+        patch.object(safety.sf_policy, "local_authorizations", return_value=ROWS),
     ):
         assert safety.main() == 0
     return decision(json.loads(stdout.getvalue()))
@@ -81,7 +84,7 @@ class RetrieveAutoApproveTests(unittest.TestCase):
         self.assertEqual("continue", result)
         self.assertEqual("", reason)
 
-    def test_real_deploy_asks_and_unconfigured_retrieve_continues(self) -> None:
+    def test_real_deploy_asks_and_unconfigured_retrieve_is_held(self) -> None:
         config = base_config()
         result, _ = run_hook(
             "execute/runInTerminal",
@@ -94,7 +97,7 @@ class RetrieveAutoApproveTests(unittest.TestCase):
             {"command": "sf project retrieve start --target-org other-sbx"},
             config,
         )
-        self.assertEqual("continue", result)
+        self.assertEqual("deny", result)
 
 
 class ScopedEnumerationTests(unittest.TestCase):
@@ -133,14 +136,14 @@ class ScopedEnumerationTests(unittest.TestCase):
 class DevToolBatchRetirementTests(unittest.TestCase):
     # The retired batch-approval pipeline stays gone. Non-deploy mutations now flow directly;
     # only a tool that starts a real deploy asks.
-    def test_non_deploy_mutating_dev_tool_continues(self) -> None:
+    def test_removed_mutating_dev_tool_is_denied(self) -> None:
         result, reason = run_hook(
             "assign_permission_set",
             {"usernameOrAlias": "dev-sbx", "permSetName": "Engagement_Manager"},
             base_config(),
         )
-        self.assertEqual("continue", result)
-        self.assertEqual("", reason)
+        self.assertEqual("deny", result)
+        self.assertIn("not an available channel", reason)
 
     # The "pipeline surfaces stay gone" assertions moved to config/retired-surfaces.json
     # (validator token scan); the direct non-deploy behavior above is the live contract.

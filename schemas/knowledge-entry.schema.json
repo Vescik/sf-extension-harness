@@ -265,7 +265,7 @@
       "additionalProperties": false,
       "required": ["environment", "orgIdDigest", "observedAt", "expiresAt", "shapeVersion", "transport", "assurance", "probes", "receiptDigest"],
       "properties": {
-        "environment": { "enum": ["development", "qa", "uat"] },
+        "environment": { "enum": ["dev", "uat", "stage", "development", "qa"] },
         "orgIdDigest": {
           "$ref": "#/$defs/sha256",
           "description": "sha256 of the configured expectedOrganizationId — sandbox-refresh detector; the raw 00D id is never stored."

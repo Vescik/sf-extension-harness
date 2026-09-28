@@ -13,15 +13,15 @@
     "orgs": [
       {
         "alias": "<DEV_ALIAS>",
-        "environment": "development",
+        "environment": "dev",
         "expectedInstanceHost": "<MY_DOMAIN>--<DEV_SANDBOX>.sandbox.my.salesforce.com",
         "expectedOrganizationId": "<DEV_ORGANIZATION_ID>"
       },
       {
-        "alias": "<QA_ALIAS>",
-        "environment": "qa",
-        "expectedInstanceHost": "<MY_DOMAIN>--<QA_SANDBOX>.sandbox.my.salesforce.com",
-        "expectedOrganizationId": "<QA_ORGANIZATION_ID>"
+        "alias": "<STAGE_ALIAS>",
+        "environment": "stage",
+        "expectedInstanceHost": "<MY_DOMAIN>--<STAGE_SANDBOX>.sandbox.my.salesforce.com",
+        "expectedOrganizationId": "<STAGE_ORGANIZATION_ID>"
       },
       {
         "alias": "<UAT_ALIAS>",

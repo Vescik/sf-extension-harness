@@ -107,6 +107,8 @@ class RecordingRunner:
         tail = [part.lower() for part in argv[1:4]]
         if tail[:2] == ["config", "get"]:
             return "config-get"
+        if tail == ["org", "list", "auth"]:
+            return "auth-list"
         if tail[:2] == ["org", "display"]:
             return "org-display"
         if tail[:2] == ["data", "query"]:
@@ -123,6 +125,10 @@ class RecordingRunner:
         if kind in self.overrides:
             return self.overrides[kind]
         defaults = {
+            "auth-list": completed(json.dumps({"status": 0, "result": [{
+                "orgId": ORG_ID, "instanceUrl": f"https://{SANDBOX_HOST}",
+                "username": "developer@example.test", "alias": DEV_ALIAS,
+            }]})),
             "config-get": config_get_response(),
             "org-display": org_display_response(),
             "data-query": org_query_response(),
@@ -163,6 +169,7 @@ class ExecutorFixture(unittest.TestCase):
         os.chdir(self.root)
         self.addCleanup(os.chdir, self._cwd)
         patches = [
+            mock.patch.object(vsd.sf_policy.Path, "home", return_value=self.root),
             mock.patch.object(vsd, "REPO_ROOT", self.root),
             mock.patch.object(org_proof, "CONFIG_PATH", self.config_path),
             mock.patch.object(vsd.shutil, "which", return_value="/usr/local/bin/sf"),

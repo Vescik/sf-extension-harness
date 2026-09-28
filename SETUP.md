@@ -12,14 +12,14 @@
 - **Windows is a first-class runtime, not best-effort**: CI runs the full gate
   (validation, unit suite, evals, hash-locked install) on a `windows-latest` leg, and
   `docs/windows-setup.md` is the platform runbook.
-- Local Salesforce CLI authorization for approved non-production aliases. Authenticate manually;
+- Local Salesforce CLI authorization for the explicitly selected orgs within role limits. Authenticate manually;
   never give credentials or session material to an agent.
 
-Use a dedicated pilot OS account, VM, or container. Authorize only the approved sandboxes in that
-environment and use a separate browser profile containing no production session. A human must
-confirm the authorization inventory before opening VS Code. Do not use built-in/default Agent mode
-or an arbitrary terminal for ADO, Salesforce, or browser work; only the six custom agents are in
-the certified enforcement boundary.
+Use a dedicated pilot OS account, VM, or container and least-privileged Salesforce users. The
+human owns the authorization inventory. Production is available only through verified CLI metadata
+retrieve and existing read-only MCP within role limits; Test Strategist cannot target production.
+Do not use built-in/default Agent mode or an arbitrary terminal for governed external work. Use
+`docs/production-policy-pilot.md` for credential-free denial and confirmation checks.
 
 See [docs/compatibility.md](docs/compatibility.md) for the tested contract.
 
@@ -31,10 +31,10 @@ See [docs/compatibility.md](docs/compatibility.md) for the tested contract.
 > customization key resolves in the Settings UI (no "Unknown Configuration Setting") and (b) the
 > `PreToolUse` hooks actually fire. If unsupported, treat the corresponding controls as advisory
 > and enforce equivalents inside the MCP wrapper scripts. The `scripts/*_guard.py` and
-> `scripts/copilot_safety_hook.py` logic is unit-tested and correct in isolation; what is
-> build-dependent is whether VS Code invokes it. This matters especially for Salesforce writes:
-> the Developer can mutate org state, and the hook is what forces a fresh chat confirmation before
-> every real deploy.
+> `scripts/copilot_safety_hook.py` logic has local test coverage; host invocation, approval
+> binding and timeout behavior require separate proof. Developer mutations are limited to
+> `dev`/`uat`/`stage`; production CLI permits only verified metadata retrieve. Read the acceptance
+> gaps in `docs/production-read-only.md` before using this template for governed operations.
 
 ## 2. Clone and workspace layout
 
@@ -60,8 +60,8 @@ root rather than searching subfolders, parent directories, sibling directories, 
 From the repository root, copy `config/harness.example.json` to ignored
 `config/harness.local.json`, then replace every placeholder with approved values. Keep
 `workspace.salesforceRootName` set to `brain-core`; manifest and promoted-test paths are relative
-to the repository/SFDX root. Keep the read facade pointed at a non-production evidence org; this
-does not limit Developer CLI targets. An org entry is
+to the repository/SFDX root. Select the read facade target explicitly within the active role's
+permissions; production access follows `docs/production-read-only.md`. An org entry is
 `{alias, environment}`; the identity pins (`expectedInstanceHost` + `expectedOrganizationId`)
 are optional and travel together — with pins the facade holds the alias to that exact org,
 without them it freezes the live-discovered identity for the session. Configure the package
@@ -69,14 +69,11 @@ namespaces and component API-name allowlist, and keep the review API version/cur
 window deliberate. The write-mode Salesforce MCP lane remains retired. The Developer uses direct
 `sf`/`sfdx` for org changes; every real deploy requires fresh target-and-scope chat confirmation.
 
-Which org the read facade connects is the developer's responsibility (owner decision 2026-08-04):
-any alias — configured or not — is admitted once its live identity proves a canonical sandbox,
-scratch, or Developer Edition signature consistent with `Organization.IsSandbox`. The proof runs
-inside the review facade at startup. Production remains refused by the review facade only; this
-does not limit Developer CLI targets. Two facade-level brakes remain: an entry with
-`environment: "production"` hard-blocks its alias from review, and
-`salesforce.review.deniedOrganizationIds` hard-blocks specific organization IDs from review
-whatever alias resolves to them.
+The operator selects the exact read-facade alias. Startup proves the live org identity and checks
+configured pins when present; production MCP reads are permitted within the active role's limits.
+`salesforce.review.deniedOrganizationIds` still blocks specific organization IDs regardless of alias.
+Configured environments are `dev`, `uat`, `stage`, `prod`; aliases are arbitrary names, never roles.
+See `docs/production-read-only.md` for legacy migration and the separate unknown-CLI-target limit.
 
 The checked-in `manifest/package.xml` is only a generic starter. Narrow it to the exact components
 the approved design (`work-items/<id>-<slug>/design.md`) names before retrieve, validation, or
@@ -95,12 +92,10 @@ and the whole `browser` section.
 
 The file holds identifiers, allowlists, and paths, not secrets. ADO uses OAuth through VS Code; Salesforce uses
 existing CLI authorization.
-Alias names and environment labels are not treated as proof: Salesforce MCP startup first checks
-the locally authorized instance hostname against the canonical sandbox, scratch-org, and
-Developer Edition signatures, then queries `Organization.IsSandbox` and stops unless the value
-matches what that hostname implies — `true` for a sandbox or scratch org, `false` for a
-Developer Edition. What the gates require is the receipt's `nonProduction` verdict, not
-`isSandbox` on its own. The Developer uses direct `sf`/`sfdx` for org operations; the configured
+Alias names and environment labels are not identity proof. Salesforce MCP startup checks local
+authorization against live org identity and `Organization.IsSandbox`, with configured pins and
+explicit denylist checks. `IsSandbox=false` alone does not distinguish production from Developer
+Edition; technical org type never overrides the configured production CLI policy. The Developer uses direct `sf`/`sfdx` for org operations; the configured
 MCP remains the structured read/evidence path.
 
 Set `ADO_ORGANIZATION` to the exact non-secret organization slug in local configuration before
@@ -122,7 +117,7 @@ approved workstation-management mechanism. Do not substitute an independent orga
 **Guided quick start (all platforms):** instead of the manual steps below, run the onboarding
 script from the repository root, which checks prerequisites, installs the pinned dependencies,
 creates `config/harness.local.json`, collects your ADO settings, walks you through authorizing
-each sandbox (auto-filling its host and org id, refusing anything that is not a real sandbox),
+each selected org (auto-filling its live host and org ID with explicit environment classification),
 and runs the verification gates.
 
 > **Developer Edition orgs:** the script records them like any other non-production org
@@ -136,7 +131,7 @@ python scripts/first_launch.py
 ```
 
 It is plain Python (no PowerShell execution policy involved), works on Windows, macOS, and Linux,
-and is a human-run helper only (not an agent tool). Re-run it any time to add a sandbox or update
+and is a human-run helper only (not an agent tool). Re-run it any time to add an org or update
 ADO settings. New to all of this? Follow the zero-assumptions walkthrough in
 [docs/setup-zero-to-first-prompt.md](docs/setup-zero-to-first-prompt.md) instead. To do the same
 steps by hand:
@@ -165,7 +160,7 @@ commands are available through `Terminal: Run Task` as Harness: Validate, Harnes
 Harness: Evals.
 
 There is no separate readiness step before a workflow: the Salesforce review MCP proves the
-selected org's non-production identity before tool discovery, and ADO scope is checked on every
+selected org's live identity before tool discovery, and ADO scope is checked on every
 tool call. To diagnose one org by hand, run
 `python scripts/verify_salesforce_org.py --org <alias>`.
 
@@ -179,8 +174,11 @@ tool call. To diagnose one org by hand, run
 4. Confirm `/` shows the eighteen prompts once each and their argument hints.
 5. Run one harmless ADO read, then the three bounded Salesforce review calls against the configured
    synthetic/pilot component. Confirm no raw CLI/alias or sensitive payload appears in Chat.
-6. Run canaries: a production data read passes, a dry-run deploy passes, and a real deploy request
-   stops with the target/scope warning before any CLI process starts. Do not confirm the canary.
+6. Use the controlled executor in `docs/production-policy-pilot.md` for denial/deploy canaries.
+   Production query and deploy are denied; only verified metadata retrieve can pass CLI policy.
+   On `dev`/`uat`/`stage`, reviewed dry-run may pass and real deploy asks for exact target/scope
+   confirmation. Test permitted MCP reads separately; Test Strategist cannot target production.
+   A synthetic executor is not host approval or live Salesforce proof.
 
 ### Reducing approval clicks (auto-approval)
 
@@ -192,9 +190,10 @@ click, via `chat.tools.terminal.autoApprove` in `.vscode/settings.json`:
   chat-confirmation lane), `knowledge_search.py` (read-only), and `force_app_knowledge.py`. The
   regexes are anchored and reject shell metacharacters, so chained or redirected commands never
   auto-run.
-- Direct `sf`/`sfdx` is auto-approved so non-deploy operations do not incur a harness click. The
-  safety hook overrides this with a single-use `ask` before every real deploy. Recursive filesystem
-  deletion and remote-history rewriting remain denied.
+- Direct `sf`/`sfdx` has a terminal auto-approval rule, but policy still denies forbidden production
+  operations, unresolved targets and identity errors before deployment confirmation. Nonprod real
+  deploys return `ask`. One-use host approval binding needs destination verification; a saved
+  approval is not evidence of authorization. Recursive deletion and remote-history rewriting remain denied.
 - **Do not** enable `chat.tools.global.autoApprove` / `/yolo` — that blanket-approves everything,
   including destructive actions, and defeats the model.
 
@@ -214,7 +213,7 @@ owner decision of 2026-07-14.)
   authenticates with your own Azure CLI login — run `az login` once; agents never handle the
   credentials.
 - `salesforce` starts through `scripts/salesforce_review_server.py` (via the interpreter-resolving launcher). It binds one exact
-  review-enabled non-production org and exposes identity, configured-package,
+  selected org within the active role's permissions and exposes identity, configured-package,
   allowlisted-object review, composed read-only SOQL (`review_soql_query`), and (when
   `safety.allowScopedEnumeration` is enabled) a configured-orgs listing built purely
   from local configuration. At startup it checks the CLI version, obtains a token, reads the
@@ -237,7 +236,9 @@ owner decision of 2026-07-14.)
 - Record-level reads for design/development context run through the facade's
   `review_soql_query` tool (the CLI `salesforce_read.py` lane was retired 2026-08-04).
   There is no write-mode Salesforce MCP server in the first cutover. The Developer uses direct
-  CLI for deploys, data mutations, Apex, package work, and org lifecycle. The safety hook asks
+  CLI for reviewed deploys, data mutations, Apex, package work, and org lifecycle on
+  `dev`/`uat`/`stage`. Production CLI permits only verified retrieve; other production reads use
+  existing MCP within role limits. The safety hook asks
   before every real deploy with the exact target and scope; dry runs, retrieve, deploy status,
   cancel, and data mutations do not use that deployment-specific gate. The legacy
   `scripts/validate_salesforce_deploy.py` helper remains optional for check-only validation.

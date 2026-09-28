@@ -16,3 +16,10 @@ The health check is a standalone read: return the report path in the reply so a 
 Designer turn can reference it — this role does not edit `work-items/` folders. Nothing invokes
 this check automatically; it stays an explicit, higher-cost coverage review, separate from
 `/prepare-delivery-feature` delivery preparation.
+
+## Salesforce role boundary
+
+Test Strategist must not target production, including read-only Salesforce MCP, in either QA
+workflow. Use only an explicitly known `dev`/`uat`/`stage` target. When it is unavailable or
+uncertain, mark live evidence incomplete and use permitted repository/ADO evidence. A request
+or confirmation does not widen this role. Do not infer the MCP target from CLI defaults.

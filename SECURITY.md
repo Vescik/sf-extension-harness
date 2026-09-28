@@ -33,8 +33,10 @@ and rejected.
 
 ## Pilot threat model
 
-The controlled-pilot threat model requires a dedicated OS account, VM, or container whose agent
-process can access only approved sandbox CLI authorizations.
+Use a dedicated OS account, VM, or container with least-privileged authorizations for the intended
+orgs. Production permits only verified direct CLI metadata retrieve and existing read-only MCP
+within role limits; Test Strategist cannot target production. Production writes or bypasses of
+these boundaries are security defects. The portable policy pilot uses no real authorizations.
 Built-in/default Agent mode and arbitrary terminal workflows are not supported for external work;
-hooks cannot secure dynamically constructed shell programs. Any production credential/session or
-reachable production path in that pilot environment is a release-blocking security defect.
+hooks cannot secure dynamically constructed shell programs. Destination host enforcement and
+live access checks remain the owner's responsibility; see `docs/production-read-only.md`.

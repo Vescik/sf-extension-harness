@@ -53,7 +53,8 @@ have, not a gap to fill silently.
   a scenario/bulk/fault test plan for Flows, tied to the work item's acceptance
   criteria.
 - Prefer the read-only review tools for structured evidence. Use direct `sf`/`sfdx` for any
-  Salesforce CLI operation needed by the task, including deployment and record mutation.
+  Salesforce CLI operation needed by the task on `dev`/`uat`/`stage`, including deployment and record mutation.
+  On `prod`, direct CLI permits only verified metadata retrieve.
 
 ## Deployment and org-change loop
 
@@ -229,3 +230,26 @@ Unverified: <remaining limits>
 ```
 
 Report what you could not verify as exactly that — never as done.
+
+## Salesforce environment policy (plan 01)
+
+`config/harness.local.json` classifies orgs as `dev`, `uat`, `stage`, or `prod`.
+Aliases are arbitrary valid CLI aliases; their names and prefixes grant no permissions.
+Multiple orgs can share one environment. `development` normalizes to `dev` and
+`production` to `prod`. Legacy `qa` needs an explicit assignment by purpose.
+
+On `prod`, direct `sf`/`sfdx` can only retrieve metadata with a verified command form.
+Query, describe, org display, limits, other job reports, deploy, validation/dry-run,
+tests, CRUD, Apex, packages, permissions and lifecycle operations are denied.
+Chat confirmation cannot override known production. Use the existing read-only
+Salesforce MCP tools within the active role, data limits and live identity checks.
+No suitable MCP tool means report the capability gap, never fall back to forbidden CLI.
+Internal fixed MCP authentication transport does not grant direct CLI access.
+
+For `dev`/`uat`/`stage`, existing role and exact real-deploy confirmation rules apply.
+Environment classification precedes that confirmation. Missing targets, conflicts,
+identity errors and timeouts never authorize execution. Unconfigured CLI targets remain
+denied in this release. The trusted one-operation environment-answer flow and remaining
+nonprod/latest compatibility work are deferred to plan 01a. Do not write a classification
+or approval flag on the user's behalf. No persistent consent store is used. See `docs/production-read-only.md` for the command
+contract, migration and remaining host acceptance evidence.

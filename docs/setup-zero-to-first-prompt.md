@@ -13,7 +13,9 @@ agents, guarded read-only access to Azure DevOps and a Salesforce sandbox, and s
 fail closed. Nothing here contains credentials; you authorize everything locally in Parts 6–7.
 
 **Scope (important).** The configured MCP surface is read-only. The Developer uses direct
-Salesforce CLI for deploys and org mutations. Every real deploy requires fresh chat confirmation
+Salesforce CLI for reviewed deploys and org mutations on `dev`/`uat`/`stage`. Production CLI
+permits only verified metadata retrieve; other production reads use existing MCP within role
+limits. Test Strategist cannot target production, including MCP. Every nonprod real deploy requires fresh chat confirmation
 with its target, scope, and a warning that changes will be deployed to the org; dry runs, retrieve,
 status/report/resume/cancel, and data mutations do not. Browser automation tooling is unavailable (see
 `docs/compatibility.md`).
@@ -202,12 +204,10 @@ sf org display --target-org my_review_sbx --json
 
 From the JSON `result`, copy the host part of `instanceUrl` (looks like
 `mydomain--sbxname.sandbox.my.salesforce.com`) into `expectedInstanceHost` and `id` into
-`expectedOrganizationId` in `config\harness.local.json`. Only non-production orgs are accepted:
-the host must carry a sandbox (`*--*.sandbox.my.salesforce.com`), scratch-org, or Developer
-Edition (`*.develop.my.salesforce.com`) signature. Production host shapes are refused by design;
-at startup the facade queries `Organization.IsSandbox` and requires it to match the host shape
-(`true` for sandbox/scratch, `false` for Developer Edition). No toggle is
-needed for any non-production shape (owner decision 2026-08-04); the pins are optional — an
+`expectedOrganizationId` in `config\harness.local.json`. This walkthrough uses a sandbox;
+production MCP reads are also permitted within existing role limits, except Test Strategist.
+The facade proves the live identity and checks pins and the denylist. `IsSandbox=false` alone
+never grants direct CLI access. The pins are optional — an
 unlisted alias is also readable, but only configured entries can anchor Knowledge org snapshots.
 
 ## Part 8 — Final verification
@@ -218,7 +218,7 @@ unlisted alias is also readable, but only configured entries can anchor Knowledg
 ```
 
 Both should PASS now. There is no separate readiness command: Salesforce MCP proves the selected
-org's non-production identity before tool discovery; ADO scope is checked on every
+org's live identity before tool discovery; ADO scope is checked on every
 tool call. If an ADO call fails on the organization not matching local policy, re-check
 Part 7.1 (exact slug, no trailing spaces, VS Code fully restarted). To diagnose one org by
 hand: `.\.venv\Scripts\python.exe scripts\verify_salesforce_org.py --org <alias>`.
@@ -240,8 +240,9 @@ hand: `.\.venv\Scripts\python.exe scripts\verify_salesforce_org.py --org <alias>
    (any real work-item id from your ADO project). The agent should persist the requirement
    snapshot to `work-items/12345-<slug>/ado-context.md`, report it, and stop with the next
    command — without ever showing raw CLI commands or credentials.
-5. Sanity-check the rails with a negative test: ask the agent to query production. It must be
-   denied.
+5. Use `docs/production-policy-pilot.md` for a synthetic production CLI query/deploy denial test.
+   Existing MCP reads remain permitted within role limits; Test Strategist cannot target prod.
+   Never test forbidden execution on a real production org.
 
 **Where to go next:** `README.md` for the architecture, `SETUP.md` §5–7 for the full operating
 model (work items, approvals, knowledge), and the eighteen `/` prompt commands in Copilot Chat.
@@ -259,3 +260,15 @@ Then use the symptom table in [windows-setup.md](windows-setup.md#troubleshootin
 The three most common failures are: `ADO_ORGANIZATION` not set / VS Code not fully restarted
 (Part 7.1), the `.venv` interpreter not selected (Part 3), and placeholders still present in
 `config\harness.local.json` (Part 6).
+
+## Production read-only migration and acceptance
+
+Use [the production access contract](production-read-only.md) before org operations.
+Canonical environment values are `dev`, `uat`, `stage`, `prod`; aliases remain unchanged.
+Old `production` stays protected. Legacy `qa` requires a deliberate assignment by org purpose.
+VS Code Local approval binding, host failure/timeout behavior and Windows/macOS acceptance
+are NOT VERIFIED. Deterministic tests are not proof of host enforcement.
+
+Before connecting real orgs, generate the [portable policy pilot](production-policy-pilot.md)
+on the destination host. It uses synthetic identities and a non-networked executor. Successful
+fixture tests do not replace host approval checks or bounded live MCP/retrieve installation tests.

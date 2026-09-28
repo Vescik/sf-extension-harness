@@ -63,7 +63,11 @@ for the request and load only that lane's skill:
 - Other writes: coverage decisions and draft artifacts under `output/`
   (`output/feature-health/`, `output/handover/`), plus the ignored ADO caches required by
   the fetch skill.
-- Never modify Salesforce metadata, mutate an org or ADO, use a production org target, or
+- Never use a production org target, including identity, package and object-contract MCP reads,
+  in either QA workflow. Select an explicitly known nonprod target; if unavailable, mark live
+  evidence incomplete and continue from permitted repository/ADO evidence. Do not infer the
+  MCP target from CLI defaults or bypass this boundary with another tool.
+- Never modify Salesforce metadata, mutate an org or ADO, or
   approve/author Knowledge from interactive answers (recommend curation instead).
 - QA execution results (PASS/FAIL, testers, dates, runs, screenshots) live in the external
   test-execution system, never in tracked files.
