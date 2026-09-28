@@ -8,7 +8,7 @@ Last verified against vendor documentation: 2026-07-10
 
 | Component | Supported baseline | Notes |
 |---|---|---|
-| VS Code | 1.112+; certify current stable before rollout | Windows is the primary platform. The configured MCP surface is read-only; Developer writes use direct CLI. |
+| VS Code | 1.112+; certify current stable before rollout | Windows is the primary platform. The configured MCP surface is read-only; Developer writes use reviewed direct CLI or the native operation tool. |
 | GitHub Copilot | Consolidated `GitHub.copilot` extension bundled/supported by the chosen VS Code release | The old separate Copilot Chat prerequisite is not used. |
 | Python | 3.11+ | Runs validation, safety hooks, and tests using the standard library plus the dev requirement below. |
 | PyYAML | `>=6,<7`; CI uses the lock file | Frontmatter and evaluation validation. |
@@ -86,3 +86,13 @@ are NOT VERIFIED. Deterministic tests are not proof of host enforcement.
 For a copied template, use the [credential-free portable pilot](production-policy-pilot.md).
 Generate it on the destination machine; do not copy the author's private config or Python paths.
 It distinguishes process tests, Local host evidence and real-org installation checks.
+
+
+## Native one-operation Salesforce tool (plan 01a)
+
+Install the reviewed local VSIX using [the native operation guide](native-salesforce-operations.md) when Developer
+needs an unconfigured environment question or supported latest-job operation. The tool owns
+native dialogs and one invocation's dispatch; terminal helpers and model-supplied approval or
+environment fields remain forbidden. Existing production retrieve-only and MCP role limits apply.
+Local tests/build are separate from actual VS Code Local and live-org acceptance; consult the
+current plan 01a handoff before claiming either verified.

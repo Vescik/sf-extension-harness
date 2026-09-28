@@ -118,7 +118,7 @@ class PolicyTests(unittest.TestCase):
         self.assertTrue(self.decide('sf project retrieve start -o team-alpha --target-org another-name').allowed)
         self.env = {'SF_TARGET_ORG': 'team-alpha', 'SFDX_DEFAULTUSERNAME': 'prod-copy'}
         self.assertEqual(self.decide('sf org display').status, 'conflict')
-        self.assertEqual(self.decide('sf org display -o missing').status, 'unresolved')
+        self.assertEqual(self.decide('sf org display -o missing').status, 'identity-unresolved')
         self.config = {}
         self.assertFalse(self.decide('sf project retrieve start -o team-alpha').allowed)
 

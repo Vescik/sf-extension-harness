@@ -199,3 +199,13 @@ Get-Content .cache\denials.log -Tail 20
   whose `-d work-items wiki search` domain args are actually honored. The local server
   has no server-side read-only mode; read-only remains harness policy (hooks + role guard) — an
   accepted owner decision (2026-07-14). Org-scope + enumeration guards stay the effective control.
+
+
+## Native one-operation Salesforce tool (plan 01a)
+
+Install the reviewed local VSIX using [the native operation guide](native-salesforce-operations.md) when Developer
+needs an unconfigured environment question or supported latest-job operation. The tool owns
+native dialogs and one invocation's dispatch; terminal helpers and model-supplied approval or
+environment fields remain forbidden. Existing production retrieve-only and MCP role limits apply.
+Local tests/build are separate from actual VS Code Local and live-org acceptance; consult the
+current plan 01a handoff before claiming either verified.

@@ -49,7 +49,10 @@ Developer, subject to the global real-deploy confirmation hook:
 - The Developer may invoke direct `sf`/`sfdx` commands for deployments, record mutations, Apex,
   package operations, and org lifecycle work on `dev`/`uat`/`stage`. Before every exact real-deploy invocation, the
   Developer must state the target and scope, explain that changes will be deployed to the org,
-  and obtain chat confirmation. Dry runs, retrieve, report/status/resume/cancel, and data
+  and obtain confirmation. For native operations, the installed tool owns the exact deployment
+  dialog; chat text and generic tool approval cannot answer it. The native tool accepts only
+  arguments and never exposes its private session/executor through the terminal allowlist.
+  Dry runs, retrieve, report/status/resume/cancel, and data
   mutations do not use this deployment-specific gate.
 - After a qualifying Salesforce mutation returns a result, the Developer appends the bounded,
   sanitized outcome to the canonical org-change log using the Development skill. A missing
@@ -165,11 +168,14 @@ Internal fixed MCP authentication transport does not grant direct CLI access.
 
 For `dev`/`uat`/`stage`, existing role and exact real-deploy confirmation rules apply.
 Environment classification precedes that confirmation. Missing targets, conflicts,
-identity errors and timeouts never authorize execution. Unconfigured CLI targets remain
-denied in this release. The trusted one-operation environment-answer flow and remaining
-nonprod/latest compatibility work are deferred to plan 01a. Do not write a classification
-or approval flag on the user's behalf. No persistent consent store is used. See `docs/production-read-only.md` for the command
-contract, migration and remaining host acceptance evidence.
+identity errors and timeouts never authorize execution. Direct terminal commands still deny
+unconfigured targets and mutable latest selectors. The Developer uses the native
+`sf-harness.salesforce-operations/salesforceOperation` tool for a one-operation org/environment
+selection or supported latest-job operation. Pass only `arguments: string[]`, without the
+executable. The installed extension owns dialogs, rechecks and dispatch; a chat answer or an
+agent-written environment/approval flag is never authority. Nothing persists as classification
+or consent. Cancellation means no execution. See `docs/native-salesforce-operations.md` for
+installation, the private-runtime boundary and remaining host/live acceptance.
 
 Test Strategist retains its prohibition on all production targets, including the existing
 read-only Salesforce MCP, for both QA workflows (owner decision, 2026-09-28). Other roles retain

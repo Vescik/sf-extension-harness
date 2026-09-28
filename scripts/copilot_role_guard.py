@@ -69,6 +69,32 @@ ALLOWED_PREFIXES = {
 HARNESS_ROOT = Path(__file__).resolve().parents[1]
 METADATA_ROOT = HARNESS_ROOT
 METADATA_EDIT_PREFIXES = ("force-app/", "manifest/", "tests/e2e/")
+# The runtime ID, canonical extension reference and documented short reference only.
+# Never recognize another server/extension by a matching suffix or substring.
+NATIVE_OPERATION_TOOLS = frozenset({
+    "sf_harness_run_operation",
+    "sf-harness.salesforce-operations/salesforceOperation",
+    "salesforceOperation",
+})
+
+
+def native_operation_input_error(tool_input: Any) -> str | None:
+    if not isinstance(tool_input, dict) or set(tool_input) != {"arguments"}:
+        return "Native Salesforce input must contain only arguments; role, environment and approval are host-owned."
+    arguments = tool_input["arguments"]
+    if not isinstance(arguments, list) or not 1 <= len(arguments) <= 128:
+        return "Native Salesforce arguments must be a nonempty bounded list."
+    if any(not isinstance(arg, str) or not arg or len(arg) > 8192 or
+           any(char in arg for char in "\x00\r\n") for arg in arguments):
+        return "Native Salesforce arguments must be bounded strings without control separators."
+    try:
+        if sum(len(arg.encode("utf-8")) for arg in arguments) > 32768:
+            return "Native Salesforce arguments exceed the input limit."
+    except UnicodeEncodeError:
+        return "Native Salesforce arguments must be valid UTF-8."
+    return None
+
+
 # Knowledge maintenance does not require the org-facing investigator surface.
 KNOWLEDGE_MUTATION_ROLES = frozenset({"config-investigator", "knowledge-curator"})
 # Roles allowed to run force_app_knowledge.py at all (extraction/drafting authority).
@@ -292,6 +318,10 @@ ROOT_OF_TRUST_EXACT = frozenset(
     for path in (
         "scripts/copilot_role_guard.py",
         "scripts/copilot_safety_hook.py",
+        "scripts/salesforce_operation_policy.py",
+        "scripts/salesforce_operation_session.py",
+        "scripts/salesforce_job_selection.py",
+        "scripts/salesforce_job_executor.mjs",
         ".github/hooks/safety.json",
         ".github/mcp.json",
         ".vscode/mcp.json",
@@ -301,7 +331,7 @@ ROOT_OF_TRUST_EXACT = frozenset(
         "sf-harness.code-workspace",
     )
 )
-ROOT_OF_TRUST_PREFIXES = (".github/agents/",)
+ROOT_OF_TRUST_PREFIXES = (".github/agents/", "extensions/salesforce-operations/")
 # Always denied to the maintainer, even where an allow prefix would otherwise match.
 # config/harness.local.json is gitignored and human-owned: hard deny, not ask.
 MAINTAINER_DENIED_EXACT = frozenset({"config/harness.local.json"})
@@ -681,6 +711,19 @@ def git_agent_terminal_decision(command: str) -> tuple[str, str]:
     return ("deny", f"git {subcommand or '<none>'} is outside the git-agent's routine-operations scope.")
 
 
+def salesforce_command_decision(command: str, root: Path, role: str):
+    """Keep policy failures actionable in either hook without evaluating twice."""
+    if role != "developer" or not command or re.search(r"[;&|`$<>\n\r]", command):
+        return None
+    try:
+        parts = shlex.split(command.replace("\\", "/"))
+    except ValueError:
+        return None
+    if parts and Path(parts[0]).name.lower().removesuffix(".exe").removesuffix(".cmd") in {"sf", "sfdx"}:
+        return sf_policy.evaluate(parts, root)
+    return None
+
+
 def allowed_role_command(command: str, root: Path, role: str) -> bool:
     if not command or re.search(r"[;&|`$<>\n\r]", command):
         return False
@@ -698,11 +741,9 @@ def allowed_role_command(command: str, root: Path, role: str) -> bool:
     if role == MAINTAINER_ROLE and maintainer_terminal_command_allowed(parts, root):
         return True
     executable = Path(parts[0]).name.lower()
-    if role == "developer" and executable.removesuffix(".exe").removesuffix(".cmd") in {
-        "sf", "sfdx"
-    }:
-        # Environment denial precedes the global hook's real-deploy confirmation.
-        return sf_policy.evaluate(parts, root).allowed
+    sf_decision = salesforce_command_decision(command, root, role)
+    if sf_decision is not None:
+        return sf_decision.allowed
     if executable not in {"python", "python3", "py", "python.exe", "python3.exe", "py.exe"}:
         return False
     index = 1
@@ -854,6 +895,12 @@ def main() -> int:
     _EVENT_CONTEXT["role"] = args.role
     root = HARNESS_ROOT
     event_root = Path(event.get("cwd") or os.getcwd()).resolve()
+    if tool_name in NATIVE_OPERATION_TOOLS:
+        error = native_operation_input_error(event.get("tool_input"))
+        if args.role != "developer":
+            error = "Native Salesforce operations are available only to the Developer custom agent."
+        print(json.dumps(response("deny", error) if error else response()))
+        return 0
     if is_execute_tool(tool_name):
         if event_root != root:
             print(
@@ -872,6 +919,10 @@ def main() -> int:
                 print(json.dumps(response()))
             else:
                 print(json.dumps(response(decision, reason)))
+            return 0
+        sf_decision = salesforce_command_decision(command, root, args.role)
+        if sf_decision is not None:
+            print(json.dumps(response() if sf_decision.allowed else response("deny", sf_decision.reason)))
             return 0
         if not allowed_role_command(command, root, args.role):
             print(

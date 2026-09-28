@@ -88,6 +88,50 @@ FILESYSTEM_KEYS = {
 }
 
 HARNESS_ROOT = Path(__file__).resolve().parents[1]
+# Kept explicit in both independent hook processes; neither grants arbitrary extension tools.
+NATIVE_OPERATION_TOOLS = frozenset({
+    "sf_harness_run_operation",
+    "sf-harness.salesforce-operations/salesforceOperation",
+    "salesforceOperation",
+})
+
+
+def native_operation_input_error(tool_input: Any) -> str | None:
+    if not isinstance(tool_input, dict) or set(tool_input) != {"arguments"}:
+        return "Native Salesforce input must contain only arguments; role, environment and approval are host-owned."
+    arguments = tool_input["arguments"]
+    if not isinstance(arguments, list) or not 1 <= len(arguments) <= 128:
+        return "Native Salesforce arguments must be a nonempty bounded list."
+    if any(not isinstance(arg, str) or not arg or len(arg) > 8192 or
+           any(char in arg for char in "\x00\r\n") for arg in arguments):
+        return "Native Salesforce arguments must be bounded strings without control separators."
+    try:
+        if sum(len(arg.encode("utf-8")) for arg in arguments) > 32768:
+            return "Native Salesforce arguments exceed the input limit."
+    except UnicodeEncodeError:
+        return "Native Salesforce arguments must be valid UTF-8."
+    return None
+
+
+def private_native_invocation(command: str) -> bool:
+    """The installed native tool owns this protocol; terminal callers cannot feed replies."""
+    try:
+        parts = shlex.split(command.replace("\\", "/"))
+    except ValueError:
+        return True
+    if not parts:
+        return False
+    executable = Path(parts[0]).name.lower().removesuffix(".exe").removesuffix(".cmd")
+    if executable in {"cat", "type", "get-content", "rg", "grep", "ls"}:
+        return False
+    if executable in {"python", "python3", "py"} and parts[1:3] == ["-m", "py_compile"]:
+        return False
+    if executable == "node" and parts[1:2] == ["--check"]:
+        return False
+    return bool(re.search(
+        r"\b(?:salesforce_operation_session|salesforce_job_selection|salesforce_job_executor)\b",
+        command,
+    ))
 SALESFORCE_REVIEW_TOOLS = {
     "review_org_identity",
     "review_installed_packages",
@@ -451,13 +495,15 @@ def _flag_enabled(parts: list[str], *flags: str) -> bool:
 def is_real_deploy_command(parts: list[str]) -> bool:
     """Classify current `sf` and legacy `sfdx` commands that initiate an org deployment."""
 
-    lowered = [part.lower() for part in parts]
+    lowered = sf_policy.canonical_command([part.lower() for part in parts])
     executable = Path(lowered[0]).name.removesuffix(".exe").removesuffix(".cmd")
     args = lowered[1:]
     if executable in {"sf", "sfdx"}:
         words = sf_policy.command_words(lowered)
         if words in {("project", "deploy", "start"), ("deploy", "metadata")}:
             return not _flag_enabled(args, "--dry-run")
+        if words == ("project", "delete", "source"):
+            return not _flag_enabled(args, "--check-only", "--checkonly", "-c")
         if words == ("project", "deploy", "quick"):
             return True
     if executable in {"sf", "sfdx"} and args and args[0] in {"force:source:deploy", "force:mdapi:deploy"}:
@@ -630,6 +676,12 @@ def main() -> int:
     )
     is_sf_dev = "salesforce-development" in lowered_name or bare_tool in SALESFORCE_DEV_TOOL_TOKENS
     tool_input = event.get("tool_input", {})
+    if tool_name in NATIVE_OPERATION_TOOLS:
+        # Environment questions, drift checks and deployment dialogs happen in one native
+        # invocation. Do not deny an unknown classification before the host can ask.
+        error = native_operation_input_error(tool_input)
+        print(json.dumps(hook_response("deny", error) if error else hook_response()))
+        return 0
     text = flatten(tool_input)
     root = HARNESS_ROOT
     # Shell-command semantics apply only to terminal-shaped tools. For read/list/search tools the
@@ -638,6 +690,9 @@ def main() -> int:
     # Salesforce commands (observed live on the Windows pilot). Non-command surfaces are still
     # covered by the `text` checks (destructive/production patterns) and tool classification.
     command = terminal_command(tool_input) if is_terminal_tool(tool_name) else ""
+    if command and private_native_invocation(command):
+        print(json.dumps(hook_response("deny", "Private Salesforce session/executor cannot be invoked from a terminal; use the native Developer tool.")))
+        return 0
 
     if is_terminal_tool(tool_name) and re.search(
         r"knowledge_store\.py", dequote(command).replace("\\", "/")

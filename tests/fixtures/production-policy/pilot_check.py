@@ -11,6 +11,8 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def run() -> int:
+    if json.loads((ROOT / "pilot-mode.json").read_text()).get("hostProbe"):
+        raise ValueError("Protocol probe is not a policy baseline: generate a normal pilot")
     manifest = json.loads((ROOT / "source-manifest.json").read_text(encoding="utf-8"))
     for source, digest in manifest["sources"].items():
         if hashlib.sha256((ROOT / source).read_bytes()).hexdigest() != digest:

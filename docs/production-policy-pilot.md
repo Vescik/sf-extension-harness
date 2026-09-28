@@ -56,7 +56,7 @@ deliberately retains `hostAcceptance: NOT VERIFIED`.
 | sfdx shim | `sfdx retrieve metadata -o team-alpha -m ApexClass:Pilot` | Same as retrieve |
 | Nonprod deploy | `sf project deploy start -o prod-copy -m ApexClass:Pilot` | Exact target/scope question before stub |
 | Nonprod validation | `sf project deploy start -o prod-copy --dry-run -m ApexClass:Pilot` | May execute stub |
-| Unknown org | `sf data query -o unconfigured --query SELECT` | Held denied; P1-02 is deferred to plan 01a |
+| Unknown org | `sf data query -o unconfigured --query SELECT` | Held denied in this terminal-only pilot; native flow is separate |
 | Flag-file bypass | `sf project retrieve start -o team-alpha --flags-dir flags` | Deny |
 
 Repeat a nonprod deploy after approving only the first one: a fresh confirmation is required.
@@ -65,7 +65,8 @@ disposable fixture: arguments, default target, alias identity, or configured cla
 The old approval must not authorize the new operation. Repeat with a new tool call ID and
 with broader host approvals, recording their actual scope. Never change permissions for the
 real workspace. Do not claim that a chat answer or a model-written `approved`/`environment`
-field implements P1-02. The trusted answer channel is deferred to plan 01a and must not be simulated as an implemented feature.
+field implements P1-02. This pilot contains no native extension. Use the separate
+[native operation guide](native-salesforce-operations.md) and its tests for one-operation dialogs.
 
 ## Failure probes (disposable workspace only)
 
@@ -95,6 +96,7 @@ org to test rejection. This pilot does not certify real Salesforce access or asy
 
 Record unrun/unsupported cases as NOT VERIFIED. The owner approved publication of isolated plan 01
 with destination acceptance on their side; passing local processes does not complete that acceptance.
-Unknown-org answers and remaining nonprod/latest compatibility belong to plan 01a. Test Strategist's
+Unknown-org answers and supported latest workflows now use the separate plan 01a native tool;
+this terminal pilot cannot establish that tool's host acceptance. Test Strategist's
 production prohibition is accepted as an agent instruction, without a new runtime enforcement task.
 See `production-read-only-revision-handoff.md` for the release scope and evidence provenance.

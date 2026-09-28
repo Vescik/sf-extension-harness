@@ -63,6 +63,10 @@
       "purpose": "Safety scenarios, agent scenarios, schema fixtures"
     },
     {
+      "path": "extensions",
+      "purpose": "Native VS Code tools and packages"
+    },
+    {
       "path": "force-app",
       "purpose": "The only SFDX source root"
     },

@@ -615,3 +615,64 @@ scenarios:
       tool_input:
         command: sf project deploy start --target-org production
     expectedDecision: deny
+
+  - id: plan01a-metadata-review-nonprod-restored
+    guard: global
+    event:
+      tool_name: execute/runInTerminal
+      tool_input:
+        command: sf org list metadata --metadata-type ApexClass -o dev-sbx
+    expectedDecision: continue
+
+  - id: plan01a-legacy-metadata-review-prod-denied
+    guard: role
+    role: developer
+    event:
+      tool_name: execute/runInTerminal
+      tool_input:
+        command: sfdx force:mdapi:listmetadata --metadata-type ApexClass -u production
+    expectedDecision: deny
+    reasonContains: Production CLI
+
+  - id: plan01a-colon-real-deploy-asks
+    guard: global
+    event:
+      tool_name: execute/runInTerminal
+      tool_input:
+        command: sf deploy:metadata -o dev-sbx -m ApexClass:Sample
+    expectedDecision: ask
+
+  - id: plan01a-source-delete-is-real-deploy
+    guard: global
+    event:
+      tool_name: execute/runInTerminal
+      tool_input:
+        command: sf project delete source -o dev-sbx -m ApexClass:Sample
+    expectedDecision: ask
+
+  - id: plan01a-test-strategist-does-not-gain-cli
+    guard: role
+    role: test-strategist
+    event:
+      tool_name: execute/runInTerminal
+      tool_input:
+        command: sf org list metadata -o dev-sbx --metadata-type ApexClass
+    expectedDecision: deny
+
+  - id: plan01a-latest-alias-remains-unbound
+    guard: global
+    event:
+      tool_name: execute/runInTerminal
+      tool_input:
+        command: sf deploy:metadata:report --use-most-recent -o dev-sbx
+    expectedDecision: deny
+
+  - id: plan01a-unproved-identity-is-not-environment-question
+    guard: role
+    role: developer
+    event:
+      tool_name: execute/runInTerminal
+      tool_input:
+        command: sf data search -o absent --query SAMPLE
+    expectedDecision: deny
+    reasonContains: identity is not proven

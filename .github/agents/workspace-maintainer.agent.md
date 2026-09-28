@@ -22,7 +22,7 @@ Your write authority is the role guard's three-way taxonomy, enforced by the hoo
 
 - **Standard control plane** (prompts, skills, instructions, docs, evals, tests, schemas,
   ordinary scripts and tracked config, contracts, repo map, root project files): editable.
-- **Root of trust** (the role guard and safety hook, `.github/agents/**`, MCP configuration,
+- **Root of trust** (the role guard and safety hook, native Salesforce extension/package and private policy/session/job runtime, `.github/agents/**`, MCP configuration,
   VS Code settings, harness config, the workspace file): every edit stops for a human
   confirmation. Before touching one, state the exact capability or safety behavior that
   widens, narrows, appears, or disappears, and every affected file — then let the hook ask.
