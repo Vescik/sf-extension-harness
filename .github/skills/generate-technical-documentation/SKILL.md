@@ -45,8 +45,10 @@ large or heterogeneous. Do not infer which manifest members belong to the work i
    Create only `technical-documentation.md`, never substitute design, tasks, or empty files.
    A persisted `work-items/<itemId>-<slug>/ado-context.md` may support the business-summary
    and acceptance-criteria sections (its source snapshot, not its unapproved AI
-   understanding), but it does not replace this current-source fetch; note when the current
-   revision differs from the persisted one.
+   understanding), but it does not replace this current-source fetch. Preserve source
+   ID/link, retrieval time and completeness without ADO revision metadata. A noticed difference
+   from persisted source/design may be optional information; it does not block documentation
+   or silently change the requested scope. Do not add a second fetch for this comparison.
 4. Query Knowledge for every touched component through the
    [search-knowledge skill](../search-knowledge/SKILL.md), both layers:
    - the `knowledge_context` tool — what the source
@@ -74,7 +76,9 @@ large or heterogeneous. Do not infer which manifest members belong to the work i
    the ADO Test Cases it formally references. Do not call a deviation approved unless
    current pull-request evidence establishes that status. Never rank or suggest Test Cases.
    When the work item has no design, say so, mark the document as standalone documentation
-   of existing state, and list only formally linked cases from the synced inventory. When a
+   of existing state, and list only formally linked Test Cases from current Work Item relations.
+   Read needed case detail live through the work-items domain, preserving ID/link, content and
+   retrieval time; never restore a Test Plan/Suite cache or sync workflow. When a
    design exists but contains no complete verification plan, mark section 9
    `MISSING — design verification plan unavailable`, list only formally linked Test Cases,
    and report the gap. Never infer assertions, pass criteria, evidence, or execution stages.
@@ -121,5 +125,10 @@ Return the `itemId` and design reference (when one exists), actual document path
 missing/ambiguous components, source freshness/completeness, manual-step status,
 verification-plan and formal Test Case link status, canonical org-change-log path (or the reason
 none applies), checks performed, gaps, and publication next step. Do not repeat the full document.
-This workflow does not commit, add ADO links, or publish to wiki. Wiki publication remains a
-separate human-controlled step; a local document cannot satisfy a required published wiki link.
+After a coherent new or updated durable document and proportional verification, the active
+Developer stages and commits it through [Git Workflow](../git-workflow/SKILL.md), without a
+separate commit request or Git Agent handoff. Prepare/reuse the correct branch before new work,
+preserve unrelated changes, and report the actual SHA or unresolved checkpoint state. A no-op
+makes no empty commit. This workflow does not automatically add ADO links or publish to wiki.
+Wiki publication remains a separate human-controlled step; a local document cannot satisfy a
+required published wiki link. A local commit does not create or merge a PR.

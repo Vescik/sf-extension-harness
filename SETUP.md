@@ -6,6 +6,9 @@
   configured MCP surface is read-only by construction on every platform (no write-mode Salesforce
   MCP server exists).
 - Consolidated GitHub Copilot extension and the recommendations in `.vscode/extensions.json`.
+- GitHub CLI `gh` (or `gh.exe`) on PATH for repository/PR work. Check `gh --version` and
+  `gh auth status` for the host used by `origin`; the human configures authentication. Never
+  paste tokens into chat or files. Merge requires support for `--match-head-commit`.
 - Git, Python 3.11+, Node.js 22+ (the MCP launchers and the ADO server run on Node), and Salesforce CLI 2.136.8+ (the review facade needs `sf org auth show-access-token`).
   On Windows both install flavors are supported — npm (`sf.cmd`) and the installer (`sf.exe`);
   the review server resolves whichever `where.exe sf` would find first.
@@ -194,6 +197,9 @@ click, via `chat.tools.terminal.autoApprove` in `.vscode/settings.json`:
   operations, unresolved targets and identity errors before deployment confirmation. Nonprod real
   deploys return `ask`. One-use host approval binding needs destination verification; a saved
   approval is not evidence of authorization. Recursive deletion and remote-history rewriting remain denied.
+- Git/gh role permission and terminal auto-approval are separate. Authors start scoped local
+  stage/commit themselves, but native terminal approval may still appear. Keep the two workspace
+  settings copies consistent; do not add shared gh/add/commit auto-approval or `git=true`/`gh=true`.
 - **Do not** enable `chat.tools.global.autoApprove` / `/yolo` — that blanket-approves everything,
   including destructive actions, and defeats the model.
 
@@ -248,8 +254,12 @@ owner decision of 2026-07-14.)
 
 ## 7. Team workflow
 
-- Pull before starting work.
-- Create a branch; do not commit directly to `main`.
+- The active author follows [Git Workflow](.github/skills/git-workflow/SKILL.md) to inspect the
+  checkout and confirm its base, then prepare/resume the proper branch. Do not commit directly
+  to `main`, or pull/reset/stash as an automatic fix for a dirty or divergent checkout.
+- After a coherent permitted intake, design, code, test, plan, or documentation result and
+  verification, the author stages exact files and commits locally without a separate request.
+  Git Agent is optional assistance; Reviewer is read-only and Knowledge keeps its existing lane.
 - Investigators draft Knowledge as one-file entries through the governed `knowledge_store.py`
   lanes (`entry-draft`/`draft --component`; the v1 claim registry retired 2026-08-03). Approval
   needs a human either way: the agent may request the digest-pinned
@@ -268,7 +278,12 @@ owner decision of 2026-07-14.)
   controlled pilot the approver identity/reference is human-asserted and hash-bound, not verified
   through a provider API or signature; close that identity-authenticity gate before team-wide use.
 - Run validation and tests before pushing.
-- Open a PR and obtain the owners/reviewers required by repository governance.
+- Explicitly ask the executing author to publish/update a PR or merge when intended. One request
+  may cover both operations; a publication-only request never implies merge. The author uses
+  `gh`, verifies the exact repository/PR/head/base and requirements, and reports actual remote
+  state. A completed milestone or passing CI does not trigger publication or merge.
+- Obtain the review required by repository governance. Ready is not review or merge approval;
+  criteria for automatic Ready remain a separate workflow.
 - Never use broad `git add -A` in a mixed workspace; stage intentional paths.
 
 ## 8. Troubleshooting

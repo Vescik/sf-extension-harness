@@ -33,6 +33,13 @@ PowerShell before running the check — PATH changes only apply to new windows.
   or with winget: `winget install --id Git.Git -e`
 - Check: `git --version` → prints something like `git version 2.45.0.windows.1`
 
+### 1.1a GitHub CLI
+
+Install [GitHub CLI](https://cli.github.com/) so `gh.exe` is on PATH. Check `gh --version`
+and `gh auth status` for the host used by your repository's `origin`. The human signs in;
+never send tokens to the agent. The installed CLI must support `gh pr merge --match-head-commit`.
+GitHub reads are available to all roles; only executing roles can perform requested PR writes.
+
 ### 1.2 Python 3.12
 
 - Download the latest 3.12.x from <https://www.python.org/downloads/windows/> and run it.
@@ -66,8 +73,8 @@ PowerShell before running the check — PATH changes only apply to new windows.
   your GitHub account when prompted (your organization must have a Copilot license for you).
 - Check: the Copilot Chat icon appears in the VS Code sidebar/title bar.
 
-If your organization blocks installers or winget, request Git, Python 3.12, Node 24, Salesforce
-CLI, and VS Code through your IT software catalog — no admin-only or unusual components are used.
+If your organization blocks installers or winget, request Git, GitHub CLI, Python 3.12, Node 24,
+Salesforce CLI, and VS Code through your IT software catalog — no admin-only or unusual components are used.
 
 ---
 
@@ -273,6 +280,19 @@ Before connecting real orgs, generate the [portable policy pilot](production-pol
 on the destination host. It uses synthetic identities and a non-networked executor. Successful
 fixture tests do not replace host approval checks or bounded live MCP/retrieve installation tests.
 
+
+## Local commits and PR work
+
+Active authors prepare/resume the proper branch and commit coherent permitted results after
+verification, using [Git Workflow](../.github/skills/git-workflow/SKILL.md). You do not need to
+switch to Git Agent or ask again for each local commit. Reviewer stays read-only and Knowledge
+keeps its existing authoring/approval lifecycle. Ignored cache and temporary output are not forced
+into commits. The native terminal may still ask for approval; do not enable broad Git/gh auto-approval.
+
+Ask explicitly for PR publication/update or merge. One instruction can cover both, but a completed
+phase or passing checks does not authorize either. The agent confirms the actual repository/PR
+state; a queued merge is not complete. Verify these tools and both hooks in VS Code Local on each
+supported platform before claiming host acceptance.
 
 ## Native one-operation Salesforce tool (plan 01a)
 

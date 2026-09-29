@@ -70,6 +70,27 @@ class PortablePilotTests(unittest.TestCase):
         self.assertTrue(events)
         self.assertTrue(all(event['kind'] == 'inventory' for event in events))
 
+    def test_git_policy_missing_broken_or_crashing_import_is_sanitized_deny(self):
+        module = self.root / 'scripts/git_workflow_policy.py'
+        for broken in (None, 'raise RuntimeError("PRIVATE-GIT-ERROR")\n', 'invalid python !!!\n'):
+            if broken is None:
+                module.unlink()
+            else:
+                module.write_text(broken)
+            for script, extra in (('copilot_safety_hook.py', []),
+                                  ('copilot_role_guard.py', ['--role', 'developer'])):
+                with self.subTest(broken=broken, script=script):
+                    result = subprocess.run(
+                        [sys.executable, '-B', str(self.root / 'scripts' / script), *extra],
+                        input='{}', cwd=self.root, env=self.env,
+                        text=True, capture_output=True, timeout=5,
+                    )
+                    self.assertEqual(0, result.returncode, result.stderr)
+                    self.assertEqual('deny', json.loads(result.stdout)
+                                     ['hookSpecificOutput']['permissionDecision'])
+                    self.assertNotIn('PRIVATE-GIT-ERROR', result.stdout + result.stderr)
+        self.assertFalse((self.root / '.cache/executor.jsonl').exists())
+
 
 class HostProtocolProbeTests(unittest.TestCase):
     def make_probe(self, mode):

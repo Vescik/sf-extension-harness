@@ -17,9 +17,10 @@ document exists — without it, "more control" reads as "better product".
 > runtime helps it do that rather than getting in the way.
 
 For ADO-backed work the requirement arrives as a durable snapshot: `/fetch-ado-item` persists
-`work-items/<id>-<slug>/ado-context.md` first, and the design names that file and its ADO
-revision as its requirement baseline — so a reviewer compares the design against the source
-acceptance criteria, not against the design's own paraphrase.
+`work-items/<id>-<slug>/ado-context.md` first. The design names that path as its requirement
+baseline and maps the source ACs to the proposed solution and verification. A reviewer compares
+against source criteria, not the design's own paraphrase. A noticed ADO/design difference may
+be optional information; it never forces redesign or stops the requested work by itself.
 
 When a human has explicitly prepared the item's parent ADO Feature for multi-Story delivery
 (`/prepare-delivery-feature`) and exactly one local delivery map includes the item, the design

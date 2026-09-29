@@ -1,37 +1,34 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 1,
   "source": {
     "organization": "example-org",
     "project": "Example Project",
     "itemId": 1201,
+    "revision": 7,
     "retrievedAt": "2026-07-10T08:00:00Z"
   },
   "completeness": {
-    "status": "complete",
+    "status": "partial",
     "detailLevel": "full",
     "relationsIncluded": true,
     "testCasesIncluded": true,
     "attachments": "metadata",
-    "pagesFetched": 2,
-    "missingRelations": []
+    "pagesFetched": 1,
+    "missingRelations": [
+      "child:1203"
+    ]
   },
   "untrustedExternalData": true,
   "item": {
     "id": 1201,
     "type": "User Story",
-    "title": "Sanitized managed-component review",
+    "title": "Sanitized partial hierarchy",
     "state": "Active",
     "parentId": 1100,
     "childIds": [
       1202,
       1203
     ],
-    "acceptanceCriteria": "Example-only acceptance criterion.",
-    "url": "https://dev.azure.com/example-org/Example%20Project/_workitems/edit/1201",
-    "description": "A source-faithful requirement can contain the word revision.",
-    "fieldStatus": {
-      "description": "fetched",
-      "acceptanceCriteria": "fetched"
-    }
+    "acceptanceCriteria": "Example-only acceptance criterion."
   }
 }

@@ -361,6 +361,13 @@ def check_customizations(audit: Audit, root: Path = ROOT) -> None:
             legacy = sorted(set(tools) & LEGACY_TOOLS)
             audit.require(not unknown, f"{relative(path)}: unknown tools: {unknown}")
             audit.require(not legacy, f"{relative(path)}: legacy tools: {legacy}")
+            audit.require("execute/runInTerminal" in tools,
+                          f"{relative(path)}: shared GitHub reads require the guarded terminal")
+            audit.require(f"--role {name}" in json.dumps(data.get("hooks", {}), default=str),
+                          f"{relative(path)}: terminal access requires its own role guard")
+            if name == "git-agent":
+                audit.require("edit/editFiles" in tools,
+                              "git-agent needs the editor for its exact PR-body transport path")
             audit.require(
                 ("sf-harness.salesforce-operations/salesforceOperation" in tools) == (name == "developer"),
                 f"{relative(path)}: native Salesforce operation tool belongs only to Developer",
@@ -456,6 +463,10 @@ def check_customizations(audit: Audit, root: Path = ROOT) -> None:
                     f"{relative(path)}: grants an internal Solution Design operation or wildcard "
                     f"{forbidden}; human transition operations are never model-facing tools",
                 )
+        if prompt_agent in agents:
+            effective_tools = data.get("tools", agents[prompt_agent].get("tools")) or []
+            audit.require("execute/runInTerminal" in effective_tools,
+                          f"{relative(path)}: prompt must retain the role's guarded terminal for GitHub reads")
         audit.require("skill](" in body.lower(), f"{relative(path)}: prompt must link its skill")
         if isinstance(name, str):
             prompt_names.append(name)
@@ -1009,7 +1020,10 @@ def apply_patch(instance: Any, dotted: str, value: Any) -> None:
 
 def check_schemas_and_evals(audit: Audit) -> None:
     mappings = {
-        "ado-item-cache.schema.json": ("ado-item.complete.json", "ado-item.partial.json"),
+        "ado-item-cache.schema.json": (
+            "ado-item.complete.json", "ado-item.partial.json",
+            "ado-item.legacy-v1.complete.json", "ado-item.legacy-v1.partial.json",
+        ),
         "ado-wiki-cache.schema.json": ("ado-wiki.complete.json", "ado-wiki.partial.json"),
         "output-envelope.schema.json": (
             "output.incomplete.json",

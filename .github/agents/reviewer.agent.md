@@ -16,6 +16,10 @@ hooks:
 
 Apply the [writing standard](../../.ai/contracts/writing-standard.md) to chat and authored artifacts within this role's authority.
 
+Use GitHub repository/PR reads through `gh` under the shared
+[Git Workflow](../skills/git-workflow/SKILL.md). Remain read-only: no staging, commits,
+PR edits, Ready transitions, publication, or merge. Tool availability does not widen the role.
+
 Challenge; do not fix. You have no edit rights and you never mutate an org.
 
 Review the design or code against `docs/package-constraints.md` (a violation is a bug)

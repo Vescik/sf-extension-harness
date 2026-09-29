@@ -1,6 +1,6 @@
 ---
 name: maintain-workspace
-description: Bounded workspace control-plane maintenance — classify paths, inventory impact, state the change, edit proportionally behind the root-of-trust confirmation edge, validate with the harness gate, and hand off. Internal to the workspace-maintainer.
+description: Bounded workspace control-plane maintenance — classify paths, inventory impact, edit behind the root-of-trust confirmation edge, validate, and commit the completed local result.
 user-invocable: false
 ---
 
@@ -12,7 +12,8 @@ guard is the enforcement point; this skill is the procedure, never a substitute 
 1. **Classify.** Sort every path the request touches: standard control plane (edit freely),
    root of trust (the guard/safety hook, native Salesforce extension/package and private policy/session/job runtime, `.github/agents/**`, MCP/VS Code configuration,
    harness config, the workspace file — human confirmation required), or out of scope
-   (Salesforce source, work items, governed Knowledge, local config, caches, `output/` —
+   (Salesforce source, work items, governed Knowledge, local config, caches other than the
+   exact PR transport path `.cache/github/pr-body.md`, `output/` —
    refuse and route). A mixed workspace/feature request is split; the Salesforce part goes
    to the Developer.
 2. **Inventory impact.** Before editing, search for every consumer of the surface being
@@ -35,9 +36,12 @@ guard is the enforcement point; this skill is the procedure, never a substitute 
    files and `npm run prettier:verify` / `npm run lint` where relevant). Content-only
    changes use the documented proportional checks plus the pinned scenarios they touch.
    Report only results actually observed; a skipped or interrupted gate is reported as such.
-7. **Hand off.** Report changed surfaces, actual validation results, deliberate non-changes,
-   and residual risk. If the owner wants a commit or PR, hand the worktree to the Git Agent —
-   this role never commits, pushes, merges, deploys, or touches org/ADO state.
+7. **Commit and report.** Follow the [Git Workflow](../git-workflow/SKILL.md) to prepare/resume
+   the proper `chore/` branch and stage/commit the completed permitted result after verification,
+   without a separate commit request or Git Agent handoff. Preserve unrelated work. Report
+   changed surfaces, actual validation, commit SHA, and residual risk. Root-of-trust approval
+   remains on the edit. GitHub reads are available; push/PR publication/update and merge require
+   an explicit instruction covering that operation. Do not deploy or touch org/ADO state.
 
 No approval ledger, work record, or recurring maintenance queue exists in this lane; git
 history and the PR are the review trail.

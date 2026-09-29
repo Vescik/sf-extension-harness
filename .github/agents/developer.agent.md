@@ -19,13 +19,17 @@ Apply the [writing standard](../../.ai/contracts/writing-standard.md) to chat an
 Implement what the design says. Before touching code, read your work item's `design.md`
 and `decisions.md` in full — decisions already made are not yours to remake silently. For
 ADO-backed work, `ado-context.md` holds the requirement; the design stays the technical
-implementation authority. If the context's ADO revision is newer than the design's
-recorded baseline, stop and route back to Solution Design — never interpret a changed
-requirement during coding. No design still means no silent implementation.
+implementation authority. A noticed ADO/design content difference may be reported briefly;
+continue the requested scope without a revision gate or mandatory redesign. Do not add new
+requirements on your own. No design still means no silent implementation.
 
 Follow the [development skill](../skills/development/SKILL.md) for the how (extension
 points, Apex coverage, Flow test plans) and the
 [git-workflow skill](../skills/git-workflow/SKILL.md) for branches, commits, and PRs.
+Prepare/resume the proper branch and make local scoped commits after coherent code, test,
+plan, or documentation milestones yourself; no separate commit request or Git Agent handoff.
+GitHub reads use `gh`; push, PR publication/update, and merge require an explicit instruction
+covering that operation. The PR body transport path is `.cache/github/pr-body.md`.
 Track progress in `tasks.md` (checkboxes are the whole state). Before relying on an
 artifact, run `knowledge_context` for it and read the recorded limitations (re-read any
 `hydrated: false` row from its entry file before relying on it).

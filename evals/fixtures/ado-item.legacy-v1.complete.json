@@ -1,9 +1,10 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 1,
   "source": {
     "organization": "example-org",
     "project": "Example Project",
     "itemId": 1201,
+    "revision": 7,
     "retrievedAt": "2026-07-10T08:00:00Z"
   },
   "completeness": {
@@ -26,12 +27,6 @@
       1202,
       1203
     ],
-    "acceptanceCriteria": "Example-only acceptance criterion.",
-    "url": "https://dev.azure.com/example-org/Example%20Project/_workitems/edit/1201",
-    "description": "A source-faithful requirement can contain the word revision.",
-    "fieldStatus": {
-      "description": "fetched",
-      "acceptanceCriteria": "fetched"
-    }
+    "acceptanceCriteria": "Example-only acceptance criterion."
   }
 }

@@ -1,264 +1,239 @@
 ---
 name: git-workflow
-description: The team's git conventions — work-item and Feature delivery branches, explicit Work Item commit attribution with native AB# traceability, push-time copyable PR handoff, conflict handling, and merge policy. One source of truth shared by the git agent and developer.
+description: Shared Git workflow for active authors and the Git Agent — delivery branches, scoped local commits, GitHub CLI reads, and explicitly requested PR publication and merge.
 user-invocable: false
 ---
 
 # Git Workflow
 
-These conventions are the team's, not yours: follow them even when you know a different
-way. This skill is loaded by the git agent and the developer alike — the convention holds
-no matter who performs the operation.
+Apply the [writing standard](../../../.ai/contracts/writing-standard.md). This is the shared
+procedure for all roles; use only the operations within the active role's authority.
+
+## Roles and authorization
+
+- Designer, Developer, Test Strategist, and Workspace Maintainer prepare the correct branch,
+  stage their own permitted result, and make a descriptive local commit after each coherent
+  milestone and proportional verification. No separate commit request or Git Agent handoff
+  is needed. A human's explicit request to commit their changes authorizes that bounded scope
+  within the role's file authority; do not claim that the agent authored those changes.
+- Git Agent retains its broader existing local Git repertoire and helps with repository work.
+  The bounded automatic-commit procedure below does not replace that specialist role. Its
+  existing destructive-operation and shared-history restrictions still apply.
+- All eight roles may read GitHub repository/PR data through `gh`. Reviewer is read-only.
+  Config Investigator and Knowledge Curator receive reads only; their existing Knowledge
+  authoring, revisions, approvals, and commit lifecycle are unchanged.
+- GitHub writes belong to Designer, Developer, Test Strategist, Workspace Maintainer, and
+  Git Agent within the requested work. Push, PR creation/update, and merge require an explicit
+  instruction covering that operation. A publication request does not authorize merge. One
+  instruction can cover both publication and merge; do not ask again for steps it already
+  covers. A finished fetch, design, development milestone, or passing checks is not that instruction.
+- Native terminal approval can still appear. Never bypass it or enable shared `git=true`,
+  `gh=true`, or broad add/commit auto-approval. Maintainer root-of-trust edit approval remains
+  on the edit; the subsequent local commit does not add a second approval for the same work.
+
+A commit records a draft/result; it does not approve a design, authorize implementation,
+publish to ADO/wiki, or prove deployment or test execution. Ignored cache/output and Knowledge
+are outside the automatic-commit lane. No changed durable files means no empty commit.
 
 ## Branches — the branch identifies the delivery container
 
 - `work-item/<work-item-id>-<slug>` — one concrete ADO delivery item (User Story, Product
-  Backlog Item, Task, Bug, or an owner-approved technical enabler with its own Work Item),
-  e.g. `work-item/242850-approval-notifications`. There is no separate `fix/` kind: a Bug is
-  a concrete delivery item like any other; its ADO type stays visible in `ado-context.md`.
-- `feature/<feature-id>-<slug>` — reserved for an explicitly prepared multi-Story ADO
-  Feature delivered as one combined container, e.g. `feature/5000-approval-management`.
-- `chore/<short-description>` — maintenance without a work item.
+  Backlog Item, Task, Bug, or an owner-approved technical enabler with its own Work Item).
+  There is no separate `fix/` kind; the ADO type stays visible in `ado-context.md`.
+- `feature/<feature-id>-<slug>` — an explicitly prepared ADO Feature selected by the human
+  for combined delivery. A parent relation alone does not select this container.
+- `chore/<short-description>` — maintenance or documentation without a Work Item. Use
+  `[chore]` or `[docs]` commits without inventing a Story or `AB#` reference.
 
-A `work-item/` branch starts from confirmed `origin/main`, or — as a parallel child of a
-combined Feature delivery — from the confirmed remote Feature branch. A `feature/` branch
-always starts from confirmed `origin/main`. One delivery container per branch.
+A Work Item branch normally starts from confirmed `origin/main`. A parallel child of combined
+Feature delivery starts from the confirmed remote Feature branch only when explicitly requested.
+A Feature branch starts from confirmed `origin/main`. Keep one delivery container per branch.
 
-## Supported operations
+## Prepare or resume the branch
 
-```text
-start work item <ID>
-start feature <Feature ID>
-commit work item <ID>
-commit feature <Feature ID>
-push
-prepare PR
-```
+The active author runs this procedure before new design, code, or a plan when the scope is known,
+and after intake when the context establishes the item identity. It is also available through
+`start work item <ID>` or `start feature <Feature ID>` with the Git Agent. That specialist is optional.
 
-## Start an ADO-backed work item
+1. Inspect repository, origin, branch, HEAD, and all staged/unstaged/untracked paths. Identify
+   the current task's own result or the exact human changes requested for commit. Preserve
+   unrelated work; do not infer ownership from a filename or from `AB#` alone.
+2. Resolve one stable `work-items/<ID>-<slug>/` folder by ID. Reuse its slug; multiple matches
+   need a concrete scope clarification. For intake, read its `ado-context.md` and verify a
+   concrete delivery type. Documentation may use the identity established by its required
+   current ADO fetch without creating a substitute context file. For a written requirement
+   or maintenance without ADO, use the agreed scope and `chore/` convention.
+3. For combined Feature delivery, require exactly one matching prepared `delivery-map.md`,
+   root type Feature, and an explicit human choice of combined delivery. Child commits need
+   an explicitly identified Work Item listed as `included`. An Epic is not a delivery branch.
+   If independent versus combined delivery is undecided, ask that scope question in the
+   current conversation and preserve the prepared files until answered; do not select for
+   the human or require switching to Git Agent.
+4. Resume an existing compatible branch after verifying its identity, base, and scope; do
+   not create a duplicate branch/commit. An existing name with ambiguous scope requires
+   inspection and a concrete decision, not silent reuse or deletion.
+   For a branch that exists only on `origin`, fetch `origin`, verify that exact remote branch,
+   and use `git switch --track -c <branch> origin/<same-branch>`. The local branch must not
+   already exist. A clean checkout can resume it; dirty in-scope changes can follow only
+   when current HEAD equals the confirmed remote HEAD, preserving staged/unstaged content.
+   Do not let implicit tracking or another remote select the branch.
+5. For a new branch, fetch `origin` and prove the intended base. Local `main` must equal the
+   confirmed `origin/main`. The explicit parallel-child case uses the confirmed remote
+   Feature branch, never an unpushed local branch. Behind/ahead/diverged or unreadable bases,
+   detached HEAD, conflicts, or an operation in progress require resolving that actual state.
+   Never pull, rebase, reset, clean, or stash as an automatic bootstrap shortcut.
+6. Create/switch the proper branch from that base. When files already exist on synchronized
+   `main`, this may carry the current task's intake, design, plan, code, or explicitly requested
+   human changes from the same HEAD, preserving staged/unstaged content. Other changes require
+   an explicit assessment that preserves them; do not overwrite or silently move them.
+7. Commit completed in-scope results using the procedure below. Intake ends with its commit
+   outcome and `/solution-design itemId=<ID>`; it does not start design. Prepared Feature
+   coordination remains separate from child implementation. Report an unresolved branch or
+   scope condition honestly; do not claim a commit that did not occur.
 
-Run this bootstrap after `/fetch-ado-item` has persisted a concrete Story/Bug/Task context and
-before `/solution-design`.
+The Git step does not fetch ADO, edit requirements, choose membership, or start another lifecycle
+phase. A content difference between ADO and design may be reported briefly, but does not force
+redesign or block this requested scope. Never use an old ADO revision label as a gate.
 
-Input: `start work item <ID>`.
+Sequential delivery on a Feature branch is the default: included children get separate
+`[WI-<ID>]` commits on that branch. A separate child branch is an explicitly requested concurrency
+option with its PR targeting the Feature branch. Use isolated checkouts for parallel writers.
+When shared Feature context has not reached the independent Story's base, preserve it and ask
+for the concrete coordination choice rather than duplicating an unmerged map across branches.
 
-1. Read exactly one `work-items/<ID>-*/ado-context.md`. Stop on zero or multiple matching
-   directories. Derive the stable slug from that directory. The persisted item type must be a
-   concrete delivery item; a persisted Feature or Epic is not branchable here — a prepared
-   Feature uses `start feature <Feature ID>` instead, and an Epic gets no branch at all.
-2. Choose and prove the base:
-   - default: the current branch is `main`; fetch `origin` when configured, then prove local
-     `main` equals the confirmed `origin/main`;
-   - explicitly requested parallel child of a combined Feature delivery: the human names the
-     Feature; require exactly one prepared `delivery-map.md` matching that Feature which lists
-     `<ID>` as included, and base the child on the confirmed **remote** Feature branch — never
-     on an unpushed local state, and never inferred without the human's instruction.
-   If the base is behind, ahead, diverged, conflicted, or cannot be compared, stop with
-   evidence; never pull, rebase, merge, reset, or stash as a shortcut.
-3. Allow only the intake set to be dirty:
-   - the concrete item's `ado-context.md`;
-   - when exactly one prepared `delivery-map.md` includes the ID, that Feature's sibling
-     `ado-context.md` and `delivery-map.md` if they are also dirty.
-   Any other tracked, staged, or untracked path stops the bootstrap. Never use `git add .`, `-A`,
-   or a broad pathspec.
-4. Create and switch to `work-item/<ID>-<stable-slug>`. If it already exists locally or remotely,
-   stop, report it, and ask the human whether this is a resume or a new delivery slice; never
-   delete or silently reuse it.
-5. Stage only the exact intake paths established in step 3. Verify the staged diff contains no
-   other path, then create one local commit:
+## Local commits — the commit identifies the implementation owner
 
-   ```text
-   [WI-<ID>] add work item context — AB#<ID>
-   ```
+A coherent milestone can be durable ADO intake, a design, a plan, one implemented behavior, its
+tests, or documentation. Commit after proportional verification, not after every file save and
+not only at the end of the entire delivery. A read-only fetch or ignored-cache update has no commit.
 
-   An unchanged context needs no empty commit. The raw `AB#<ID>` is link-only: once pushed, the
-   existing Azure Boards–GitHub integration links the commit to the Work Item natively, so no
-   manual Branch link is required before continuing. Never append a state-transition phrase.
-6. Verify the worktree is clean and report the branch, base, committed paths, and commit ID. Do
-   not push. End with exactly `/solution-design itemId=<ID>`.
+1. Recheck repository, branch, HEAD, task scope, and the full staged/unstaged diff. A Work Item
+   branch and its ID must agree. On a Feature branch the active child ID must be explicit and
+   included in exactly one matching delivery map; refuse deferred/absent or mixed unexplained
+   scope. Feature coordination commits cannot hide child source changes.
+2. The index must be empty or contain only changes in this task or the human's explicit commit
+   request. Existing staged human changes in that scope are allowed. Preserve unrelated staged
+   changes without reset/stash. Mixed hunks require a precise scope decision; never claim the
+   entire file just because the agent edited one part.
+3. Stage with `git add -- <exact-files>`. Use permitted repository-relative file paths only;
+   no dot, directory, wildcard/pathspec magic, `-A`, `-u`, `-f`, pathspec-from-file, traversal,
+   symlink escape, ignored output/cache, local config, or secrets. Check both sides of a rename
+   or deletion and preserve file modes.
+4. Review the entire staged diff and selected working-tree files. They must agree in content
+   and mode: `git commit` with paths takes those files from the working tree. A selected file
+   with both staged and unstaged changes stops this commit; do not silently restage it.
+5. Use an ordinary `git commit -m "<subject>" [-m "<body>"] -- <exact-files>` with literal
+   arguments and optional 1–3 body paragraphs. The selected paths must match the full staged
+   scope. No amend, all, no-verify, empty, fixup, reuse-message, identity/date change, or config
+   override in this automatic lane. Do not commit directly to `main`/`master` or detached HEAD.
+   Quote for the actual shell: Windows uses double quotes without backslash-escaped quotes
+   or environment/history expansion; POSIX also permits single-quoted literal text. Never
+   use unquoted globs or comments as message arguments.
+6. Verify the resulting SHA, parent, paths, committed diff, index, and worktree. Report the SHA,
+   concrete result, and actual verification. Do not push without the publication instruction.
+   A failed/unknown result requires inspection before any retry; do not reset, stash, or claim
+   success. If own staging remains after a failed commit, preserve and report that exact state.
 
-The bootstrap owns Git placement only. It does not fetch ADO, edit context, prepare a Feature,
-design, or implement. If `design.md` already exists, this is not a new-work bootstrap; requirement
-refresh follows the existing Solution Design reconciliation route on the current work branch.
+The guard checks role, paths and Git state, not semantic authorship. One active writer is required
+through stage/commit; changed HEAD/index/files require inspection. There is no atomic executor or
+ownership ledger, and unit tests cannot prove transaction isolation.
 
-For parallel Stories whose prepared Feature files are not yet on `main`, do not duplicate or
-silently fork the shared context across unrelated branches. Stop and ask the human to choose
-sequential delivery after the first Story lands or a separately reviewed context-only handoff.
-That exceptional coordination decision is never inferred by the git agent.
-
-## Start a prepared Feature
-
-Input: `start feature <Feature ID>`. A parent relation alone never creates a Feature branch:
-an ordinary Story under a reporting Feature or Epic stays a standalone `work-item/` branch.
-Every one of these must hold, proven locally, or the bootstrap stops:
-
-1. the persisted root context in `work-items/<Feature ID>-*/ado-context.md` is an ADO
-   **Feature** — not a Story, Task, Bug, or Epic;
-2. `/prepare-delivery-feature itemId=<Feature ID>` completed: exactly one unambiguous
-   `delivery-map.md` exists for the Feature (zero or multiple matching maps stop);
-3. the human explicitly selected combined Feature delivery — this operation is that
-   selection's execution, never an inference;
-4. local `main` exactly matches confirmed `origin/main`, with the same dirty-path rules as the
-   work-item bootstrap (only the Feature's own `ado-context.md` and `delivery-map.md` may be
-   dirty and staged).
-
-Create `feature/<Feature ID>-<stable-slug>` from that `main`, stage only the two Feature
-coordination files, and commit:
-
-```text
-[FEATURE-<Feature ID>] add delivery context — AB#<Feature ID>
-```
-
-An existing local or remote branch of that name stops the bootstrap exactly as above. Do
-not push without approval. The bootstrap does not fetch ADO, edit `ado-context.md` or
-`delivery-map.md`, select Feature membership, or fetch any child Story — only the child
-currently being started is ever fetched, by the human, through `/fetch-ado-item`.
-
-Sequential delivery on the Feature branch is the default: included child Work Items land as
-logically separated `[WI-<ID>]` commits directly on the Feature branch. Do not create a child
-`work-item/` branch merely because another included item starts; a child branch is the explicit
-concurrency escape hatch (separate reviewer, concurrent work, isolated rollback), requested by
-the human, based on the confirmed remote Feature branch, with its PR targeting the Feature
-branch. One active writer per shared Salesforce component remains required.
-
-## Commits — the commit identifies the implementation owner
-
-Format for ADO-backed delivery work:
+### Attribution and message
 
 ```text
 [WI-<work-item-id>] short imperative description — AB#<work-item-id>
 ```
 
-e.g. `[WI-242850] add notification pref flow — AB#242850`. Feature coordination commits use
-`[FEATURE-<feature-id>] … — AB#<feature-id>`. Without a work item: `[chore]` or `[docs]`, no
-`AB#` reference. `git log --grep '\[WI-242850\]'` must return the item's full implementation
-history — that is the local traceability mechanism, so the prefix is not optional; the raw
-`AB#<ID>` gives ADO its native commit link once pushed. Never use a state-transition keyword
-(`Fixes`, `Fixed`, `Closes`, `Closed`, `Resolves`) anywhere in a commit message — commits and
-PRs never change Work Item state.
+Feature coordination uses `[FEATURE-<feature-id>] … — AB#<feature-id>` and only the Feature's
+coordination artifacts or genuinely Feature-wide integration documentation. Child code uses its
+own `[WI-ID]`. Without a Work Item use `[chore]` or `[docs]`. The raw `AB#` reference supplies
+native Azure Boards linking after push; it does not authorize a state transition. Never use
+`Fixes`, `Fixed`, `Closes`, `Closed`, or `Resolves` as Work Item state-transition keywords.
 
-### `commit work item <ID>`
+Write new prose in English/STE. Name the actual result instead of "update files" or "done".
+An optional body explains what/why and material verification or limits. Do not invent test results
+or claim human changes as the agent's work. Use the configured Git identity and truthful timestamps;
+never set role-specific authors or artificial dates. Keep meaningful stage commits; do not
+routinely amend or squash them. Merge commits retain truthful parent history.
 
-On a standalone or child `work-item/<branch-ID>` branch, `<ID>` must equal the branch's ID;
-refuse a mismatch and ask which container the change belongs to.
+## GitHub CLI — one repository and exact operation
 
-On a `feature/<Feature ID>` branch, the agent cannot infer the active Work Item — the ID is
-always explicit, and before committing it must:
+Use `gh`/`gh.exe` on PATH. Reads for every role: `gh --version`, `gh auth status` without tokens,
+`gh repo view`, and bounded `gh pr list/view/diff/checks`. Read only fields needed for the task.
+If CLI/auth/network/access is missing, report the limitation without tokens or automatic login.
+Pending checks are not successful checks and are not a CLI execution failure.
 
-1. resolve exactly one prepared `delivery-map.md` whose Feature ID matches the current branch
-   (zero or several matching maps stop, with every candidate named — never chosen by title,
-   path order, or modification time);
-2. confirm `<ID>` is currently listed as `included` — a deferred or absent item is refused with
-   its actual map status and the human decides (re-prepare the scope, or deliver standalone);
-3. resolve exactly one `work-items/<ID>-*/ado-context.md`;
-4. inspect the staged/unstaged diff and refuse mixed, unexplained Work Item scope — the human
-   decomposes it; never commit two items' changes under one ID;
-5. create the `[WI-<ID>] … — AB#<ID>` commit.
+For a write, verify the repository and host against `origin` and the explicit task target. Name
+the exact PR, head, base, and operation; never select a PR by similar title alone. Use explicit
+repository selectors and a specific PR number for existing-PR operations. An unexpected target
+requires correction; never widen to another repository just to make a command succeed.
 
-### `commit feature <Feature ID>`
+1. Read the actual base-to-head diff, commits, relevant work-item context, and
+   `.github/pull_request_template.md`. Prepare the title/body from those sources and the checks
+   actually run. Use the template's adaptive sections and the attribution rules below.
+2. Write the complete body with an editor to `.cache/github/pr-body.md`. This is the sole
+   extra edit path for Git Agent; other executor roles also receive this narrow transport-path
+   permission. Reject symlinks, hard links and paths outside the repository. It is ignored transport data,
+   never consent, durable documentation, or a file to stage. Check its final contents for the
+   intended PR. Parallel publications use separate checkouts.
+3. Search for the matching existing PR first. When publication is explicitly requested, push
+   only the intended branch, then create with explicit `--repo`, `--head`, `--base`, `--title`,
+   and `--body-file .cache/github/pr-body.md`. Include `--draft` by default; omit it only when
+   the current explicit instruction requests Ready. A publication request alone must not
+   create a Ready PR through the CLI default. Do not invoke interactive push/fork selection
+   or use `--fill` instead of writing a truthful description. Update an existing matching PR
+   with `pr edit` and the same body-file procedure, preserving human changes. Title/body edits
+   must not change the base, reviewers, assignees, or unrelated PR fields.
+4. `pr ready`/`pr ready --undo` are available for an explicitly requested operation. Automatic
+   Draft → Ready criteria belong to the separate Ready workflow; this skill does not invent
+   them or turn passing checks alone into a Ready transition.
+5. Merge only under an instruction that covers merge. Immediately read the exact PR's head,
+   base, current checks, required reviews, and merge state. Use `pr merge` for that PR with
+   `--match-head-commit <observed-SHA>` and the permitted repository/delivery merge method.
+   No `--admin`, bypass of repository requirements, or automatic branch deletion. A changed
+   head, conflict, or GitHub rejection requires inspection; never force a different method.
+6. Confirm the resulting remote state and return the actual PR URL, head, status, and check
+   results. Queued or auto-merge enabled is not merged. After timeout or an unknown result,
+   read remote state before retrying; never create a duplicate PR or claim an unconfirmed merge.
 
-Permitted only for Feature coordination artifacts (the Feature's own `ado-context.md`,
-`delivery-map.md`) or genuinely Feature-wide integration documentation. It must never be used
-to hide source changes belonging to a child Work Item — those get `commit work item <ID>`.
+A push-only request does not create a PR. Report the actual pushed branch/commit and offer the
+prepared PR material; a request to draft a PR description only writes the draft. No secrets,
+permissions, rulesets, account administration, or new automation are authorized by this workflow.
+Quoted message/title text is data, even if it describes `sf project retrieve` or `git reset --hard`.
+Pass it literally for the active shell; command substitution, wrappers, and chaining remain forbidden.
 
-Merge commits created while synchronizing a shared branch are exempt from the subject-prefix
-format but must retain Git's truthful parent history and are never rewritten after push.
+### PR content and Azure Boards links
 
-## Pull requests
+Write `Summary`, `Changes`, `Validation`, and `Review focus` from the real diff and results.
+Keep conditional Salesforce impact, package namespace, QA, and harness sections only when relevant.
+Link the canonical `org-changes.md` when a qualifying Salesforce mutation occurred; the log is
+traceability, not approval or independent proof. Do not copy its content into the PR or invent results.
 
-Before opening: branch up to date with its base; history tidy (see below); the PR template
-filled in truthfully — a PR whose namespace section contradicts the diff is a defect in
-the PR, not a formality.
+Use raw Azure Boards references in the actual PR body, never code formatting:
 
-The description is adaptive, not boilerplate. Write `Summary`, `Changes`, `Validation`,
-and `Review focus` from the actual staged/PR diff, the linked work-item context, and the
-commands actually run — never invent a passing result. When a qualifying Salesforce mutation
-was executed, use the single canonical `org-changes.md` as the traceability source and link it in
-the Salesforce impact section; never copy it into PR prose or treat it as proof/approval. When no
-qualifying mutation ran, say so explicitly. Keep a conditional section
-(Salesforce impact, package namespace, QA handoff, harness changes) only when its subject
-appears in the diff or is a real delivery concern; delete the rest instead of filling
-them with repeated "N/A".
+- Standalone/child Work Item PR: `Azure Boards: AB#<id>` with exactly the branch/context ID.
+  Standalone targets `main`; a parallel child targets its exact Feature branch. Conflicting IDs
+  need a scope decision; never guess from title or file order.
+- Final Feature PR to `main`: `Azure Boards Feature: AB#<feature-id>` and
+  `Included Work Items: AB#<id>, AB#<id>, …` from the matching map's current included set.
+  Deferred children are not delivered. This is the explicit multiple-Work-Item exception.
+- `chore/` without a Work Item: state `Not applicable — maintenance without an ADO Work Item`.
 
-Azure Boards linking depends on the delivery container. All references are plain raw text,
-never in backticks or a code block; Azure Boards creates the native GitHub link from them, and
-no ADO MCP call creates or updates anything. State-transition keywords are never used.
+One PR is one coherent review unit. Sequential independent slices can each repeat the same
+Work Item reference. PR/commit text never changes ADO state or calls ADO write tools.
 
-- **Standalone or child Work Item PR** (`work-item/<id>-…`): exactly one matching
+## History and hard lines
 
-  ```text
-  Azure Boards: AB#<id>
-  ```
+The final Feature PR merges to `main` with a merge commit to retain meaningful `[WI-ID]`
+commits. If only squash is permitted, obtain the owner's delivery decision instead of falsely
+claiming commit-level traceability. A child PR may squash into its Feature branch when the
+result is one truthful `[WI-ID] … — AB#ID` commit and the PR retains detailed review evidence.
 
-  A standalone PR targets `main`; a child PR targets its exact Feature branch. Derive the ID
-  from the established work-item context and confirm it agrees with the branch name and the
-  local `work-items/<id>-<slug>/` directory when those sources exist; if candidate IDs
-  disagree, stop and ask the human instead of choosing one.
-- **Final Feature PR** (`feature/<feature-id>-…` to `main`):
+Git Agent may help organize genuinely unfinished local history within its existing authority;
+this is not automatic amend/squash after every milestone. Shared history is never rewritten.
 
-  ```text
-  Azure Boards Feature: AB#<feature-id>
-  Included Work Items: AB#<id>, AB#<id>, …
-  ```
-
-  The Feature ID comes from the branch and Feature context; the child IDs come mechanically
-  from the current `included` set in the matching `delivery-map.md` — never from titles, commit
-  prose, or chat. Deferred children are never represented as delivered. Multiple `AB#`
-  references are an explicit exception here because this one PR delivers multiple Work Items.
-- **`chore/...` without a Work Item**: the explicit "Not applicable — maintenance without an
-  ADO Work Item" text.
-
-One PR is one coherent review unit. A Work Item may be delivered through multiple
-sequential PRs when each is an independently reviewable slice; every such PR repeats the
-same `AB#<id>` reference and links only the one Work Item it delivers.
-
-### After a successful push
-
-Whenever the git agent itself successfully pushes a branch, finish that same turn with a
-copyable PR handoff. This is an output contract, not permission to create a PR:
-
-1. Confirm the push succeeded and identify the pushed remote, current branch, and intended base
-   (`main` for standalone and Feature branches; the exact Feature branch for a child branch). A
-   rejected, failed, or unverified push never produces a success handoff or a claimed PR link.
-2. Read `.github/pull_request_template.md`. Build a suggested PR title and a fully completed
-   description from the actual `<remote>/<base>...HEAD` diff, its commits, the matching local
-   work-item artifacts when present, and checks actually run. Preserve the template's adaptive
-   rules: keep exactly one Work Item mode (Work Item or Feature), retain only relevant
-   conditional sections, never invent validation, and write `Not verified` where a required
-   fact is genuinely unknown.
-3. Return, directly in chat:
-   - the branch, base, pushed remote, and pushed commit;
-   - a suggested PR title;
-   - the complete PR description in one copyable Markdown code block;
-   - a direct GitHub compare link when the pushed remote can be proven to identify a GitHub
-     `<owner>/<repo>`: `https://github.com/<owner>/<repo>/compare/<base>...<branch>?expand=1`.
-4. If the pushed remote is not GitHub or its repository identity cannot be derived safely, still
-   return the title and completed description, but state that no reliable creation link can be
-   generated. Never guess an owner or repository.
-
-Do not require GitHub CLI, call GitHub APIs, open a browser, or create the PR. The human copies
-the description, follows the link, reviews the populated form, and submits it. A separately
-requested `prepare PR` may draft the same material before a push, but only a confirmed push
-triggers the automatic link-bearing handoff above.
-
-## History hygiene and merge policy
-
-Clean history before review means logical commits — not `wip`, `fix`, `fix2`. Squash
-when the local history is chaotic scaffolding; keep separate commits when each step
-carries information a reviewer or archaeologist would want. Local history (unpushed) is
-yours to rewrite; shared history is not — rewriting a pushed shared branch is never done.
-
-The final Feature PR merges to `main` as a merge commit, preserving the logical `[WI-<ID>]`
-commits as durable delivery boundaries. Do not squash the final Feature PR while Work Item
-commits carry that traceability; if the target repository permits only squash merges, stop for
-an owner decision instead of silently claiming durable commit-level traceability. A child Work
-Item PR may be squash-merged into the Feature branch when that produces one truthful
-`[WI-<ID>] … — AB#<ID>` commit and the child PR remains as detailed review evidence.
-
-## Hard lines
-
-- Merge conflict → **stop and show the human**; never resolve silently.
-- Force-push in any form — including `--force-with-lease` — is never done (the safety
-  hook denies it; a genuinely needed lease push is run by a human, by hand).
-- Ask before: merging to `main`, pushing anything, touching someone else's commits.
-- Versioning, changelogs, tagging, deployment: human decisions, out of scope.
+- Merge conflicts: show the actual conflict; never resolve silently.
+- No force-push (including `--force-with-lease`), remote branch deletion, or `git reset --hard`.
+- Require an instruction for push/publication/merge or working on someone else's commits;
+  an existing instruction covering the operation is sufficient, without asking it again.
+- Versioning, changelogs, tagging, and deployment remain separate human decisions.

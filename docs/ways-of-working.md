@@ -90,17 +90,18 @@ From a written requirement:
 
 1. From an ADO item, `/fetch-ado-item` first persists the requirement snapshot in
    `work-items/<id>-<slug>/ado-context.md` — source-faithful ADO text kept separate from an
-   explicitly unapproved AI understanding — and stops with `git-agent: start work item <ID>`.
-2. The git-agent verifies clean, synchronized `main`, creates the `work-item/<id>-<slug>`
-   branch, stages only the exact intake artifact, and commits it locally with the item's raw
-   `AB#<id>` reference (once pushed, Azure Boards links the commit natively — no manual Branch
-   link is required). It does not push and returns `/solution-design itemId=<ID>`. This keeps
-   intake, design, and implementation on one item-scoped branch while preserving intake as its
-   own reviewable commit.
+   explicitly unapproved AI understanding.
+2. The same author verifies the delivery scope and base, prepares or resumes the proper branch,
+   stages the completed context, and commits it locally with the item's raw `AB#<id>` reference.
+   There is no manual switch to Git Agent. It then returns `/solution-design itemId=<ID>`
+   without starting design or pushing. Once explicitly published, Azure Boards links the commit
+   natively; no manual Branch link is required. Existing unrelated changes are preserved.
 3. On `/solution-design`, the designer reads the persisted context (or your written
    requirement), gathers Knowledge, repository, and allowed org evidence, and persists the
-   design in `work-items/<id>-<slug>/design.md`, naming its requirement baseline (context
-   path + ADO revision) for ADO-backed work.
+   design in `work-items/<id>-<slug>/design.md`, naming the requirement-context path and AC
+   coverage for ADO-backed work. It commits the completed draft locally after verification.
+   A noticed ADO/design content difference may be reported briefly; it does not force redesign
+   or block the requested work, and the agent does not silently expand the scope.
 4. You resolve business questions, vendor guarantees, and unapproved choices it surfaces.
 5. A reviewer can challenge the persisted design with `/check-against-principles`.
 6. After you accept the design, the developer implements against it and keeps `tasks.md` and
@@ -119,11 +120,15 @@ From a written requirement:
    Skip it for work no tester picks up — Knowledge maintenance, investigations, harness-only
    changes; nothing creates it automatically, and QA execution results (PASS/FAIL, runs,
    screenshots) stay in Azure Test Plans, never in the repository.
-8. The git-agent can prepare later commits and PR work. It asks before every push; after a push
-   it actually completes successfully, it returns a suggested title, the fully completed
-   repository PR template for copying, and a direct GitHub creation link when the remote can be
-   identified. It does not need GitHub CLI and does not create the PR. Merge and release decisions
-   remain yours; the Developer's real deploy still requires your exact-invocation confirmation.
+8. Each active author commits coherent implementation, test, plan, and documentation results
+   locally after verification. Git Agent remains an optional specialist. All roles can read
+   GitHub repository and PR context with `gh`; Reviewer stays read-only and Knowledge keeps
+   its existing lifecycle. Ask the executing author to publish/update a PR or merge it when
+   you want that operation. One instruction can cover publication and merge without repeating
+   it; publication alone does not imply merge. Finished phases and passing checks never trigger
+   publication or merge by themselves. The author reports the actual remote PR state; queued
+   is not merged. Automatic Ready criteria remain separate from this basic workflow. Release
+   decisions remain yours; real Salesforce deploys still require exact-invocation confirmation.
 9. Changes to the workspace itself — prompts, skills, instructions, scripts, schemas, tests,
    docs, tracked configuration — go through the **workspace-maintainer** agent, not a
    delivery agent. Files that define permissions or external capability (the safety
@@ -207,26 +212,26 @@ Prepare the Feature once, explicitly:
 
 This persists two files in the Feature's own flat folder — `ado-context.md` (the Feature
 requirement snapshot) and `delivery-map.md` (which direct children are included in the active
-delivery, in what order) — and nothing else. No child folders are created, no Stories are
-fetched, and nothing else changes. To activate only a subset, name it:
+delivery, in what order). No child folders are created and no child Stories are fetched.
+The active author commits the permitted coordination result once the delivery container is
+explicit, preserving pending files if that choice is still needed. To activate only a subset, name it:
 `/prepare-delivery-feature itemId=5000 include=5001,5003`.
 
-Preparation ends with two explicit choices — you select the delivery container; nothing is
-inferred from the ADO parent relation:
+If the delivery choice is not already known, the author asks in the current conversation.
+You select the container; it is not inferred from the ADO parent relation:
 
 - **Independent child delivery** (the default): deliver each Story exactly as in the default
   path, in any order, one at a time:
 
   ```text
   /fetch-ado-item itemId=5001
-  git-agent: start work item 5001
   /solution-design itemId=5001
   # implement, test, QA plan if needed, PR AB#5001
   ```
 
-- **Combined Feature delivery**: `git-agent: start feature 5000` creates
-  `feature/5000-<slug>`, and included Stories land on that one branch as explicit
-  `[WI-<id>] … — AB#<id>` commits (`git-agent: commit work item <ID>`), with optional
+- **Combined Feature delivery**: tell the active author to use combined delivery for Feature
+  5000. It prepares/resumes `feature/5000-<slug>` itself; included Stories land on that branch
+  as separate `[WI-<id>] … — AB#<id>` commits, with optional
   parallel `work-item/<id>` child branches targeting the Feature branch. One final Feature PR
   to `main` links the Feature and its included children and merges as a merge commit. See
   [Delivery Process](delivery-process.md) for the full procedure.
@@ -238,7 +243,7 @@ mode creates a Feature design or Feature QA plan. Rerun prepare only when the Fe
 your active slice changes; there is no per-Story re-preparation.
 
 If several Stories must branch in parallel before the prepared Feature context is present on
-`main`, stop at Git bootstrap and choose the coordination strategy explicitly. The git-agent does
+`main`, resolve the coordination strategy with the active author. The author does
 not duplicate an unmerged Feature map across unrelated Story branches; the default is sequential
 delivery after the first Story/context commit lands.
 
@@ -536,8 +541,8 @@ action — supply it, or stop the work.
 
 | Need | Entry point |
 |---|---|
-| Start from an ADO item | `/fetch-ado-item itemId=<ID>`, then `git-agent: start work item <ID>`, then `/solution-design itemId=<ID>` |
-| Deliver one ADO Feature through several child Stories | `/prepare-delivery-feature itemId=<Feature ID>` once, then choose: independent per-Story delivery, or `git-agent: start feature <Feature ID>` for one combined Feature branch |
+| Start from an ADO item | `/fetch-ado-item itemId=<ID>` includes the author's local Git step; then `/solution-design itemId=<ID>` |
+| Deliver one ADO Feature through several child Stories | `/prepare-delivery-feature itemId=<Feature ID>` once, then tell the same author whether to use independent or combined delivery |
 | Navigate an ADO Epic to a child Feature | `/fetch-ado-item itemId=<Epic ID>`, then choose one emitted `/prepare-delivery-feature itemId=<ID>` command |
 | Start from a written requirement | `/solution-design <requirement>` |
 | Review a persisted design or implementation | `/check-against-principles itemId=<ID> scope=design` (or `scope=implementation`) |
@@ -548,7 +553,7 @@ action — supply it, or stop the work.
 | Author Feature Knowledge | `/author-feature <slug-or-name>` |
 | Assess feature coverage | `/feature-health itemId=<Feature ID>` |
 | Document one Work Item's change or existing state | `/document-metadata-change itemId=<ID>` |
-| Prepare routine Git work or push with a copyable PR handoff | `git-agent` custom agent |
+| Publish/update a PR or merge | Explicitly ask the active executing author; Git Agent is optional assistance |
 
 This table lists the entry points behind the playbooks above, not the whole catalog — the
 Copilot slash menu shows the full current set of public prompts.

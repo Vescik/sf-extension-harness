@@ -19,7 +19,7 @@ content gets an explicit "none", it is never silently dropped.
 - Scope: `<Feature/BRD requirements and child Stories assessed>`
 - BRD attached: `<yes — analyzed in full | no>`
 - Generated on: `<date>`
-- Sources: `<Feature, child Story and BRD references; source revisions and completeness>`
+- Sources: `<Feature/child Story IDs and links, retrieval times and completeness; BRD source references>`
 - Verification: `<source and coverage checks performed, observed results, and remaining gaps>`
 
 ## 2. Coverage summary

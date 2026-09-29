@@ -11,6 +11,7 @@ Last verified against vendor documentation: 2026-07-10
 | VS Code | 1.112+; certify current stable before rollout | Windows is the primary platform. The configured MCP surface is read-only; Developer writes use reviewed direct CLI or the native operation tool. |
 | GitHub Copilot | Consolidated `GitHub.copilot` extension bundled/supported by the chosen VS Code release | The old separate Copilot Chat prerequisite is not used. |
 | Python | 3.11+ | Runs validation, safety hooks, and tests using the standard library plus the dev requirement below. |
+| GitHub CLI | `gh`/`gh.exe` on PATH with `pr create/edit/ready/merge` and `--match-head-commit` support | Authentication is human-managed for the host in origin; no automatic login or token output. CLI/parser checks do not certify host approvals. |
 | PyYAML | `>=6,<7`; CI uses the lock file | Frontmatter and evaluation validation. |
 | jsonschema | `>=4,<5`; CI uses the lock file | Draft 2020-12 configuration/cache/output validation. |
 | Node.js | 22+ (`.nvmrc` pins 24) | MCP launchers and the ADO server run on Node; CI installs the `.nvmrc` version. |
@@ -33,8 +34,8 @@ Static validation in CI proves file shape and policy invariants. It does not pro
 installed VS Code build exposes every tool. Before a developer pilot, open **Chat: Open
 Customizations** and **Chat Diagnostics** on each supported platform and record:
 
-- exactly six agents, eighteen public prompts, eighteen internal skills, and three Principle files
-  (the counts `scripts/validate_harness.py` pins in `EXPECTED_COUNTS`);
+- all eight custom agents and the current prompt/skill catalog validated by
+  `scripts/validate_harness.py`; no missing or duplicated registrations;
 - no unresolved tool, handoff, frontmatter, hook, or MCP diagnostic;
 - one successful harmless read call through each configured external server.
 
@@ -52,6 +53,26 @@ The governed external-work surface is limited to repository custom agents within
 limits. Use the credential-free portable pilot for rejection tests and least-privileged real
 accounts for owner-side destination checks. Built-in/default Agent and arbitrary terminal modes
 are not certified; hooks are not a general shell sandbox.
+
+## Git/gh role and host acceptance
+
+All eight agents expose terminal access for permitted Git/gh reads. Designer, Developer,
+Test Strategist, Workspace Maintainer, and Git Agent can execute requested PR writes. Reviewer
+remains read-only; Knowledge roles keep their existing lifecycle. Git Agent's editor exception
+is exactly `.cache/github/pr-body.md`, never source or Knowledge. Prompts with their own tools
+must retain the capabilities needed by their actual workflow; read-only prompts stay read-only.
+
+Active authors perform bounded local bootstrap/stage/commit; publication and merge require an
+explicit instruction covering the operation. Scope authorization and native terminal approval
+are separate. Do not add shared gh/add/commit auto-approval or certify default Agent mode.
+The canonical procedure is [Git Workflow](../.github/skills/git-workflow/SKILL.md).
+
+Use a fresh trusted VS Code Local session for each platform: record VS Code/Copilot/Git/gh/Python
+versions, effective prompt tools, terminal payload name, and both hook results. Exercise bootstrap
+and commits in a temporary repository, plus a literal description containing command-like words.
+Test requested PR writes only in the specifically authorized pilot repository/branches; record
+actual remote state and failures. Windows and macOS host evidence are separate; unit/CLI checks
+alone do not verify either platform or remote writes.
 
 ## Upgrade policy
 

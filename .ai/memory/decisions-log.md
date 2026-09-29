@@ -1713,3 +1713,21 @@ production prohibition remains and its agent instruction is sufficient for this 
 runtime role/target enforcement requirement is added. Unknown-org P1-02 and remaining nonprod/latest
 compatibility move to plan 01a with existing denials preserved. Destination host/live acceptance
 remains owner-side and is not established by local tests. See the isolated release handoff.
+
+## 2026-09-29 — Plan 03 ADO and author-owned Git workflow
+
+The owner approved the workflow decisions and then explicitly requested implementation.
+ADO revision metadata is retired from new cache/doc projections, with valid legacy cache
+compatibility and source identity, time, completeness and scope preserved. ADO/design content
+differences are advisory; no replacement revision registry or mandatory redesign gate is added.
+
+Active authors prepare branches and commit coherent permitted results locally. Git Agent
+retains its broader repository role. GitHub CLI reads are available to all roles; publication,
+PR updates and merge require an explicit instruction covering the operation. A milestone or
+passing checks is not publication authority, and publication alone is not merge authority.
+Ordinary PR publication defaults to Draft. This patch adds no automatic Ready criteria.
+
+Both hooks share bounded Git/gh parsing and local-state inspection. These controls do not
+prove semantic authorship, conversation authority, atomicity, remote state or host enforcement.
+Knowledge lifecycle and plan 01/01a safety boundaries remain unchanged. Implementation is not
+release or acceptance; see the [verification and acceptance handoff](../../docs/plan03-workflow-handoff.md).

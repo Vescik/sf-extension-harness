@@ -32,24 +32,28 @@ stop before any design context is loaded.
 3. For a concrete item, require the current Git branch to agree with the item's delivery
    container: `work-item/<id>-<slug>` matching the item and stable folder, or a combined
    Feature branch `feature/<feature-id>-<slug>` when exactly one prepared delivery map for
-   that exact Feature ID lists the item as included (resolved in step 4). On `main`, an
-   unrelated Work Item branch, or a Feature branch whose map does not include the item, stop
-   before discovery and return `git-agent: start work item <ID>`; the Designer never creates
-   or switches branches.
+   that exact Feature ID lists the item as included (resolved in step 4). The active Designer
+   prepares or reuses that branch through [Git Workflow](../git-workflow/SKILL.md) before new
+   design work. Preserve existing changes and resolve any ambiguous container in this
+   conversation; never design on an unrelated branch or silently include a deferred item.
+   There is no mandatory handoff to Git Agent.
 4. Resolve prepared Feature delivery context locally — never
    over ADO. Search `work-items/*/delivery-map.md` for the exact numeric Story ID listed as
    included (exact-ID match only: `15001` never matches `5001`; a deferred listing does not
    count). Zero matches: proceed standalone — an ADO parent relation alone activates nothing,
    fetches nothing, and warns about nothing. Exactly one match: verify the map's Feature ID and
-   recorded revision against its sibling Feature `ado-context.md`, read both files whole, and
-   use them as broader delivery context. More than one match: never choose by title, path
+   identity against its sibling Feature `ado-context.md`, read both files whole, and
+   use the explicit included selection as broader delivery context. Ignore historical ADO
+   revision labels. A noticed source/membership difference may be an optional advisory, not a
+   reason to invalidate the design or replace the user's selected delivery scope. More than one match: never choose by title, path
    order, or modification time — name both maps and ask the human once for the intended active
    Feature, or persist the ambiguity as an open design issue under the product goal's
    degraded-delivery rule; discovery does not start until the ambiguity is handled.
 
 A written requirement without ADO provenance needs no context file and does not use the
 ADO-specific Git bootstrap — never fabricate either; identify the requirement as human-provided
-in the design and go straight to Stage 2.
+in the design. Prepare the appropriate existing Work Item or docs/chore branch through Git
+Workflow without inventing an ADO ID, then go to Stage 2.
 
 ## Stage 2 — design discovery and authoring
 
@@ -74,12 +78,13 @@ Only after Stage 1 established the applicable local baselines:
 
   ```text
   Requirement baseline: work-items/<id>-<slug>/ado-context.md
-  ADO revision: <revision>
   ```
 
-  Human-readable provenance, no digest. When `ado-context.md` is later refreshed to a newer
-  revision than the design names, the design must be reconciled through Solution Design before
-  any downstream role acts on the changed requirement.
+  Human-readable provenance, no revision, digest or duplicate requirement snapshot. Keep the
+  source AC coverage below. A noticed difference between ADO content and the current design
+  may be an optional advisory; downstream work continues in the requested scope without an
+  automatic redesign or approval gate. Only an explicitly requested design update changes
+  this design's intended scope. Legacy revision labels remain readable but have no authority.
 
   When exactly one prepared delivery map includes the Story, the design additionally records
   the coordination baseline — and only then:
@@ -88,7 +93,6 @@ Only after Stage 1 established the applicable local baselines:
   Prepared delivery context:
   - Feature: <feature ID and title>
   - Feature context: work-items/<feature-id>-<slug>/ado-context.md
-  - Feature ADO revision: <feature revision>
   - Delivery map: work-items/<feature-id>-<slug>/delivery-map.md
   - Membership: included
   ```
@@ -187,10 +191,10 @@ The design declares its intended logical change surface in one compact table:
   exclusions` list after the table may name likely scope-creep non-goals. Do not enumerate every out-of-scope
   component, and do not add confidence percentages, digests, state IDs, timestamps, or
   mandatory evidence IDs to the table.
-- **Reconciliation updates current intent.** When a newer requirement revision routes back
-  through Solution Design, update the coverage matrix and the Planned change surface
-  together to the current intended solution, with a compact note naming added, removed, or
-  changed logical surfaces and why. Git history preserves older versions — do not append a
+- **An authorized design update changes current intent.** When the user asks to update the
+  design for changed requirements, update the coverage matrix and the Planned change surface
+  together to the requested solution, with a compact note naming added, removed, or changed
+  logical surfaces and why. A noticed ADO difference alone never triggers this update. Git history preserves older versions — do not append a
   scope or matrix ledger inside `design.md`.
 - **Proportionality holds.** A single formula-field change earns one matrix row and a
   compact surface table, not a repository-wide artifact inventory or an extra discovery
@@ -206,8 +210,8 @@ not duplicated here).
 The design's "Verification and rollback" stays the canonical verification strategy. After a
 design is accepted, `/prepare-qa-test-plan itemId=<ID>` may project it into a per-item
 `qa-test-plan.md` QA draft — Solution Design never creates that file itself, and the QA plan
-never repairs a stale requirement/design baseline: a newer `ado-context.md` revision routes
-back here first.
+never silently changes the design's requested scope. A noticed ADO difference is optional
+context, not a mandatory return to Solution Design.
 
 ## When to ask the human
 
@@ -215,3 +219,11 @@ Business meaning and vendor guarantees only — never facts a tool call can retu
 never as a substitute for a decision that is yours. "Whatever you think" is not an
 answer; decide, mark it unapproved, move on. When a decision embeds a policy choice
 (fail-closed vs compatible, how wide to widen), that one goes to the human.
+
+## Local checkpoint
+
+After a coherent design or authorized design update and proportional verification, the active
+Designer stages and commits its durable result through [Git Workflow](../git-workflow/SKILL.md).
+Preserve unrelated work. No separate commit request or switch to Git Agent is needed. Report
+SHA and actual verification; no effective change means no empty commit. A design commit is a
+draft checkpoint, not business approval, implementation permission, push, PR or merge.

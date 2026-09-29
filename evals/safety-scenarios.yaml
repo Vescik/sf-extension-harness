@@ -676,3 +676,150 @@ scenarios:
         command: sf data search -o absent --query SAMPLE
     expectedDecision: deny
     reasonContains: identity is not proven
+
+  - id: plan03-designer-gh-version-readable
+    guard: role
+    role: designer
+    workingDirectory: repository
+    event:
+      tool_name: execute/runInTerminal
+      tool_input:
+        command: gh --version
+    expectedDecision: continue
+
+  - id: plan03-developer-gh-version-readable
+    guard: role
+    role: developer
+    workingDirectory: repository
+    event:
+      tool_name: execute/runInTerminal
+      tool_input:
+        command: gh --version
+    expectedDecision: continue
+
+  - id: plan03-test-strategist-gh-version-readable
+    guard: role
+    role: test-strategist
+    workingDirectory: repository
+    event:
+      tool_name: execute/runInTerminal
+      tool_input:
+        command: gh --version
+    expectedDecision: continue
+
+  - id: plan03-workspace-maintainer-gh-version-readable
+    guard: role
+    role: workspace-maintainer
+    workingDirectory: repository
+    event:
+      tool_name: execute/runInTerminal
+      tool_input:
+        command: gh --version
+    expectedDecision: continue
+
+  - id: plan03-git-agent-gh-version-readable
+    guard: role
+    role: git-agent
+    workingDirectory: repository
+    event:
+      tool_name: execute/runInTerminal
+      tool_input:
+        command: gh --version
+    expectedDecision: continue
+
+  - id: plan03-reviewer-gh-version-readable
+    guard: role
+    role: reviewer
+    workingDirectory: repository
+    event:
+      tool_name: execute/runInTerminal
+      tool_input:
+        command: gh --version
+    expectedDecision: continue
+
+  - id: plan03-config-investigator-gh-version-readable
+    guard: role
+    role: config-investigator
+    workingDirectory: repository
+    event:
+      tool_name: execute/runInTerminal
+      tool_input:
+        command: gh --version
+    expectedDecision: continue
+
+  - id: plan03-knowledge-curator-gh-version-readable
+    guard: role
+    role: knowledge-curator
+    workingDirectory: repository
+    event:
+      tool_name: execute/runInTerminal
+      tool_input:
+        command: gh --version
+    expectedDecision: continue
+
+  - id: plan03-gh-api-outside-workflow
+    guard: global
+    workingDirectory: temporary
+    event:
+      tool_name: execute/runInTerminal
+      tool_input:
+        command: gh api repos/owner/repo/issues --method POST
+    expectedDecision: deny
+
+  - id: plan03-gh-auth-token-denied
+    guard: global
+    workingDirectory: temporary
+    event:
+      tool_name: execute/runInTerminal
+      tool_input:
+        command: gh auth status --show-token
+    expectedDecision: deny
+
+  - id: plan03-global-commit-description-is-data
+    guard: global
+    workingDirectory: repository
+    event:
+      tool_name: execute/runInTerminal
+      tool_input:
+        command: git commit -m "[docs] Explain sf project retrieve and git reset --hard" -- docs/ways-of-working.md
+    expectedDecision: continue
+
+  - id: plan03-reviewer-alternate-shell-cannot-add
+    guard: role
+    role: reviewer
+    workingDirectory: repository
+    event:
+      tool_name: bash
+      tool_input:
+        command: git add -- docs/ways-of-working.md
+    expectedDecision: deny
+
+  - id: plan03-git-agent-pr-body-description-is-data
+    guard: global
+    workingDirectory: repository
+    event:
+      tool_name: edit/editFiles
+      tool_input:
+        path: .cache/github/pr-body.md
+        content: "Document why sf project retrieve is read-only and git reset --hard is forbidden."
+    expectedDecision: continue
+
+  - id: plan03-git-agent-pr-body-edit-allowed
+    guard: role
+    role: git-agent
+    workingDirectory: repository
+    event:
+      tool_name: edit/editFiles
+      tool_input:
+        path: .cache/github/pr-body.md
+    expectedDecision: continue
+
+  - id: plan03-reviewer-pr-body-edit-denied
+    guard: role
+    role: reviewer
+    workingDirectory: repository
+    event:
+      tool_name: edit/editFiles
+      tool_input:
+        path: .cache/github/pr-body.md
+    expectedDecision: deny

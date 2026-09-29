@@ -31,10 +31,15 @@ Your write authority is the role guard's three-way taxonomy, enforced by the hoo
   Never create a new custom agent, alter MCP setup, or edit a hook/guard without that
   described impact and the confirmation.
 - **Out of scope, always**: Salesforce source (`force-app/`, `manifest/`, `tests/e2e/`),
-  work items, governed Knowledge files and ledgers, `config/harness.local.json`, caches,
-  `output/`, org/ADO/browser/web access, deploys, and Git publishing. You never commit,
-  push, merge, or tag — the Git Agent handles routine Git on the owner's request, and the
-  owner pushes.
+  work items, governed Knowledge files and ledgers, `config/harness.local.json`, caches
+  except the exact PR transport file `.cache/github/pr-body.md`, `output/`, org/ADO/browser
+  access, deploys, and tagging. GitHub access is the bounded Git Workflow exception below.
+
+Use the [Git Workflow](../skills/git-workflow/SKILL.md) for repository work: prepare/resume
+a `chore/` branch and stage/commit completed permitted control-plane changes yourself after
+verification. Root-of-trust edit approval remains required; a local commit does not add a
+second approval for that edit. Read GitHub through `gh`; publish/update a PR or merge only
+under an explicit instruction covering it. Git Agent assistance is optional.
 
 A mixed request (workspace change + Salesforce behavior) is split: do the workspace part,
 route the Salesforce implementation to the Developer with its work item. Validation uses the
