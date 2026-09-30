@@ -1713,3 +1713,47 @@ production prohibition remains and its agent instruction is sufficient for this 
 runtime role/target enforcement requirement is added. Unknown-org P1-02 and remaining nonprod/latest
 compatibility move to plan 01a with existing denials preserved. Destination host/live acceptance
 remains owner-side and is not established by local tests. See the isolated release handoff.
+
+## 2026-09-29 — Plan 03 ADO and author-owned Git workflow
+
+The owner approved the workflow decisions and then explicitly requested implementation.
+ADO revision metadata is retired from new cache/doc projections, with valid legacy cache
+compatibility and source identity, time, completeness and scope preserved. ADO/design content
+differences are advisory; no replacement revision registry or mandatory redesign gate is added.
+
+Active authors prepare branches and commit coherent permitted results locally. Git Agent
+retains its broader repository role. GitHub CLI reads are available to all roles; publication,
+PR updates and merge require an explicit instruction covering the operation. A milestone or
+passing checks is not publication authority, and publication alone is not merge authority.
+Ordinary PR publication defaults to Draft. This patch adds no automatic Ready criteria.
+
+Both hooks share bounded Git/gh parsing and local-state inspection. These controls do not
+prove semantic authorship, conversation authority, atomicity, remote state or host enforcement.
+Knowledge lifecycle and plan 01/01a safety boundaries remain unchanged. Implementation is not
+release or acceptance; see the [verification and acceptance handoff](../../docs/plan03-workflow-handoff.md).
+
+## 2026-09-30 — Restore legacy Feature map compatibility
+
+The owner requested the compatibility fix found in the Plan 03 implementation audit.
+Preserve saved map content and membership while accepting an explicit ID column in another
+position and numeric IDs formatted as Markdown emphasis, inline code, or link labels.
+Do not infer identity from title or URL numbers. Ambiguous identities, duplicate included IDs,
+and included/deferred conflicts remain denied. New-map writing conventions remain in place;
+this is a reader correction, not a migration or a new membership policy.
+
+The owner accepted the implicit GitHub CLI repository-selection limitation for the team's
+single-repository setup. Feature base/ref handling remains open; the owner requested an
+explanation. Commit-preflight batching remains a recommendation pending implementation scope.
+This repair does not authorize publication or establish Copilot host acceptance.
+
+## 2026-09-30 — Correct Feature refs and batch Git preflight
+
+The owner explicitly requested audit findings 1 and 4 to be fixed, then pushed to the GitHub
+repository. Feature target/base decisions read prepared metadata at the resolved commit;
+dirty changes and new local intake retain their working-tree scope checks. Git inspection
+uses bounded argument groups with fresh per-path clean conversion, under the existing shared
+three-second deadline. Exact paths, index equality, ignored files, file modes and deletion
+checks remain in force. The single-repository limitation accepted above is unchanged.
+
+The requested push covers this delivery branch. It does not request a PR, merge, release,
+or acceptance of untested Copilot host behavior.

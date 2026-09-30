@@ -23,4 +23,6 @@ Save the draft as `work-items/<itemId>-<slug>/technical-documentation.md`, in En
 with source quotations preserved. Validate the resolved path, retain human notes on updates,
 and keep document review status separate from implementation and test results. Include the
 fetched ADO link, relative repository links, rule/entry references, verification, and gaps.
-Return the actual path. Publication to ADO remains a separate human action.
+Complete the permitted local stage/commit through the [Git Workflow](../skills/git-workflow/SKILL.md)
+as the active Developer, then return the actual path and commit outcome. Do not add ADO links
+or publish to wiki; PR publication/merge require an explicit instruction for those operations.

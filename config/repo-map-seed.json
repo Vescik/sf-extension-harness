@@ -56,7 +56,7 @@
     },
     {
       "path": "docs",
-      "purpose": "Setup, architecture, compatibility docs"
+      "purpose": "Setup, architecture, compatibility, and solution documentation"
     },
     {
       "path": "evals",

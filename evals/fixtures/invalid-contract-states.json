@@ -23,6 +23,45 @@
       "patch": {
         "status": "success"
       }
+    },
+    {
+      "id": "ado-v2-with-legacy-source-revision",
+      "schema": "ado-item-cache.schema.json",
+      "baseFixture": "ado-item.complete.json",
+      "patch": {
+        "source.revision": 7
+      }
+    },
+    {
+      "id": "ado-v2-nested-transport-revision",
+      "schema": "ado-item-cache.schema.json",
+      "baseFixture": "ado-item.complete.json",
+      "patch": {
+        "item.children": [
+          {
+            "id": 1202,
+            "fields": {
+              "System.Rev": 9
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "ado-unknown-schema-version",
+      "schema": "ado-item-cache.schema.json",
+      "baseFixture": "ado-item.complete.json",
+      "patch": {
+        "schemaVersion": 3
+      }
+    },
+    {
+      "id": "ado-v1-invalid-revision",
+      "schema": "ado-item-cache.schema.json",
+      "baseFixture": "ado-item.legacy-v1.complete.json",
+      "patch": {
+        "source.revision": 0
+      }
     }
   ]
 }

@@ -13,13 +13,15 @@ from pathlib import Path
 try:
     try:
         from scripts import salesforce_operation_policy as sf_policy
+        from scripts import git_workflow_policy as git_policy
     except ModuleNotFoundError:
         import salesforce_operation_policy as sf_policy
+        import git_workflow_policy as git_policy
 except Exception:
     # A partially copied template must not become a nonblocking host exit code 1.
     print(json.dumps({"continue": False, "hookSpecificOutput": {
         "hookEventName": "PreToolUse", "permissionDecision": "deny",
-        "permissionDecisionReason": "Salesforce policy could not load; operation was not authorized."}}))
+        "permissionDecisionReason": "Guard policy could not load; operation was not authorized."}}))
     raise SystemExit(0)
 
 from typing import Any
@@ -690,6 +692,31 @@ def main() -> int:
     # Salesforce commands (observed live on the Windows pilot). Non-command surfaces are still
     # covered by the `text` checks (destructive/production patterns) and tool classification.
     command = terminal_command(tool_input) if is_terminal_tool(tool_name) else ""
+    if command and git_policy.is_git_gh_command(command):
+        try:
+            parts = git_policy.parse_command(command)
+            if git_policy.executable(parts) == "gh":
+                if Path(event.get("cwd") or os.getcwd()).resolve() != root:
+                    print(json.dumps(hook_response("deny", "Run guarded GitHub operations from the repository root.")))
+                    return 0
+                decision, reason = git_policy.gh_decision(parts, root, None)
+                print(json.dumps(hook_response() if decision == "allow" else hook_response(decision, reason)))
+                return 0
+            # Only literal commit-message operands are removed. All executable/options/
+            # path operands still pass through the existing global checks below.
+            command = git_policy.command_for_safety(command)
+            text = command
+        except (ValueError, OSError) as exc:
+            print(json.dumps(hook_response("deny", str(exc))))
+            return 0
+    elif not command:
+        paths = collect_filesystem_paths(tool_input)
+        is_editor = any(token in lowered_name for token in ("edit", "createfile", "create_file", "replace", "insert", "patch", "write"))
+        correct_cwd = Path(event.get("cwd") or os.getcwd()).resolve() == root
+        if is_editor and paths and (correct_cwd or all(Path(path).is_absolute() for path in paths)) and all(git_policy.pr_body_path(root, path) for path in paths):
+            # A PR description can quote a forbidden command without executing it.
+            # The independent role guard still governs this exact transport path.
+            text = " ".join(paths)
     if command and private_native_invocation(command):
         print(json.dumps(hook_response("deny", "Private Salesforce session/executor cannot be invoked from a terminal; use the native Developer tool.")))
         return 0

@@ -25,6 +25,10 @@ Install and confirm each is on `PATH` (open a **new** PowerShell and run the che
 | Node.js | **22+** (MCP launchers and the ADO server run on Node) | `node --version` |
 | Salesforce CLI | v2 | `sf --version` |
 | Git | any recent | `git --version` |
+| GitHub CLI | `gh.exe` on PATH; PR merge supports `--match-head-commit` | `gh --version`, `gh auth status` |
+
+For GitHub work, the human configures `gh` authentication for the host used by `origin`.
+Never paste token output into chat or files; the agent reports missing access without logging in.
 
 If `python --version` fails but `py --version` works, add Python to PATH (re-run the installer →
 "Add python.exe to PATH") so plain `python` resolves.
@@ -146,11 +150,19 @@ the `sf_review_org` input, enter your explicitly selected alias (e.g. `mpsa_dev_
 
 ## Step 8 — Pre-approve tools (fewer clicks)
 
-- **Terminal scripts** are already pre-approved via `chat.tools.terminal.autoApprove` in settings —
-  no action needed.
+- Specific guarded terminal scripts have `chat.tools.terminal.autoApprove` rules. New Git/gh
+  capabilities do not add broad auto-approval: native prompts may still appear for local
+  stage/commit and requested publication. Do not set global `git=true`/`gh=true` or add shared
+  gh/add/commit patterns.
 - **MCP read tools** cannot be pre-approved from a committed setting. Run **`Chat: Manage Tool
   Approval`** (Command Palette), expand `salesforce` and `ado-readonly`, and trust all
   their tools at **workspace** scope.
+
+The active author performs scoped local milestone commits through
+[Git Workflow](../.github/skills/git-workflow/SKILL.md). PR publication/update and merge each
+need an explicit instruction covering the operation; do not switch to Git Agent just to commit.
+On Windows, verify both hooks and the effective terminal tool in a fresh VS Code Local session.
+A parser/unit-test result is not proof that PowerShell quoting or host approvals work.
 
 ## Step 9 — Verify
 

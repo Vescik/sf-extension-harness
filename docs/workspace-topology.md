@@ -16,6 +16,7 @@ sf-harness-brain-core/       # Git repository, SFDX root, workspace folder: brai
 ├── .github/                 # Copilot instructions, agents, prompts, skills, hooks
 ├── .ai/                     # governed Knowledge and durable work state
 ├── work-items/              # durable Work Item artifacts, stable folders by ID
+├── docs/solutions/          # optional three-file documentation, stable folders by solution
 ├── output/                  # ignored temporary drafts and reports
 ├── scripts/                 # harness runtime and validation
 └── sf-harness.code-workspace
@@ -45,6 +46,14 @@ does not establish review, deployment, or wiki publication. New references use t
 `output/` remains ignored temporary storage for reports such as monthly handover, Feature Health,
 and adhoc fix notes; historical drafts are not migrated automatically. Selected documentation
 can be published to wiki through its separate workflow.
+
+`/document-solution` writes a separate solution set in `docs/solutions/<solution-slug>/`:
+`overview.md`, `flows.md`, and `components.md`. The Developer can edit only those three filenames
+under a valid solution slug, without general `docs/` access. Reuse the same directory across
+Stories; Work Item and design context are optional. These plain Markdown files describe available
+implementation sources, including work on a branch that is not deployed. They do not replace
+delivery documentation, handover, or governed Knowledge. Wiki publication remains separate.
+See the [document-solution skill](../.github/skills/document-solution/SKILL.md).
 
 The guarded Salesforce MCP launcher starts from `brain-core` and refuses to start when root
 `sfdx-project.json` is missing; it runs review (read-only) mode only. Before tool discovery it

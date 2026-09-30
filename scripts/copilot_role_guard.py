@@ -14,13 +14,15 @@ from pathlib import Path
 try:
     try:
         from scripts import salesforce_operation_policy as sf_policy
+        from scripts import git_workflow_policy as git_policy
     except ModuleNotFoundError:
         import salesforce_operation_policy as sf_policy
+        import git_workflow_policy as git_policy
 except Exception:
     # A partially copied template must not become a nonblocking host exit code 1.
     print(json.dumps({"continue": False, "hookSpecificOutput": {
         "hookEventName": "PreToolUse", "permissionDecision": "deny",
-        "permissionDecisionReason": "Salesforce policy could not load; operation was not authorized."}}))
+        "permissionDecisionReason": "Guard policy could not load; operation was not authorized."}}))
     raise SystemExit(0)
 
 from typing import Any, Iterable
@@ -319,6 +321,7 @@ ROOT_OF_TRUST_EXACT = frozenset(
         "scripts/copilot_role_guard.py",
         "scripts/copilot_safety_hook.py",
         "scripts/salesforce_operation_policy.py",
+        "scripts/git_workflow_policy.py",
         "scripts/salesforce_operation_session.py",
         "scripts/salesforce_job_selection.py",
         "scripts/salesforce_job_executor.mjs",
@@ -467,6 +470,8 @@ WORK_ITEM_ORG_CHANGE_LOG_PATTERN = re.compile(
 STANDALONE_ORG_CHANGE_LOG_PATTERN = re.compile(
     r"docs/org-changes/[0-9]{4}-[0-9]{2}-[0-9]{2}-[a-z0-9][a-z0-9-]*\.md"
 )
+# Solution documentation is an exact three-file grant, never a docs/ prefix grant.
+SOLUTION_DOCUMENTATION_PATTERN = git_policy.SOLUTION_DOCUMENTATION_PATTERN
 
 
 PATH_KEYS = {
@@ -527,11 +532,13 @@ def is_edit_tool(tool_name: str) -> bool:
 
 def is_execute_tool(tool_name: str) -> bool:
     lowered = tool_name.lower()
+    if lowered in {"bash", "sh", "zsh", "fish", "dash", "ksh", "pwsh", "powershell", "cmd"}:
+        return True
     # runTask/run_task and runCommands/run_commands can spawn shell; they must obey the same
     # command allowlist as the terminal tools.
     return any(
         token in lowered
-        for token in ("execute", "terminal", "runinterminal", "run_in_terminal", "runtask", "run_task", "runcommands", "run_commands")
+        for token in ("execute", "terminal", "shell", "runinterminal", "run_in_terminal", "runtask", "run_task", "runcommands", "run_commands")
     )
 
 
@@ -637,7 +644,7 @@ FIND_FORBIDDEN_TOKENS = frozenset({"-delete", "-exec", "-execdir", "-ok", "-okdi
 def read_only_orientation_command(parts: list[str]) -> bool:
     """Return whether argv is a non-mutating orientation command safe for every role."""
 
-    executable = Path(parts[0]).name.lower().removesuffix(".exe")
+    executable = git_policy.executable(parts)
     if executable in VERSION_CHECK_EXECUTABLES and parts[1:] == ["--version"]:
         return True
     if executable in SIMPLE_READ_COMMANDS:
@@ -657,6 +664,9 @@ def read_only_orientation_command(parts: list[str]) -> bool:
             return False
         rest = parts[2:]
         if any(token.startswith("--output") for token in rest):
+            return False
+        if any(token in {"--ext-diff", "--textconv", "--open-files-in-pager", "-O"}
+               or token.startswith(("--open-files-in-pager=", "-O")) for token in rest):
             return False
         if subcommand == "branch":
             # Listing only: any non-flag argument would create a branch; -d/-D would delete one.
@@ -682,17 +692,15 @@ GIT_AGENT_ASK_SUBCOMMANDS = frozenset({"push", "pull", "merge", "rebase", "cherr
 
 
 def git_agent_terminal_decision(command: str) -> tuple[str, str]:
-    if not command or re.search(r"[;&|`$<>\n\r]", command):
-        return ("deny", "git-agent runs plain single git commands only — no chaining.")
     try:
-        parts = shlex.split(command.replace("\\", "/"))
+        parts = git_policy.parse_command(command)
     except ValueError:
         return ("deny", "git-agent could not parse the command.")
     if not parts:
         return ("deny", "git-agent received an empty command.")
     if read_only_orientation_command(parts):
         return ("allow", "")
-    if Path(parts[0]).name.lower().removesuffix(".exe") != "git":
+    if git_policy.executable(parts) != "git":
         return ("deny", "git-agent runs git commands only.")
     subcommand = parts[1].lower() if len(parts) > 1 else ""
     arguments = [part.lower() for part in parts[2:]]
@@ -711,6 +719,32 @@ def git_agent_terminal_decision(command: str) -> tuple[str, str]:
     return ("deny", f"git {subcommand or '<none>'} is outside the git-agent's routine-operations scope.")
 
 
+def author_commit_path_allowed(path: str, root: Path, role: str) -> bool:
+    if role == MAINTAINER_ROLE:
+        # Consent belongs to the edit; recording an already-authorized result needs no
+        # second root-of-trust approval. The commit does not grant edit permission.
+        return maintainer_edit_decision(path) in {"allow", "ask"}
+    if role == "developer" and any(path.startswith(prefix) for prefix in METADATA_EDIT_PREFIXES):
+        return True
+    return role_path_allowed(path, role)
+
+
+def workflow_terminal_decision(command: str, root: Path, role: str) -> tuple[str, str] | None:
+    if not git_policy.is_git_gh_command(command):
+        return None
+    try:
+        parts = git_policy.parse_command(command)
+        if git_policy.executable(parts) == "gh":
+            return git_policy.gh_decision(parts, root, role)
+        if role == "git-agent":
+            return git_agent_terminal_decision(command)
+        return git_policy.author_git_decision(
+            parts, root, role, lambda path: author_commit_path_allowed(path, root, role)
+        )
+    except (ValueError, OSError) as exc:
+        return ("deny", str(exc))
+
+
 def salesforce_command_decision(command: str, root: Path, role: str):
     """Keep policy failures actionable in either hook without evaluating twice."""
     if role != "developer" or not command or re.search(r"[;&|`$<>\n\r]", command):
@@ -725,6 +759,9 @@ def salesforce_command_decision(command: str, root: Path, role: str):
 
 
 def allowed_role_command(command: str, root: Path, role: str) -> bool:
+    workflow = workflow_terminal_decision(command, root, role)
+    if workflow is not None:
+        return workflow[0] == "allow"
     if not command or re.search(r"[;&|`$<>\n\r]", command):
         return False
     # Normalize Windows path separators before POSIX shlex, which otherwise treats "\" as an
@@ -790,6 +827,11 @@ def resolve_candidate(raw: str, resolution_root: Path) -> Path | None:
 
 
 def development_edit_allowed(raw: str, resolution_root: Path, role: str = "developer") -> bool:
+    solution_decision = solution_documentation_edit_decision(raw, resolution_root)
+    if solution_decision is not None:
+        return role == "developer" and solution_decision
+    if git_policy.pr_body_path(METADATA_ROOT, str(resolution_root / raw)):
+        return role in git_policy.PUBLISH_ROLES
     candidate = resolve_candidate(raw, resolution_root)
     if candidate is None:
         return True
@@ -804,6 +846,38 @@ def development_edit_allowed(raw: str, resolution_root: Path, role: str = "devel
     if STANDALONE_ORG_CHANGE_LOG_PATTERN.fullmatch(brain_relative):
         return role == "developer"
     return allowed(brain_relative, ALLOWED_PREFIXES[role])
+
+
+def solution_documentation_edit_decision(raw: str, resolution_root: Path) -> bool | None:
+    """Check both the requested name and its target before other Developer grants."""
+    if not raw or raw.startswith(("http://", "https://")):
+        return None
+    candidate = Path(os.path.expanduser(raw))
+    if not candidate.is_absolute():
+        candidate = resolution_root / candidate
+    root = METADATA_ROOT.resolve()
+    try:
+        lexical = candidate.relative_to(root).as_posix()
+    except ValueError:
+        lexical = ""
+    try:
+        resolved = candidate.resolve(strict=False).relative_to(root).as_posix()
+    except ValueError:
+        resolved = ""
+    except (OSError, RuntimeError):
+        return False
+    if not any(path.casefold() == "docs/solutions" or path.casefold().startswith("docs/solutions/")
+               for path in (lexical, resolved)):
+        return None
+    if not SOLUTION_DOCUMENTATION_PATTERN.fullmatch(lexical):
+        return False
+    try:
+        # Reuse the Git workflow's existing traversal, symlink and containment checks.
+        git_policy.exact_path(root, lexical)
+        # An in-place editor write must not alter a protected hard-linked file.
+        return not candidate.exists() or (candidate.is_file() and candidate.stat().st_nlink == 1)
+    except (ValueError, OSError):
+        return False
 
 
 def collect_paths(value: Any, parent_key: str = "") -> Iterable[str]:
@@ -854,6 +928,10 @@ def allowed(relative_path: str, prefixes: tuple[str, ...]) -> bool:
 
 
 def role_path_allowed(relative_path: str, role: str) -> bool:
+    if relative_path == git_policy.PR_BODY:
+        return role in git_policy.PUBLISH_ROLES
+    if SOLUTION_DOCUMENTATION_PATTERN.fullmatch(relative_path):
+        return role == "developer"
     if WORK_ITEM_ORG_CHANGE_LOG_PATTERN.fullmatch(relative_path):
         return role == "developer"
     if STANDALONE_ORG_CHANGE_LOG_PATTERN.fullmatch(relative_path):
@@ -913,6 +991,11 @@ def main() -> int:
             )
             return 0
         command = terminal_command(event.get("tool_input", {}))
+        workflow = workflow_terminal_decision(command, root, args.role)
+        if workflow is not None:
+            decision, reason = workflow
+            print(json.dumps(response() if decision == "allow" else response(decision, reason)))
+            return 0
         if args.role == "git-agent":
             decision, reason = git_agent_terminal_decision(command)
             if decision == "allow":
@@ -949,6 +1032,13 @@ def main() -> int:
         return 0
 
     raw_paths = list(collect_paths(event.get("tool_input", {})))
+    for raw in raw_paths:
+        lexical = Path(raw) if Path(raw).is_absolute() else event_root / raw
+        resolves_to_body = normalize_path(raw, event_root, root) == git_policy.PR_BODY
+        names_body = Path(os.path.normpath(lexical)) == root / git_policy.PR_BODY
+        if (resolves_to_body or names_body) and not git_policy.pr_body_path(root, str(lexical)):
+            print(json.dumps(response("deny", "The PR body must be a repository-contained regular file without symlinks or hard links.")))
+            return 0
     if args.role == "developer":
         if not raw_paths:
             print(
@@ -995,7 +1085,7 @@ def main() -> int:
         return 0
 
     if args.role == MAINTAINER_ROLE:
-        decisions = {path: maintainer_edit_decision(path) for path in found}
+        decisions = {path: "allow" if path == git_policy.PR_BODY else maintainer_edit_decision(path) for path in found}
         denied = sorted(path for path, decision in decisions.items() if decision == "deny")
         if denied:
             # Any denied path fails the whole multi-file operation — no partial edits.

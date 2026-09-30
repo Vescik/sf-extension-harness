@@ -18,23 +18,28 @@ This turn is requirement intake only:
 1. Fetch through the skill's ADO/cache contract and disclose freshness/completeness.
 2. Create or refresh `work-items/<itemId>-<slug>/ado-context.md` per the durable-projection
    rules (stable folder by ID, source-faithful sanitized snapshot separate from the
-   `AI understanding — unapproved` section, same-revision no-rewrite, never overwrite a
+   `AI understanding — unapproved` section, equivalent-content no-rewrite, never overwrite a
    complete snapshot with a partial fetch).
-3. Report: the context path; item type/title/state; source revision and retrieval time;
+3. For a concrete delivery item, use the [Git Workflow](../skills/git-workflow/SKILL.md)
+   yourself to prepare/resume the correct branch and stage/commit the completed context after
+   verification. No separate commit request or Git Agent handoff is needed. A Feature/Epic
+   does not implicitly authorize a delivery branch; preserve its context pending an explicit
+   valid delivery container. Do not commit directly to main or force-add ignored cache.
+4. Report: the context path; item type/title/state; retrieval time;
    completeness and warnings; whether the tracked file was `created`, `updated`, or `unchanged`;
-   and — when a `design.md` already exists whose recorded baseline is older than the refreshed
-   context — that the design needs reconciliation.
-4. Stop. End the turn with the copyable next action(s) chosen by the fetched root type — a
+   and the local commit SHA or concrete reason no commit occurred. A noticed content difference
+   from the design may be noted briefly; it does not force redesign or stop the requested scope.
+5. Stop. End the turn with the copyable next action(s) chosen by the fetched root type — a
    concrete item and a Feature get exactly one next action; an Epic fetched with hierarchy
    coverage is the single exception and gets zero-to-many alternative candidate commands.
    For a concrete non-container delivery item (User Story, Product Backlog Item, Bug, Task, …):
 
 ```text
-git-agent: start work item <ID>
+/solution-design itemId=<ID>
 ```
 
-   The git-agent creates the item branch and commits the intake context locally before returning
-   `/solution-design itemId=<ID>`. For a Feature, the next action is
+   The same author completes branch preparation and the local context commit before this
+   next phase; an unresolved Git condition is reported without claiming success. For a Feature, the next action is
    `/prepare-delivery-feature itemId=<ID>` (explicit
    multi-Story delivery preparation — never invoked automatically from this turn). For an Epic
    fetched in hierarchy mode, follow the skill's `Epic navigation` contract: list the verified

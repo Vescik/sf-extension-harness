@@ -17,7 +17,7 @@ content gets an explicit "none" / explanation, it is never silently dropped.
 - Type: `Technical documentation`
 - Status: `draft`
 - Generated on: `<date>`
-- Sources: `<ADO source/revision, relative design and decisions links when present, other source references>`
+- Sources: `<ADO ID/link, retrieval time and completeness; relative design and decisions links when present; other source references>`
 
 <!-- Document review status is separate from implementation, deployment, and verification status. -->
 

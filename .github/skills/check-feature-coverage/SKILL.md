@@ -53,7 +53,12 @@ For BRD attachments:
    Report status is `draft`, separate from the coverage verdict. Do not invent a Story ID or
    a source URL. Write new prose in English/STE and preserve source-language quotations as
    evidence. Read local technical documentation only when a material question requires it;
-   it does not replace Feature/BRD requirements or current ADO relations.
+   it does not replace Feature/BRD requirements or current ADO relations. Keep complete fresh
+   sources; record ADO IDs/links, retrieval times and completeness without ADO revision
+   metadata. Historical labels have no authority. A noticed ADO/design difference alone is
+   optional information, never a new blocker or mandatory redesign. Actual coverage gaps still
+   affect the coverage verdict below. This report stays in ignored `output/`; never move or
+   force-add it merely to create a commit, and do not make an empty checkpoint.
 
 ## Verdict
 

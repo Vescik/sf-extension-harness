@@ -13,7 +13,7 @@ it may state a bounded focus; reject any other `name=value` option.
 If `itemId` is missing, ask once with `#tool:vscode/askQuestions`; never guess an ID.
 
 Resolve exactly one `work-items/<id>-*/` folder. Zero matches: stop and return the recovery
-(`/fetch-ado-item itemId=<ID>`, then `git-agent: start work item <ID>`, then
+(`/fetch-ado-item itemId=<ID>` with the author's local Git step, then
 `/solution-design itemId=<ID>` for ADO-backed work, or
 `/solution-design` with the written requirement). Multiple matches: stop with
 `INCOMPLETE — NEEDS HUMAN` and write nothing.
@@ -28,6 +28,11 @@ Return the skill's report: path and created/updated/unchanged; one verdict (`REA
 `INCOMPLETE — NEEDS HUMAN`); the evidence route (custom / managed-package / mixed); AC
 coverage; Test Cases by origin; unresolved questions; any reusable-Knowledge recommendation;
 and the exact next action.
+
+After a coherent permitted QA-plan result and verification, perform the scoped local
+stage/commit through the [Git Workflow](../skills/git-workflow/SKILL.md) yourself and report
+its SHA or concrete unresolved condition. No manual Git Agent handoff; no push/PR/merge
+without the corresponding explicit instruction.
 
 ## Salesforce role boundary
 

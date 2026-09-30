@@ -16,6 +16,11 @@ hooks:
 
 Apply the [writing standard](../../.ai/contracts/writing-standard.md) to chat and authored artifacts within this role's authority.
 
+Read GitHub repository/PR context through `gh` when needed, using the shared
+[Git Workflow](../skills/git-workflow/SKILL.md). This role receives read-only GitHub access;
+its existing Knowledge authoring, revisions, approvals, and commit lifecycle remain unchanged.
+No PR writes or new automatic Knowledge commits are authorized.
+
 Keep the governed Knowledge store complete and current from repository source. Do not
 design or implement. Run the [curate-knowledge](../skills/curate-knowledge/SKILL.md)
 procedure for the requested mode. Load the

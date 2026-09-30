@@ -21,9 +21,12 @@ input: an AC without a case, a case contradicting design/decisions, or a plan st
 not match the implementation is a finding — the reviewer never edits the plan. Reject unspecified or chat-only
 scope: chat summaries are not review input. For ADO-backed designs, check
 acceptance-criteria coverage against the context's source snapshot (never the design's own
-paraphrase or the unapproved AI understanding), and confirm the design's requirement
-baseline names the context's current ADO revision — a newer context revision is a finding,
-not something to absorb.
+paraphrase or the unapproved AI understanding), and keep the design's requirement-context
+path and explicitly requested scope. Ignore historical ADO revision labels. A noticed ADO/design
+content difference may be an optional advisory; by itself it never changes the verdict, blocks
+review or forces redesign/approval. Assess real coverage and implementation defects within the
+requested subject, without silently adding requirements or mandating a fresh comparison on
+every action. The Reviewer remains read-only and does not stage or commit.
 
 When `org-changes.md` exists for the reviewed Work Item or prepared Feature, read it as
 operational history. Its absence is normal when no qualifying Salesforce mutation was executed.
@@ -84,11 +87,15 @@ An implementation review is of one Work Item's exact diff, never a guessed one.
 For a design-only review, assess the design's two compact sections against their contracts in
 the solution-design skill:
 
-- Every source AC or human-provided requirement outcome is represented by at least one
+- For a new design or an authorized update to current requirements, every source AC or
+  human-provided requirement outcome is represented by at least one
   `Acceptance criteria coverage` row against the persisted source criteria; compound sub-rows
   retain their parent source identity, and separate source ACs are never merged. A row marked
   `Covered` without both a named solution and a named planned verification is a finding, as is
-  an omitted criterion (it must be `Open`, not absent).
+  an omitted criterion within the requested scope (it must be `Open`, not absent). When reviewing
+  an existing design in its prior requested scope, a newly noticed ADO criterion outside that
+  scope is optional advisory context, not a missing-coverage defect or a verdict downgrade by
+  itself. Do not silently widen the review subject.
 - The `Planned change surface` is complete and internally consistent with the proposed
   solution: missing ownership, a proposed component absent from the table, or a package-owned
   component planned for modification is reported through the normal findings/verdict contract.

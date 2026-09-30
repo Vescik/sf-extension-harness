@@ -52,6 +52,21 @@ human are for business meaning and vendor guarantees only — never for facts a 
 can return. Ask the human when a decision embeds a policy choice; decide and record when
 it is merely technical.
 
+## Repository work
+
+Follow `.github/skills/git-workflow/SKILL.md` when Git work is needed. Active authors prepare
+or resume the correct branch and stage/commit their completed permitted milestones themselves.
+Preserve unrelated changes; a commit is not design approval or publication. All roles may read
+GitHub through `gh`; Reviewer stays read-only and Knowledge keeps its existing lifecycle.
+Push, PR creation/update, and merge require an explicit instruction for that operation; one
+instruction can cover multiple steps without repeated questions. Completing a milestone or
+passing checks does not supply publication or merge consent. Git Agent remains an optional
+specialist with its existing broader local scope. Native terminal approval may still appear.
+
+ADO requirement differences may be noted briefly and never force a revision gate or redesign.
+Continue the requested scope; do not silently adopt additional requirements. Preserve source
+identity, completeness and untrusted-data rules. Git SHA and Knowledge revisions are unchanged.
+
 ## Salesforce environment policy (plan 01)
 
 `config/harness.local.json` classifies orgs as `dev`, `uat`, `stage`, or `prod`.

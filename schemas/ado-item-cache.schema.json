@@ -4,55 +4,148 @@
   "title": "Sanitized Azure DevOps work-item cache",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schemaVersion", "source", "completeness", "untrustedExternalData", "item"],
+  "required": [
+    "schemaVersion",
+    "source",
+    "completeness",
+    "untrustedExternalData",
+    "item"
+  ],
   "properties": {
-    "schemaVersion": { "const": 1 },
+    "schemaVersion": {
+      "enum": [
+        1,
+        2
+      ]
+    },
     "source": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["organization", "project", "itemId", "revision", "retrievedAt"],
+      "required": [
+        "organization",
+        "project",
+        "itemId",
+        "retrievedAt"
+      ],
       "properties": {
-        "organization": { "type": "string", "minLength": 1 },
-        "project": { "type": "string", "minLength": 1 },
-        "itemId": { "type": "integer", "minimum": 1 },
-        "revision": { "type": "integer", "minimum": 1 },
-        "retrievedAt": { "type": "string", "format": "date-time" }
+        "organization": {
+          "type": "string",
+          "minLength": 1
+        },
+        "project": {
+          "type": "string",
+          "minLength": 1
+        },
+        "itemId": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "retrievedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
       }
     },
     "completeness": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["status", "detailLevel", "relationsIncluded", "testCasesIncluded", "attachments", "pagesFetched", "missingRelations"],
+      "required": [
+        "status",
+        "detailLevel",
+        "relationsIncluded",
+        "testCasesIncluded",
+        "attachments",
+        "pagesFetched",
+        "missingRelations"
+      ],
       "properties": {
-        "status": { "enum": ["complete", "partial"] },
-        "detailLevel": { "enum": ["summary", "full"] },
-        "relationsIncluded": { "type": "boolean" },
-        "testCasesIncluded": { "type": "boolean" },
-        "attachments": { "enum": ["none", "metadata", "content"] },
-        "pagesFetched": { "type": "integer", "minimum": 1 },
+        "status": {
+          "enum": [
+            "complete",
+            "partial"
+          ]
+        },
+        "detailLevel": {
+          "enum": [
+            "summary",
+            "full"
+          ]
+        },
+        "relationsIncluded": {
+          "type": "boolean"
+        },
+        "testCasesIncluded": {
+          "type": "boolean"
+        },
+        "attachments": {
+          "enum": [
+            "none",
+            "metadata",
+            "content"
+          ]
+        },
+        "pagesFetched": {
+          "type": "integer",
+          "minimum": 1
+        },
         "missingRelations": {
           "type": "array",
           "uniqueItems": true,
-          "items": { "type": "string", "minLength": 1 }
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
         }
       }
     },
-    "untrustedExternalData": { "const": true },
+    "untrustedExternalData": {
+      "const": true
+    },
     "item": {
       "type": "object",
-      "required": ["id", "type", "title", "state"],
+      "required": [
+        "id",
+        "type",
+        "title",
+        "state"
+      ],
       "properties": {
-        "id": { "type": "integer", "minimum": 1 },
-        "type": { "type": "string", "minLength": 1 },
-        "title": { "type": "string" },
-        "state": { "type": "string" },
-        "parentId": { "type": ["integer", "null"], "minimum": 1 },
+        "id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "title": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        },
+        "parentId": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
         "childIds": {
           "type": "array",
           "uniqueItems": true,
-          "items": { "type": "integer", "minimum": 1 }
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          }
         },
-        "acceptanceCriteria": { "type": "string" }
+        "acceptanceCriteria": {
+          "type": "string"
+        }
       },
       "additionalProperties": true
     }
@@ -62,18 +155,103 @@
       "if": {
         "properties": {
           "completeness": {
-            "properties": { "status": { "const": "complete" } },
-            "required": ["status"]
+            "properties": {
+              "status": {
+                "const": "complete"
+              }
+            },
+            "required": [
+              "status"
+            ]
           }
         }
       },
       "then": {
         "properties": {
           "completeness": {
-            "properties": { "missingRelations": { "maxItems": 0 } }
+            "properties": {
+              "missingRelations": {
+                "maxItems": 0
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "schemaVersion": {
+            "const": 1
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "source": {
+            "required": [
+              "revision"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "schemaVersion": {
+            "const": 2
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "source": {
+            "properties": {
+              "revision": false
+            }
+          },
+          "item": {
+            "$ref": "#/$defs/revisionFreeData"
           }
         }
       }
     }
-  ]
+  ],
+  "$defs": {
+    "revisionFreeData": {
+      "description": "V2 projection excludes ADO revision metadata at every nesting level; strings remain source-faithful.",
+      "anyOf": [
+        {
+          "type": [
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/revisionFreeData"
+          }
+        },
+        {
+          "type": "object",
+          "propertyNames": {
+            "not": {
+              "enum": [
+                "rev",
+                "revision",
+                "System.Rev"
+              ]
+            }
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/revisionFreeData"
+          }
+        }
+      ]
+    }
+  }
 }
