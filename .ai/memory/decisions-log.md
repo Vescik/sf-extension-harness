@@ -1731,3 +1731,17 @@ Both hooks share bounded Git/gh parsing and local-state inspection. These contro
 prove semantic authorship, conversation authority, atomicity, remote state or host enforcement.
 Knowledge lifecycle and plan 01/01a safety boundaries remain unchanged. Implementation is not
 release or acceptance; see the [verification and acceptance handoff](../../docs/plan03-workflow-handoff.md).
+
+## 2026-09-30 — Restore legacy Feature map compatibility
+
+The owner requested the compatibility fix found in the Plan 03 implementation audit.
+Preserve saved map content and membership while accepting an explicit ID column in another
+position and numeric IDs formatted as Markdown emphasis, inline code, or link labels.
+Do not infer identity from title or URL numbers. Ambiguous identities, duplicate included IDs,
+and included/deferred conflicts remain denied. New-map writing conventions remain in place;
+this is a reader correction, not a migration or a new membership policy.
+
+The owner accepted the implicit GitHub CLI repository-selection limitation for the team's
+single-repository setup. Feature base/ref handling remains open; the owner requested an
+explanation. Commit-preflight batching remains a recommendation pending implementation scope.
+This repair does not authorize publication or establish Copilot host acceptance.

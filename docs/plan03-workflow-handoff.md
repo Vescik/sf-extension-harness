@@ -1,6 +1,7 @@
 # Plan 03: workflow implementation and acceptance
 
-Status: local implementation verified on 2026-09-29. Host and remote-write acceptance remain open.
+Status: local implementation verified on 2026-09-29; see the 2026-09-30 audit follow-up below.
+Host and remote-write acceptance remain open.
 The owner approved the plan and explicitly requested implementation on 2026-09-29. Publication
 and merge require their own explicit instruction; implementation does not authorize either.
 
@@ -93,6 +94,31 @@ npm run lint
 
 The static validator expects an ordinary `.git` directory. A linked worktree alone is not
 equivalent evidence for that layout check. Do not weaken the check to obtain a passing result.
+
+## Audit follow-up on 2026-09-30
+
+The owner requested a compatibility repair for legacy Feature maps. The reader accepts an
+explicit ID column in another position and numeric IDs with Markdown emphasis, inline code,
+or numeric link labels. It preserves saved maps and the exact included/deferred selection.
+Titles and link destinations are not identity sources; ambiguous identities and conflicting
+membership remain denied. New maps keep the existing writing convention.
+
+Local verification passed: 1207 Python tests (one existing filesystem skip), 2937 static
+assertions, and 82 deterministic safety evaluations. The full suite includes isolated native
+runtime import and new role-hook cases for legacy maps, ambiguous identities, and preservation
+of HEAD, index and map bytes. All five cases from the original compatibility reproduction now
+allow the intended member without changing the map. Syntax, repo-map and diff checks passed.
+These results do not establish Copilot host or live ADO acceptance.
+
+Two audit findings remain open: Feature bootstrap/resume checks the current checkout's map
+instead of the target/base ref, and per-file Git subprocesses can exhaust the three-second
+preflight budget for larger commits. The owner requested an explanation and a performance
+recommendation; neither fix is part of this compatibility repair.
+
+The owner accepted the implicit GitHub CLI repository-selection limitation for the team's
+single-repository configuration. Reads without an explicit repository selector can follow
+GitHub CLI's configured default remote, which the current guard does not resolve. This
+acceptance does not change the code or the explicit repository requirement for writes.
 
 ## Remaining acceptance
 

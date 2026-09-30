@@ -21,6 +21,8 @@ PR_BODY = ".cache/github/pr-body.md"
 BRANCH = re.compile(r"(?:(work-item|feature)/([1-9][0-9]*)-([a-z0-9][a-z0-9-]*)|chore/([a-z0-9][a-z0-9-]*))\Z")
 SHA = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})\Z")
 STATE_MARKERS = ("MERGE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD", "rebase-merge", "rebase-apply", "BISECT_LOG", "index.lock")
+# Bounded Markdown destination syntax; its content never supplies the Work Item ID.
+MAP_LINK = r"\[([^\[\]]+)\](?:\((?:[^()\r\n]|\([^()\r\n]*\))*\)|\[[^\[\]\r\n]*\])?"
 
 
 class Rejected(ValueError):
@@ -258,6 +260,67 @@ def context_path(repo: Repo, item: str, *, required: bool = True) -> Path | None
     return paths[0]
 
 
+def map_label(value: str) -> str:
+    """Read bounded display markup, never an identity from a link destination."""
+    value = value.strip()
+    for _ in range(4):
+        emphasis = re.fullmatch(r"(\*\*|__|\*|_)(.+)\1", value)
+        code = re.fullmatch(r"(`+)([^`]+)\1", value)
+        link = re.fullmatch(MAP_LINK, value)
+        if code:
+            # Inline code displays its contents literally, so do not interpret
+            # nested Markdown there (for example `**123**` is not numeric text).
+            return code.group(2).strip()
+        if emphasis:
+            value = emphasis.group(2).strip()
+        elif link:
+            value = link.group(1).strip()
+        else:
+            break
+    return value
+
+
+def map_ids(lines: list[str]) -> list[str]:
+    """Accept legacy ID columns/markup and canonical ID-first rows or lists."""
+    found: list[str] = []
+    column: int | None = None
+    width = 0
+    for line in lines:
+        value = line.strip()
+        if "|" in value and not re.match(r"(?:[-+*]|\d+[.)])\s", value):
+            cells = [cell.strip() for cell in re.split(r"(?<!\\)\|", value.strip("|"))]
+            if all(re.fullmatch(r":?-{3,}:?", cell) for cell in cells):
+                if column is None or len(cells) != width:
+                    raise Rejected("Ambiguous table structure in the Feature map.")
+                continue
+            headers = [index for index, cell in enumerate(cells) if map_label(cell).casefold() == "id"]
+            if headers and column is None and not re.fullmatch(r"[1-9][0-9]*", map_label(cells[0])):
+                if len(headers) != 1:
+                    raise Rejected("Use one unambiguous ID column in each Feature membership table.")
+                column, width = headers[0], len(cells)
+                continue
+            if column is None:
+                column, width = 0, len(cells)
+            if len(cells) != width:
+                raise Rejected("Ambiguous table structure in the Feature map.")
+            identity = map_label(cells[column])
+        else:
+            column, width = None, 0
+            item = re.match(r"(?:[-+*]|\d+[.)])\s+(.+)", value)
+            if not item:
+                continue
+            # A membership list starts with a whole displayed ID; following prose
+            # is a title, not another place to search for an identity.
+            token = re.match(r"(\*\*.+?\*\*|__.+?__|\*[^*]+\*|_[^_]+_|`+[^`]+`+|" + MAP_LINK + r"|[0-9]+)(?=\s|:|$)", item.group(1))
+            if not token:
+                raise Rejected("Require one exact positive numeric ID at the start of a Feature membership list item.")
+            identity = map_label(token.group(1))
+        if not re.fullmatch(r"[1-9][0-9]*", identity):
+            raise Rejected("Require one exact positive numeric ID in each Feature membership row.")
+        found.append(identity)
+    return found
+
+
 def feature_members(repo: Repo, feature: str) -> set[str]:
     context = context_path(repo, feature)
     maps = list((repo.root / "work-items").glob(feature + "-*/delivery-map.md"))
@@ -267,24 +330,28 @@ def feature_members(repo: Repo, feature: str) -> set[str]:
     sections: dict[str, list[str]] = {"included": [], "deferred": []}
     active = ""
     counts = {"included": 0, "deferred": 0}
+    fence = ""
     for line in text.splitlines():
-        if re.match(r"^#{1,6}\s", line):
+        marker = re.match(r"^ {0,3}(`{3,}|~{3,})(.*)$", line)
+        if fence:
+            if marker and marker.group(1)[0] == fence[0] and len(marker.group(1)) >= len(fence) and not marker.group(2).strip():
+                fence = ""
+            continue
+        if marker:
+            fence = marker.group(1)
+            continue
+        if line.startswith(("    ", "\t")) or line.lstrip().startswith(">"):
+            continue
+        if re.match(r"^ {0,3}#{1,6}\s", line):
             lowered = line.lower()
             active = "included" if re.search(r"\bincluded\b", lowered) else "deferred" if re.search(r"\bdeferred\b", lowered) else ""
             if active:
                 counts[active] += 1
         elif active:
             sections[active].append(line)
-    if counts["included"] != 1 or counts["deferred"] > 1:
+    if fence or counts["included"] != 1 or counts["deferred"] > 1:
         raise Rejected("Use one clear Included delivery Work Items section in the prepared map.")
-    def ids(lines: list[str]) -> list[str]:
-        found = []
-        for line in lines:
-            match = re.match(r"\s*(?:\|\s*|[-*]\s+|\d+[.)]\s+)(?:\[)?([1-9][0-9]*)(?:\]|\s|\|)", line)
-            if match:
-                found.append(match.group(1))
-        return found
-    included, deferred = ids(sections["included"]), ids(sections["deferred"])
+    included, deferred = map_ids(sections["included"]), map_ids(sections["deferred"])
     if len(included) != len(set(included)) or set(included) & set(deferred):
         raise Rejected("Ambiguous included/deferred membership in the Feature map.")
     return set(included)

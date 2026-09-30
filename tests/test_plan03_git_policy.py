@@ -250,6 +250,87 @@ class GitWorkflowTests(unittest.TestCase):
         map_path.write_text(map_path.read_text().replace("| 123 |", "| 1500123 |"))
         self.assertDecision("deny", self.commit_command(path))
 
+    def feature_map_commit_fixture(self):
+        self.feature()
+        self.git("add", "--", "work-items/500-feature")
+        self.git("commit", "-m", "fixture feature")
+        self.git("switch", "-c", "feature/500-feature")
+        return self.stage_design()
+
+    def assert_feature_map_admission(self, expected, path, included, deferred="", extra=""):
+        map_path = self.write("work-items/500-feature/delivery-map.md",
+                              "# Feature 500\n## Included delivery Work Items\n" + included +
+                              "\n## Deferred direct children\n" + deferred + extra)
+        before = (self.git("rev-parse", "HEAD"), (self.root / ".git/index").read_bytes(), map_path.read_bytes())
+        self.assertEqual(expected, self.invoke(roles, self.commit_command(path), role="designer"))
+        after = (self.git("rev-parse", "HEAD"), (self.root / ".git/index").read_bytes(), map_path.read_bytes())
+        self.assertEqual(before, after, "Admission must not commit, restage or migrate the existing map")
+
+    def test_legacy_feature_map_columns_markup_and_lists_allow_real_role_commit_admission(self):
+        path = self.feature_map_commit_fixture()
+        variants = (
+            "| ID | Type | Title |\n| --- | --- | --- |\n| 123 | User Story | Example |\n",
+            "| Type | ID | Title |\n| --- | --- | --- |\n| User Story | 123 | Example |\n",
+            "| Title | Type | ID |\n| --- | --- | --- |\n| Example | User Story | 123 |\n",
+            "Type | ID | Title\n--- | --- | ---\nUser Story | 123 | Example\n",
+            "| 123 | User Story | ID |\n",
+            "| ID | Type | Title |\n| --- | --- | --- |\n| 123 | User Story | ID |\n",
+            "- 123 User Story: Example\n",
+            "1. 123 User Story: Example\n",
+            "2) 123: Example\n",
+        ) + tuple("| Type | ID | Title |\n| --- | --- | --- |\n| User Story | " + identity + " | Example |\n"
+                  for identity in ("**123**", "__123__", "*123*", "_123_", "`123`", "``123``",
+                                   "[123]", "[123][wi-123]", "[123][]", "**`123`**", "[`123`](https://example.invalid/123)",
+                                   "[123](https://example.invalid/items/456)", "[123](https://example.invalid/(items)/123)",
+                                   "**[123](https://example.invalid/123)**")) \
+          + tuple("- " + identity + " Example\n" for identity in
+                  ("**123**", "*123*", "_123_", "`123`", "[123]", "[123][wi-123]", "[123][]",
+                   "[123](https://example.invalid/(items)/123)", "[123](https://example.invalid/123)", "[**123**](https://example.invalid/123)"))
+        for included in variants:
+            with self.subTest(included=included):
+                self.assert_feature_map_admission("allow", path, included, "- **456** Later\n")
+
+    def test_legacy_feature_map_rejects_ambiguous_or_nonexact_identity_without_mutation(self):
+        path = self.feature_map_commit_fixture()
+        variants = (
+            "| Type | Title |\n| --- | --- |\n| User Story | 123 |\n",
+            "| ID | ID |\n| --- | --- |\n| 123 | 456 |\n",
+            "| Type | ID | Title |\n| --- | --- | --- |\n| User Story | 456 | 123 |\n",
+            "| 123 | User Story | Example |\n| **123** | User Story | Duplicate |\n",
+            "- **123** Example\n- [123](https://example.invalid/123) Duplicate\n",
+            "- See [123](https://example.invalid/123)\n",
+            "- 123suffix Example\n",
+        ) + tuple("| Type | ID | Title |\n| --- | --- | --- |\n| User Story | " + identity + " | 123 |\n"
+                  for identity in ("0", "0123", "-123", "123.0", "123 and 456", "**123** suffix",
+                                   "[123](https://example.invalid/123)[456](https://example.invalid/456)",
+                                   "`**123**`", "`[123](https://example.invalid/456)`",
+                                   "[Example][123]", "[0123]", "[123] suffix", "[123](url) extra (text)",
+                                   "[Example](https://example.invalid/items/123)", "https://example.invalid/items/123"))
+        for included in variants:
+            with self.subTest(included=included):
+                self.assert_feature_map_admission("deny", path, included)
+        self.assert_feature_map_admission("deny", path, "- **123** Example\n",
+                                          "| Type | ID | Title |\n| --- | --- | --- |\n| User Story | `123` | Deferred |\n")
+        self.assert_feature_map_admission("deny", path, "- 123 Example\n",
+                                          "| Type | ID | Title |\n| --- | --- | --- |\n| User Story | 0123 | Ambiguous |\n")
+
+    def test_feature_map_examples_and_unrelated_sections_do_not_grant_membership(self):
+        path = self.feature_map_commit_fixture()
+        examples = (
+            "```markdown\n| ID | Type |\n| --- | --- |\n| 123 | User Story |\n```\n",
+            "~~~markdown\n## Included delivery Work Items\n- 123 Example\n~~~\n",
+            "    - 123 Example\n",
+            "> - 123 Example\n",
+        )
+        for example in examples:
+            with self.subTest(example=example):
+                self.assert_feature_map_admission("deny", path, example,
+                                                  extra="\n## Dependencies and boundaries\n- 123 Dependency\n")
+                self.assert_feature_map_admission("allow", path, "- 123 Example\n\n" + example)
+        self.assert_feature_map_admission("deny", path, "- 456 Other member\n",
+                                          extra="\n## Notes\n- 123 Mentioned outside membership\n")
+        self.assert_feature_map_admission("deny", path, "- 123 Example\n```markdown\n")
+
     def test_bootstrap_from_main_preserves_staged_and_unstaged_own_result(self):
         self.git("switch", "main")
         self.git("branch", "-D", "work-item/123-example")

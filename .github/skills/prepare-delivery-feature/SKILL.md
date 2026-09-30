@@ -138,6 +138,12 @@ carries:
    authoritative; fetch/design/implementation/QA/branch/PR remain per Story; rerun prepare only
    when scope or source changes.
 
+These writing conventions do not require a rewrite of readable legacy maps. An existing
+table can place its explicit `ID` column elsewhere, and numeric IDs can use Markdown emphasis,
+inline code, or numeric link labels. Read the exact identity, not numbers in titles or URL
+destinations. Preserve equivalent maps byte-for-byte. Ambiguous identity columns or conflicting
+included/deferred entries require clarification of that map; never guess its membership.
+
 Forbidden in the map: copied Description/Acceptance Criteria, full child bodies, comments or
 attachments, credentials or sensitive record content, technical proposals, implementation
 checkboxes, mirrored ADO status, QA results, invented dependencies, Feature Knowledge claims or
