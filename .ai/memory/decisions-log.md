@@ -1745,3 +1745,15 @@ The owner accepted the implicit GitHub CLI repository-selection limitation for t
 single-repository setup. Feature base/ref handling remains open; the owner requested an
 explanation. Commit-preflight batching remains a recommendation pending implementation scope.
 This repair does not authorize publication or establish Copilot host acceptance.
+
+## 2026-09-30 — Correct Feature refs and batch Git preflight
+
+The owner explicitly requested audit findings 1 and 4 to be fixed, then pushed to the GitHub
+repository. Feature target/base decisions read prepared metadata at the resolved commit;
+dirty changes and new local intake retain their working-tree scope checks. Git inspection
+uses bounded argument groups with fresh per-path clean conversion, under the existing shared
+three-second deadline. Exact paths, index equality, ignored files, file modes and deletion
+checks remain in force. The single-repository limitation accepted above is unchanged.
+
+The requested push covers this delivery branch. It does not request a PR, merge, release,
+or acceptance of untested Copilot host behavior.

@@ -1,7 +1,7 @@
 # Plan 03: workflow implementation and acceptance
 
 Status: local implementation verified on 2026-09-29; see the 2026-09-30 audit follow-up below.
-Host and remote-write acceptance remain open.
+Host, controlled ADO and PR acceptance remain open.
 The owner approved the plan and explicitly requested implementation on 2026-09-29. Publication
 and merge require their own explicit instruction; implementation does not authorize either.
 
@@ -110,10 +110,33 @@ of HEAD, index and map bytes. All five cases from the original compatibility rep
 allow the intended member without changing the map. Syntax, repo-map and diff checks passed.
 These results do not establish Copilot host or live ADO acceptance.
 
-Two audit findings remain open: Feature bootstrap/resume checks the current checkout's map
-instead of the target/base ref, and per-file Git subprocesses can exhaust the three-second
-preflight budget for larger commits. The owner requested an explanation and a performance
-recommendation; neither fix is part of this compatibility repair.
+The owner then requested the Feature-ref and performance fixes and a push of the delivery
+branch. Clean Feature resume now reads context and map from the exact target commit. Parallel
+children and child PRs use membership at the resolved remote Feature base. New local intake
+and dirty-change preservation retain their separate working-tree checks.
+
+Git preflight now batches ignored-file, diff, index and fresh-hash inspection. Argument groups
+are bounded for Windows and POSIX, and all groups share the existing three-second deadline.
+Clean filters, line endings, staged deletions, file modes and index equality remain checked.
+
+Final local verification passed: 1223 Python tests in 212.582 seconds (one existing
+case-insensitive filesystem skip), 2943 static assertions, 82 deterministic safety evaluations,
+and 32 native tests. Repo-map, Python compilation, formatting and diff checks passed. The built
+VSIX has all seven runtime files matching the tested sources; manifest verification and an
+isolated Python import reached their explicit success markers. Independent review found no
+remaining actionable issue in these fixes. Four real-Git reproductions confirm target/base
+membership and clean resume without using the current checkout's Feature map.
+
+| Role-hook commit preflight | Before | After |
+|---|---|---|
+| 50 files | 261 Git processes; 2.621 seconds; allow | 15 Git processes; 0.173 seconds; allow |
+| 100 files | 272 Git processes before the 3.004-second timeout; deny | 15 Git processes; 0.183 seconds; allow |
+
+These are single-run measurements on the local macOS fixture, not Windows performance or host
+acceptance. Regression tests cover multiple argument groups, clean filters and CRLF, partial
+staging, same-size/mtime edits, index flags, recreated deletions, malformed/partial output,
+argument limits and the shared deadline. The runtime, test and skill sources remained unchanged
+after the full suite; only this result paragraph was finalized before repeating static validation.
 
 The owner accepted the implicit GitHub CLI repository-selection limitation for the team's
 single-repository configuration. Reads without an explicit repository selector can follow
@@ -128,7 +151,7 @@ acceptance does not change the code or the explicit repository requirement for w
 | VS Code Local on macOS | Not verified. The inspected Local host displayed `Models, sign in to use Copilot`; no Plan 03 invocation reached its hooks. Start a fresh trusted session after authentication. |
 | VS Code Local on Windows | Not verified. Test on the team's actual host and shell; platform-specific parser tests are not host evidence. |
 | PR create/edit/ready/merge | Not verified live. Use a designated test repository and branches with explicit test authority. Inspect remote state after each command and after timeouts; queued is not merged. |
-| Publication/release | Not performed. A local commit and passing checks do not establish remote CI or release acceptance. |
+| Release and remote CI acceptance | Not verified. The owner requested a delivery-branch push; that publication does not establish CI success, a release, or host acceptance. |
 
 For each host record the source commit, OS, VS Code/Copilot/Git/gh/Python versions, trusted-workspace
 and hooks settings, role/prompt effective tools, and actual terminal tool payload. Exercise both

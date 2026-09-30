@@ -406,6 +406,141 @@ class GitWorkflowTests(unittest.TestCase):
         self.assertDecision("allow", "git switch -c work-item/123-parallel origin/feature/500-feature")
         self.assertDecision("deny", "git switch -c work-item/456-parallel origin/feature/500-feature")
 
+    def feature_ref_fixture(self, current_member=None, target_member="123"):
+        """Prepare independent current/target maps, simulating fetched refs locally."""
+        branch = "feature/500-feature"
+        self.git("switch", "main")
+        if current_member is not None:
+            self.feature()
+            self.write_feature_member(current_member)
+            self.git("add", "--", "work-items/500-feature")
+            self.git("commit", "-m", "current checkout Feature map")
+            self.git("update-ref", "refs/remotes/origin/main", "HEAD")
+        self.git("switch", "-c", branch)
+        self.feature()
+        self.write_feature_member(target_member)
+        self.git("add", "--", "work-items/500-feature")
+        self.git("commit", "-m", "target Feature map")
+        self.git("update-ref", "refs/remotes/origin/" + branch, "HEAD")
+        self.git("switch", "main")
+        return branch
+
+    def write_feature_member(self, member):
+        deferred = "456" if member == "123" else "123"
+        # The ref reader must keep the compatibility fixed in audit point 3.
+        self.write("work-items/500-feature/delivery-map.md",
+                   "# Feature 500\n## Included delivery Work Items\n"
+                   "| Type | ID | Title |\n| --- | --- | --- |\n"
+                   f"| User Story | **{member}** | Included |\n"
+                   f"## Deferred direct children\n- `{deferred}` Later\n")
+
+    def test_parallel_child_rejects_checkout_inclusion_when_remote_base_defers_it(self):
+        branch = self.feature_ref_fixture(current_member="123", target_member="456")
+        before = (self.git("rev-parse", "HEAD"), (self.root / ".git/index").read_bytes())
+        self.assertEqual("deny", self.invoke(roles, f"git switch -c work-item/123-parallel origin/{branch}"))
+        self.assertEqual(before, (self.git("rev-parse", "HEAD"), (self.root / ".git/index").read_bytes()))
+
+    def test_parallel_child_uses_base_inclusion_despite_checkout_deferral(self):
+        branch = self.feature_ref_fixture(current_member="456", target_member="123")
+        command = f"git switch -c work-item/123-parallel origin/{branch}"
+        self.assertEqual("allow", self.invoke(roles, command))
+        self.git(*policy.parse_command(command)[1:])
+        self.assertEqual(self.git("rev-parse", "refs/remotes/origin/" + branch), self.git("rev-parse", "HEAD"))
+        self.assertEqual({"123"}, policy.feature_members(policy.Repo(self.root), "500"))
+
+    def test_parallel_child_and_clean_local_feature_resume_need_no_current_feature_context(self):
+        branch = self.feature_ref_fixture()
+        self.assertFalse((self.root / "work-items/500-feature").exists())
+        self.assertEqual("allow", self.invoke(roles, f"git switch -c work-item/123-parallel origin/{branch}"))
+        command = f"git switch {branch}"
+        self.assertEqual("allow", self.invoke(roles, command))
+        self.git(*policy.parse_command(command)[1:])
+        self.assertEqual("", self.git("status", "--porcelain"))
+        self.assertEqual({"123"}, policy.feature_members(policy.Repo(self.root), "500"))
+
+    def test_clean_remote_feature_resume_reads_target_context(self):
+        branch = self.feature_ref_fixture()
+        self.git("branch", "-D", branch)
+        command = f"git switch --track -c {branch} origin/{branch}"
+        self.assertEqual("allow", self.invoke(roles, command))
+        self.git(*policy.parse_command(command)[1:])
+        self.assertEqual("origin/" + branch, self.git("rev-parse", "--abbrev-ref", "@{upstream}"))
+        self.assertEqual("", self.git("status", "--porcelain"))
+
+    def test_feature_resume_and_parallel_bootstrap_preserve_dirty_head_restrictions(self):
+        branch = self.feature_ref_fixture()
+        path = self.stage_design()
+        self.write(path, "Additional human edit\n")
+        before = (self.git("diff", "--cached"), self.git("diff"), (self.root / ".git/index").read_bytes())
+        for command in (f"git switch {branch}", f"git switch -c work-item/123-parallel origin/{branch}"):
+            self.assertEqual("deny", self.invoke(roles, command))
+        self.git("branch", "-D", branch)
+        self.assertEqual("deny", self.invoke(roles, f"git switch --track -c {branch} origin/{branch}"))
+        self.assertEqual(before, (self.git("diff", "--cached"), self.git("diff"), (self.root / ".git/index").read_bytes()))
+
+    def test_feature_same_head_resume_uses_carried_dirty_scope_without_restaging(self):
+        branch = self.feature_ref_fixture()
+        self.git("switch", branch)
+        self.git("switch", "-c", "chore/inspect")
+        path = self.stage_design()
+        self.write(path, "Additional human edit\n")
+        before = (self.git("diff", "--cached"), self.git("diff"), (self.root / ".git/index").read_bytes())
+        self.assertEqual("allow", self.invoke(roles, f"git switch {branch}"))
+        self.assertEqual(before, (self.git("diff", "--cached"), self.git("diff"), (self.root / ".git/index").read_bytes()))
+        self.write_feature_member("456")
+        self.assertEqual("deny", self.invoke(roles, f"git switch {branch}"))
+
+    def test_new_feature_keeps_local_uncommitted_intake_on_synchronized_main(self):
+        self.git("switch", "main")
+        self.feature()
+        before = self.git("status", "--porcelain")
+        command = "git switch -c feature/500-feature"
+        self.assertEqual("allow", self.invoke(roles, command))
+        self.git(*policy.parse_command(command)[1:])
+        self.assertEqual(before, self.git("status", "--porcelain"))
+
+    def test_feature_ref_rejects_ambiguous_folders_and_nonregular_prepared_metadata(self):
+        branch = self.feature_ref_fixture()
+        original = self.git("rev-parse", "refs/heads/" + branch)
+        for variant in ("duplicate", "missing-context", "map-symlink", "context-symlink", "folder-symlink"):
+            with self.subTest(variant=variant):
+                self.git("switch", branch)
+                self.git("reset", "--hard", original)
+                if variant == "duplicate":
+                    self.write("work-items/500-duplicate/notes.md")
+                    self.git("add", "--", "work-items/500-duplicate")
+                elif variant == "missing-context":
+                    self.git("rm", "--", "work-items/500-feature/ado-context.md")
+                elif variant == "folder-symlink":
+                    self.git("rm", "-r", "--", "work-items/500-feature")
+                    blob = self.git("rev-parse", original + ":work-items/500-feature/ado-context.md")
+                    self.git("update-index", "--add", "--cacheinfo", "120000", blob, "work-items/500-feature")
+                else:
+                    name = "delivery-map.md" if variant == "map-symlink" else "ado-context.md"
+                    path = "work-items/500-feature/" + name
+                    blob = self.git("rev-parse", ":" + path)
+                    # Index modes make this fixture portable even on Windows
+                    # hosts without permission to create filesystem symlinks.
+                    self.git("update-index", "--cacheinfo", "120000", blob, path)
+                self.git("commit", "-m", "invalid prepared metadata")
+                self.git("update-ref", "refs/remotes/origin/" + branch, "HEAD")
+                self.git("switch", "--discard-changes", "main")
+                self.assertEqual("deny", self.invoke(roles, f"git switch {branch}"))
+                self.assertEqual("deny", self.invoke(roles, f"git switch -c work-item/123-parallel origin/{branch}"))
+
+    def test_child_pr_uses_remote_feature_base_membership_not_current_map(self):
+        branch = self.feature_ref_fixture(current_member="123", target_member="456")
+        self.git("switch", "-c", "work-item/123-pr")
+        self.gh_body()
+        command = ("gh pr create --repo example/repository --head work-item/123-pr "
+                   f"--base {branch} --title Child --body-file .cache/github/pr-body.md --draft")
+        for module in (roles, safety):
+            self.assertEqual("deny", self.invoke(module, command))
+        self.git("update-ref", "refs/remotes/origin/" + branch, "HEAD")
+        self.write_feature_member("456")
+        for module in (roles, safety):
+            self.assertEqual("ask", self.invoke(module, command))
+
     def test_assume_unchanged_is_denied(self):
         path = self.stage_design()
         self.git("update-index", "--assume-unchanged", "--", path)

@@ -23,6 +23,8 @@ SHA = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})\Z")
 STATE_MARKERS = ("MERGE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD", "rebase-merge", "rebase-apply", "BISECT_LOG", "index.lock")
 # Bounded Markdown destination syntax; its content never supplies the Work Item ID.
 MAP_LINK = r"\[([^\[\]]+)\](?:\((?:[^()\r\n]|\([^()\r\n]*\))*\)|\[[^\[\]\r\n]*\])?"
+# Bound the full invocation below Windows/POSIX limits, with room for the environment.
+GIT_ARGUMENT_BUDGET = 16000
 
 
 class Rejected(ValueError):
@@ -234,7 +236,15 @@ def pr_body_path(root: Path, raw: str, *, must_exist: bool = False) -> bool:
         return False
 
 
-def commit_path(repo: Repo, raw: str, allowed: Callable[[str], bool]) -> str:
+def commit_paths(repo: Repo, raw_paths: list[str], allowed: Callable[[str], bool]) -> set[str]:
+    paths = {checked_commit_path(repo, raw, allowed) for raw in raw_paths}
+    for batch in path_batches(repo, paths):
+        if repo.git("check-ignore", "--no-index", "--", *batch, ok=(0, 1)).strip():
+            raise Rejected("Ignored files cannot be staged by the author workflow.")
+    return paths
+
+
+def checked_commit_path(repo: Repo, raw: str, allowed: Callable[[str], bool]) -> str:
     path = exact_path(repo.root, raw)
     lowered = path.casefold()
     if lowered.startswith((".cache/", "output/", ".git/", ".sf/", ".sfdx/", ".ai/knowledge/")) or lowered == "config/harness.local.json":
@@ -243,9 +253,30 @@ def commit_path(repo: Repo, raw: str, allowed: Callable[[str], bool]) -> str:
         raise Rejected("Secret-bearing paths are not author commit targets.")
     if not allowed(path):
         raise Rejected("This role may not stage or commit " + path)
-    if repo.git("check-ignore", "--no-index", "--", path, ok=(0, 1)).strip():
-        raise Rejected("Ignored files cannot be staged by the author workflow.")
     return path
+
+
+def path_batches(repo: Repo, paths: set[str]):
+    """Budget both OS encodings, including a prefix at least as long as every batch call."""
+    prefix = ["git", "--no-optional-locks", "-C", str(repo.root), "diff", "--name-only",
+              "--no-ext-diff", "--no-textconv", "--no-renames", "-z", "--"]
+    prefix_units = len(subprocess.list2cmdline(prefix).encode("utf-16-le")) // 2 + 1
+    prefix_bytes = sum(len(os.fsencode(arg)) + 1 for arg in prefix) + 8 * (len(prefix) + 1)
+    batch: list[str] = []
+    units, byte_count = prefix_units, prefix_bytes
+    for path in sorted(paths):
+        size = len(subprocess.list2cmdline([path]).encode("utf-16-le")) // 2 + 1
+        byte_size = len(os.fsencode(path)) + 1 + 8
+        if prefix_units + size > GIT_ARGUMENT_BUDGET or prefix_bytes + byte_size > GIT_ARGUMENT_BUDGET:
+            raise Rejected("An exact path exceeds the bounded Git argument budget.")
+        if batch and (units + size > GIT_ARGUMENT_BUDGET or byte_count + byte_size > GIT_ARGUMENT_BUDGET):
+            yield batch
+            batch, units, byte_count = [], prefix_units, prefix_bytes
+        batch.append(path)
+        units += size
+        byte_count += byte_size
+    if batch:
+        yield batch
 
 
 def context_path(repo: Repo, item: str, *, required: bool = True) -> Path | None:
@@ -258,6 +289,30 @@ def context_path(repo: Repo, item: str, *, required: bool = True) -> Path | None
     if len(paths) != 1 or paths[0].is_symlink() or not paths[0].resolve().is_relative_to(repo.root):
         raise Rejected("Require exactly one local ADO context for Work Item " + item)
     return paths[0]
+
+
+def feature_map_at_commit(repo: Repo, feature: str, commit: str) -> str:
+    """Read prepared metadata from one resolved commit, never the current checkout."""
+    if not SHA.fullmatch(commit):
+        raise Rejected("Resolve the Feature base or target to an exact commit first.")
+    entries: dict[str, tuple[str, str, str]] = {}
+    for record in repo.git("ls-tree", "-r", "-t", "-z", "--full-tree", commit, "--", "work-items").split("\0"):
+        if record:
+            metadata, path = record.split("\t", 1)
+            entries[path] = tuple(metadata.split(" ", 2))
+    folders = [path for path in entries if path.startswith("work-items/" + feature + "-")
+               and "/" not in path.removeprefix("work-items/")]
+    if len(folders) != 1:
+        raise Rejected("Require exactly one prepared folder for Feature " + feature + " at the requested commit.")
+    folder = folders[0]
+    for path in ("work-items", folder):
+        if entries.get(path, ("", "", ""))[:2] != ("040000", "tree"):
+            raise Rejected("Feature metadata parents must be ordinary trees at the requested commit.")
+    for name in ("ado-context.md", "delivery-map.md"):
+        mode, kind, _ = entries.get(folder + "/" + name, ("", "", ""))
+        if kind != "blob" or mode not in {"100644", "100755"}:
+            raise Rejected("Require ordinary ADO context and delivery map files at the requested Feature commit.")
+    return repo.git("cat-file", "blob", entries[folder + "/delivery-map.md"][2])
 
 
 def map_label(value: str) -> str:
@@ -321,12 +376,15 @@ def map_ids(lines: list[str]) -> list[str]:
     return found
 
 
-def feature_members(repo: Repo, feature: str) -> set[str]:
-    context = context_path(repo, feature)
-    maps = list((repo.root / "work-items").glob(feature + "-*/delivery-map.md"))
-    if len(maps) != 1 or maps[0].parent != context.parent or maps[0].is_symlink():
-        raise Rejected("Require exactly one prepared delivery map for Feature " + feature)
-    text = maps[0].read_text(encoding="utf-8")
+def feature_members(repo: Repo, feature: str, *, ref: str | None = None) -> set[str]:
+    if ref is not None:
+        text = feature_map_at_commit(repo, feature, ref)
+    else:
+        context = context_path(repo, feature)
+        maps = list((repo.root / "work-items").glob(feature + "-*/delivery-map.md"))
+        if len(maps) != 1 or maps[0].parent != context.parent or maps[0].is_symlink():
+            raise Rejected("Require exactly one prepared delivery map for Feature " + feature)
+        text = maps[0].read_text(encoding="utf-8")
     sections: dict[str, list[str]] = {"included": [], "deferred": []}
     active = ""
     counts = {"included": 0, "deferred": 0}
@@ -357,7 +415,7 @@ def feature_members(repo: Repo, feature: str) -> set[str]:
     return set(included)
 
 
-def scope_paths(repo: Repo, branch: str, paths: set[str], item: str | None = None) -> None:
+def scope_paths(repo: Repo, branch: str, paths: set[str], item: str | None = None, *, ref: str | None = None) -> None:
     match = BRANCH.fullmatch(branch)
     if not match:
         raise Rejected("Unrecognized delivery branch.")
@@ -372,7 +430,7 @@ def scope_paths(repo: Repo, branch: str, paths: set[str], item: str | None = Non
             raise Rejected("Without local intake, only the existing current-source technical-documentation lane is supported.")
         permitted = {branch_id}
     elif kind == "feature":
-        members = feature_members(repo, branch_id)
+        members = feature_members(repo, branch_id, ref=ref)
         if item and item != branch_id and item not in members:
             raise Rejected("Work Item is absent or deferred in the prepared Feature map.")
         permitted = {branch_id} | ({item} if item else members)
@@ -456,7 +514,7 @@ def author_git_decision(parts: list[str], root: Path, role: str, allowed: Callab
                 args = args[2:]
         if len(args) < 2 or args[0] != "--":
             raise Rejected("Use git add -- <exact files> or git commit -m <subject> [-m <body>] -- <exact files>.")
-        paths = {commit_path(repo, path, allowed) for path in args[1:]}
+        paths = commit_paths(repo, args[1:], allowed)
         if len(paths) != len(args) - 1:
             raise Rejected("Duplicate commit paths are not supported.")
         scope_paths(repo, branch, paths)
@@ -464,47 +522,59 @@ def author_git_decision(parts: list[str], root: Path, role: str, allowed: Callab
         if not staged.issubset(paths):
             raise Rejected("The index contains other paths; preserve them and resolve the commit scope first.")
         if operation == "add":
-            for path in staged & paths:
-                require_index_equality(repo, path)
-            known = repo.dirty() | set(filter(None, repo.git("ls-files", "-z", "--", *sorted(paths)).split("\0")))
+            require_index_equality(repo, staged & paths)
+            known = repo.dirty()
+            for batch in path_batches(repo, paths):
+                known.update(filter(None, repo.git("ls-files", "-z", "--", *batch).split("\0")))
             if not paths.issubset(known):
                 raise Rejected("A staging target is neither a file nor a tracked deletion.")
             return ("allow", "")
         if not staged or paths != staged:
             raise Rejected("The exact path list must equal the complete nonempty staged diff.")
         commit_message(repo, branch, messages, paths)
-        for path in paths:
-            require_index_equality(repo, path)
+        require_index_equality(repo, paths)
         return ("allow", "")
     except (Rejected, OSError, UnicodeError) as exc:
         return ("deny", str(exc))
 
 
-def require_index_equality(repo: Repo, path: str) -> None:
-    if repo.git("diff", "--name-only", "--no-ext-diff", "--no-textconv", "--no-renames", "-z", "--", path):
-        raise Rejected("Selected files differ between index and working tree; do not restage automatically.")
-    entries = repo.git("ls-files", "--stage", "-z", "--", path)
-    flags = repo.git("ls-files", "-v", "--", path)
-    if flags and (flags[0].islower() or flags[0] == "S"):
-        raise Rejected("Assume-unchanged/skip-worktree files cannot prove index equality.")
-    if entries and not entries.startswith(("100644 ", "100755 ")):
-        raise Rejected("Only ordinary files and tracked deletions belong in this commit.")
-    file = repo.root / path
-    if not entries and file.exists():
-        raise Rejected("A staged deletion was recreated in the working tree.")
-    if entries:
-        index_oid = entries.split(" ", 2)[1]
-        # diff may trust the index's cached size/mtime. Hash current bytes afresh
-        # with the same clean filters/CRLF normalization Git uses for this path.
-        working_oid = repo.git("hash-object", "--path=" + path, "--", path).strip()
-        if working_oid != index_oid:
-            raise Rejected("The selected file content differs from the index; do not restage automatically.")
-    # On POSIX executable mode exists even if core.filemode=false hides it from diff.
-    # Windows has no equivalent executable bit; Git's index mode is authoritative there.
-    if entries and os.name != "nt":
-        expected_executable = entries.startswith("100755 ")
-        if bool(file.stat().st_mode & 0o111) != expected_executable:
-            raise Rejected("The selected file mode differs from the index.")
+def require_index_equality(repo: Repo, paths: set[str]) -> None:
+    for batch in path_batches(repo, paths):
+        if repo.git("diff", "--name-only", "--no-ext-diff", "--no-textconv", "--no-renames", "-z", "--", *batch):
+            raise Rejected("Selected files differ between index and working tree; do not restage automatically.")
+        indexed: dict[str, tuple[str, str]] = {}
+        records = repo.git("ls-files", "--stage", "-v", "-z", "--", *batch)
+        if records and not records.endswith("\0"):
+            raise Rejected("Could not prove complete index records for the selected paths.")
+        for record in filter(None, records.split("\0")):
+            metadata, separator, path = record.partition("\t")
+            parts = metadata.split()
+            if not separator or len(parts) != 4 or path not in batch or path in indexed:
+                raise Rejected("Could not prove exact index entries for the selected paths.")
+            flag, mode, oid, stage = parts
+            if len(flag) != 1 or flag.islower() or flag == "S":
+                raise Rejected("Assume-unchanged/skip-worktree files cannot prove index equality.")
+            if mode not in {"100644", "100755"} or stage != "0" or not SHA.fullmatch(oid):
+                raise Rejected("Only ordinary files and tracked deletions belong in this commit.")
+            indexed[path] = (mode, oid)
+        present = [path for path in batch if path in indexed]
+        if present:
+            # Git hashes each real path afresh, using that path's clean filters and
+            # EOL rules. Output order follows argv; diff alone can trust stale stat data.
+            hashes = repo.git("hash-object", "--", *present).splitlines()
+            if len(hashes) != len(present) or any(
+                actual != indexed[path][1] for path, actual in zip(present, hashes)
+            ):
+                raise Rejected("The selected file content differs from the index; do not restage automatically.")
+        for path in batch:
+            file = repo.root / path
+            if path not in indexed:
+                if file.exists():
+                    raise Rejected("A staged deletion was recreated in the working tree.")
+            elif os.name != "nt":
+                # Inspect mode after clean conversion, as in the per-file check.
+                if bool(file.stat().st_mode & 0o111) != (indexed[path][0] == "100755"):
+                    raise Rejected("The selected file mode differs from the index.")
 
 
 def bootstrap(repo: Repo, operation: str, args: list[str], allowed: Callable[[str], bool]) -> tuple[str, str]:
@@ -522,9 +592,10 @@ def bootstrap(repo: Repo, operation: str, args: list[str], allowed: Callable[[st
         if dirty:
             if repo.oid("HEAD") != target:
                 raise Rejected("Dirty remote-branch resume requires the same HEAD; preserve and inspect the changes.")
-            for path in dirty:
-                commit_path(repo, path, allowed)
+            commit_paths(repo, list(dirty), allowed)
             scope_paths(repo, branch, dirty)
+        elif branch.startswith("feature/"):
+            scope_paths(repo, branch, set(), ref=target)
         return ("allow", "")
     creating = operation == "branch" or (bool(args) and args[0] == ("-c" if operation == "switch" else "-b"))
     if operation != "branch" and creating:
@@ -537,25 +608,27 @@ def bootstrap(repo: Repo, operation: str, args: list[str], allowed: Callable[[st
         raise Rejected("Use a plain delivery branch create/switch, without force or reset flags.")
     branch = args[0]
     dirty = repo.dirty() | repo.staged()
-    for path in dirty:
-        commit_path(repo, path, allowed)
-    scope_paths(repo, branch, dirty)
+    commit_paths(repo, list(dirty), allowed)
     current = repo.git("symbolic-ref", "--quiet", "--short", "HEAD").strip()
     if not creating:
         target = repo.oid("refs/heads/" + branch)
         if dirty and target != repo.oid("HEAD"):
             raise Rejected("Dirty changes cannot be switched onto a different commit; preserve and inspect them.")
+        scope_paths(repo, branch, dirty, ref=None if dirty else target)
         return ("allow", "")
+    # New intake on synchronized main can still be uncommitted. Validate the
+    # carried files in that working tree; a remote Feature base is checked below.
+    scope_paths(repo, branch, dirty)
     existing = repo.git("for-each-ref", "--format=%(refname)", "refs/heads/" + branch, "refs/remotes/origin/" + branch)
     if existing.strip():
         raise Rejected("The branch exists locally or remotely; resume only after inspection.")
     base = args[1] if len(args) == 2 else "origin/main"
+    base_oid = repo.oid("refs/remotes/" + base)
     if base != "origin/main":
         match = re.fullmatch(r"origin/feature/([1-9][0-9]*)-[a-z0-9][a-z0-9-]*", base)
         child = BRANCH.fullmatch(branch)
-        if not match or child.group(1) != "work-item" or child.group(2) not in feature_members(repo, match.group(1)):
+        if not match or child.group(1) != "work-item" or child.group(2) not in feature_members(repo, match.group(1), ref=base_oid):
             raise Rejected("A parallel child requires its exact confirmed remote Feature base and included membership.")
-    base_oid = repo.oid("refs/remotes/" + base)
     if base == "origin/main":
         if current != "main" or repo.oid("HEAD") != base_oid:
             raise Rejected("Bootstrap requires local main equal to confirmed origin/main; do not reset or pull.")
@@ -738,7 +811,8 @@ def gh_decision(parts: list[str], root: Path, role: str | None) -> tuple[str, st
                 raise Rejected("The final Feature PR targets main.")
             if base != "main":
                 head = BRANCH.fullmatch(repo.branch())
-                if head.group(1) != "work-item" or head.group(2) not in feature_members(repo, base.split("/", 1)[1].split("-", 1)[0]):
+                base_oid = repo.oid("refs/remotes/origin/" + base)
+                if head.group(1) != "work-item" or head.group(2) not in feature_members(repo, base.split("/", 1)[1].split("-", 1)[0], ref=base_oid):
                     raise Rejected("A child PR must be included in its target Feature.")
         if operation == "edit" and not ({"title", "body-file"} & opts.keys()):
             raise Rejected("pr edit changes only the requested title and/or body file.")

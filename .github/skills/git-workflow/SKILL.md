@@ -77,11 +77,15 @@ and after intake when the context establishes the item identity. It is also avai
    already exist. A clean checkout can resume it; dirty in-scope changes can follow only
    when current HEAD equals the confirmed remote HEAD, preserving staged/unstaged content.
    Do not let implicit tracking or another remote select the branch.
+   For clean Feature resume, inspect the prepared context and map at the exact target commit.
+   A map in the current checkout does not establish the scope of a different target.
 5. For a new branch, fetch `origin` and prove the intended base. Local `main` must equal the
    confirmed `origin/main`. The explicit parallel-child case uses the confirmed remote
    Feature branch, never an unpushed local branch. Behind/ahead/diverged or unreadable bases,
    detached HEAD, conflicts, or an operation in progress require resolving that actual state.
    Never pull, rebase, reset, clean, or stash as an automatic bootstrap shortcut.
+   For a parallel child, confirm included membership in the map at that resolved remote
+   Feature commit. New Feature intake prepared on synchronized main still uses its local map.
 6. Create/switch the proper branch from that base. When files already exist on synchronized
    `main`, this may carry the current task's intake, design, plan, code, or explicitly requested
    human changes from the same HEAD, preserving staged/unstaged content. Other changes require
@@ -137,6 +141,9 @@ not only at the end of the entire delivery. A read-only fetch or ignored-cache u
 The guard checks role, paths and Git state, not semantic authorship. One active writer is required
 through stage/commit; changed HEAD/index/files require inspection. There is no atomic executor or
 ownership ledger, and unit tests cannot prove transaction isolation.
+Git inspection uses bounded groups of exact file arguments under one three-second budget.
+Fresh hashes still use each file's Git clean filters and line-ending rules; batching does not
+permit partial staging, ignored paths, or a mismatch between the index and working tree.
 
 ### Attribution and message
 
@@ -184,6 +191,8 @@ requires correction; never widen to another repository just to make a command su
    or use `--fill` instead of writing a truthful description. Update an existing matching PR
    with `pr edit` and the same body-file procedure, preserving human changes. Title/body edits
    must not change the base, reviewers, assignees, or unrelated PR fields.
+   A child PR targeting a Feature must be included in the map at its confirmed remote base
+   commit. Fetch and inspect that exact base if its local remote-tracking ref is unavailable.
 4. `pr ready`/`pr ready --undo` are available for an explicitly requested operation. Automatic
    Draft → Ready criteria belong to the separate Ready workflow; this skill does not invent
    them or turn passing checks alone into a Ready transition.
