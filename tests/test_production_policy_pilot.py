@@ -91,6 +91,24 @@ class PortablePilotTests(unittest.TestCase):
                     self.assertNotIn('PRIVATE-GIT-ERROR', result.stdout + result.stderr)
         self.assertFalse((self.root / '.cache/executor.jsonl').exists())
 
+    def test_ado_scope_dependency_missing_broken_or_crashing_import_is_sanitized_deny(self):
+        module = self.root / 'scripts/ado_config.py'
+        for broken in (None, 'raise RuntimeError("PRIVATE-ADO-ERROR")\n', 'invalid python !!!\n'):
+            if broken is None:
+                module.unlink()
+            else:
+                module.write_text(broken)
+            with self.subTest(broken=broken):
+                result = subprocess.run(
+                    [sys.executable, '-B', str(self.root / 'scripts/copilot_safety_hook.py')],
+                    input='{}', cwd=self.root, env=self.env,
+                    text=True, capture_output=True, timeout=5,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(json.loads(result.stdout)['hookSpecificOutput']['permissionDecision'], 'deny')
+                self.assertNotIn('PRIVATE-ADO-ERROR', result.stdout + result.stderr)
+        self.assertFalse((self.root / '.cache/executor.jsonl').exists())
+
 
 class HostProtocolProbeTests(unittest.TestCase):
     def make_probe(self, mode):

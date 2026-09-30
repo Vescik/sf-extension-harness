@@ -12,12 +12,7 @@
       "command": "node",
       "cwd": "${workspaceFolder}",
       "args": [
-        "node_modules/@azure-devops/mcp/dist/index.js",
-        "${env:ADO_ORGANIZATION}",
-        "-d",
-        "work-items",
-        "wiki",
-        "search"
+        "scripts/start_ado_mcp.mjs"
       ]
     },
     "salesforce": {

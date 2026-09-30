@@ -10,7 +10,7 @@ Apply the [shared execution contract](../../../.ai/contracts/execution-contract.
 guard is the enforcement point; this skill is the procedure, never a substitute for the hook.
 
 1. **Classify.** Sort every path the request touches: standard control plane (edit freely),
-   root of trust (the guard/safety hook, native Salesforce extension/package and private policy/session/job runtime, `.github/agents/**`, MCP/VS Code configuration,
+   root of trust (the guard/safety hook, ADO launcher/scope validation, native Salesforce extension/package and private policy/session/job runtime, `.github/agents/**`, MCP/VS Code configuration,
    harness config, the workspace file — human confirmation required), or out of scope
    (Salesforce source, work items, governed Knowledge, local config, caches other than the
    exact PR transport path `.cache/github/pr-body.md`, `output/` —

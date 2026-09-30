@@ -62,10 +62,12 @@ class TestNativeRuntimePackage(unittest.TestCase):
             "sys.path.insert(0, str(runtime))",
             "import salesforce_operation_session as session",
             "import copilot_safety_hook as safety",
+            "import ado_config",
             "import git_workflow_policy as git_policy",
-            "for module in (session, session.policy, safety, git_policy):",
+            "for module in (session, session.policy, safety, ado_config, git_policy):",
             "    assert Path(module.__file__).resolve().parent == runtime, module.__file__",
             "assert safety.git_policy is git_policy",
+            "assert safety.ado_config_error is ado_config.ado_config_error",
             f"print({sentinel!r})",
         ])
         result = subprocess.run(
@@ -85,6 +87,16 @@ class TestNativeRuntimePackage(unittest.TestCase):
         manifest["files"] = [
             item for item in manifest["files"] if item["path"] != "git_workflow_policy.py"
         ]
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+        result = self.verify_runtime()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Packaged runtime is incomplete", result.stderr)
+
+    def test_host_rejects_manifest_that_omits_ado_scope_dependency(self) -> None:
+        manifest_path = self.runtime / "source-manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        self.assertIn("ado_config.py", {item["path"] for item in manifest["files"]})
+        manifest["files"] = [item for item in manifest["files"] if item["path"] != "ado_config.py"]
         manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
         result = self.verify_runtime()
         self.assertNotEqual(result.returncode, 0)
