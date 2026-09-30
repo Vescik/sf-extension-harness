@@ -618,8 +618,26 @@ def ado_scope_error(
     projects = project if isinstance(project, list) else [project]
     if not projects or any(not isinstance(value, str) or not value for value in projects):
         return "ADO tool call does not prove its configured project scope"
-    if any(project != configured_project for project in projects):
-        return "ADO tool call targets a project outside local policy"
+    # Other vendor tools consume projectId or pullRequestProjectId instead of
+    # project. A matching extra field must not mask a different consumed scope.
+    project_keys = {
+        "project", "projectid", "project_id", "projectname", "project_name",
+        "pullrequestprojectid", "pull_request_project_id", "pullrequestproject_id",
+    }
+    pending = [tool_input]
+    while pending:
+        value = pending.pop()
+        if isinstance(value, dict):
+            for key, child in value.items():
+                if key.lower().replace("-", "_") in project_keys:
+                    selectors = child if isinstance(child, list) else [child]
+                    if not selectors or any(not isinstance(item, str) or not item for item in selectors):
+                        return "ADO tool call does not prove its configured project scope"
+                    if any(item != configured_project for item in selectors):
+                        return "ADO tool call targets a project outside local policy"
+                pending.append(child)
+        elif isinstance(value, list):
+            pending.extend(value)
     urls = extract_urls(flatten(tool_input)) + collect_named_values(tool_input, {"url"})
     for raw_url in urls:
         url = raw_url.rstrip(".,);]")
