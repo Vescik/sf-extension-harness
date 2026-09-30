@@ -8,9 +8,8 @@ MCP within role limits. Test Strategist cannot target production, including MCP.
 chat confirmation that names the target and scope and warns that changes will be deployed to the
 org; dry runs, retrieve, status/report/resume/cancel, and data mutations do not use that gate.
 
-> The single most common failure ("Blocked by Pre-Tool Use hook" / "Organization name is required")
-> is **not** a config-file problem — it's a missing **`ADO_ORGANIZATION` environment variable**.
-> See **Step 4**. That is the fix for the MCP issue.
+> ADO reads its organization and project from `config\harness.local.json`. A startup error names
+> the field to repair. See **Step 4** for configuration, sign-in, and restart instructions.
 
 ---
 
@@ -67,46 +66,33 @@ npm ci --ignore-scripts
 integrated terminal only resolves `python` to the venv (with `jsonschema`/`PyYAML`) after you select
 it. Without this, commands fail with `ModuleNotFoundError: No module named 'jsonschema'`.
 
-## Step 4 — ⭐ Fix the MCP block: set `ADO_ORGANIZATION` (this is the fix)
+## Step 4 — Configure the ADO target and sign-in
 
-Putting the org in `config\harness.local.json` is **necessary but not sufficient**. The local ADO
-MCP server receives its organization from `${env:ADO_ORGANIZATION}` (an **environment variable**
-in the server args), and the safety hook independently checks that the env var **exactly equals**
-`ado.organization` in your config. If the env var is missing:
+Set `ado.organization` and `ado.project` in `config\harness.local.json` as described in Step 5.
+Use one organization and project per workspace. Use a separate workspace for another scope.
+The no-argument launcher `scripts/start_ado_mcp.mjs` reads this file and checks the ADO scope
+before starting the installed vendor MCP. Missing fields, placeholders, invalid origins, or
+missing dependencies produce a local startup error before the vendor connects to ADO.
 
-- the server gets no org argument → it fails to start, and
-- the hook sees runtime-org `""` ≠ policy-org → **"Blocked by Pre-Tool Use hook"**.
+Start `ado-readonly` in VS Code and complete the connector's interactive OAuth sign-in with
+your own account. The pinned vendor version 2.8.1 uses this flow by default in VS Code Local.
+Azure CLI login is not required. Never store credentials in the local configuration file.
 
-The server also needs your own Azure sign-in once: `az login` (Azure CLI). Agents never see or
-handle those credentials.
+Restart `ado-readonly` after changing the organization or project. The launcher stops the old
+process when it detects a scope change. Restarting all VS Code windows is not required.
 
-Set it to the **exact same org slug** as `ado.organization` in your config (the short slug, e.g.
-`contoso` — not the full URL):
-
-```powershell
-# Option A — persistent (recommended). Sets a user env var; affects NEW processes only.
-setx ADO_ORGANIZATION "your-org-slug"
-#   then FULLY QUIT VS Code (all windows; confirm no Code.exe in Task Manager) and reopen.
-#   "Reload Window" is NOT enough — env vars are read at process launch.
-
-# Option B — per session (quick test). Launch VS Code FROM this same shell so it inherits the var.
-$env:ADO_ORGANIZATION = "your-org-slug"
-code .
-```
-
-Verify it took effect (in a shell that will launch VS Code):
-
-```powershell
-echo $env:ADO_ORGANIZATION        # must print your slug, matching config exactly
-```
+**Migration:** keep your existing local JSON. The retired `ADO_ORGANIZATION` variable no longer
+affects this workspace, even if it contains a different organization. Leave it in place if
+other tools use it. Update the launcher, hooks, and MCP configuration together.
 
 ## Step 5 — Fill `config\harness.local.json`
 
 This file is **gitignored** — it lives only on this machine and does not sync via git, so you fill
 it here on Windows. Set at minimum:
 
-- `ado.organization` — the org slug (must equal `ADO_ORGANIZATION` from Step 4)
+- `ado.organization` — the organization slug, such as `contoso`, without a URL
 - `ado.project` — your ADO project (the hook requires every ADO call to carry this)
+- `ado.allowedHttpsOrigins` — include `https://dev.azure.com/contoso`, matching your organization
 - `ado.releaseQueryId` — your saved release query id (only for release flows)
 - For each sandbox under `salesforce.orgs`: `alias`, `expectedInstanceHost`, `expectedOrganizationId`
 - `salesforce.review.allowedObjectApiNames` — objects the agent may read; `["*"]` = all objects
@@ -115,6 +101,8 @@ it here on Windows. Set at minimum:
 `python scripts\first_launch.py` fills the ADO and sandbox values for you interactively; edit the
 file directly only if you skip the script. For a fully manual, zero-assumptions walkthrough see
 [setup-zero-to-first-prompt.md](setup-zero-to-first-prompt.md).
+When you change the organization manually, replace its old ADO origins too. The script does
+this automatically and preserves other approved HTTPS origins.
 
 **Upgrading an existing machine?** Configs written before 2026-08-05 may carry retired keys the
 schema now rejects (`first_launch.py` reports schema errors until they are deleted): per-org `allowAgent*`,
@@ -174,9 +162,10 @@ There is no separate readiness command: Salesforce MCP proves the selected org's
 identity before tool discovery; ADO scope is checked on every tool call. Optional single-org
 diagnostic: `.\.venv\Scripts\python.exe scripts\verify_salesforce_org.py --org <alias>`.
 
-Then in Copilot Chat: run `/fetch-ado-item itemId=<id>` and a Salesforce review. ADO calls
-should no longer be blocked, and the read facade should return results (the fetch persists
-`work-items/<id>-<slug>/ado-context.md` and stops).
+Local checks do not prove ADO authentication or read access. In Copilot Chat, read one Work
+Item with `/fetch-ado-item itemId=<id>` and one wiki page from the configured project.
+The Work Item fetch persists `work-items/<id>-<slug>/ado-context.md` and stops.
+Run a Salesforce review separately to verify that connection.
 
 ---
 
@@ -192,9 +181,11 @@ Get-Content .cache\denials.log -Tail 20
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `Blocked by Pre-Tool Use hook` on ADO calls | `ADO_ORGANIZATION` env var unset or ≠ `ado.organization` | Step 4: set the env var to the exact slug, **fully restart** VS Code |
-| `Organization name is required. Provide it as a parameter…` | ADO MCP URL is org-less because the env var is unset | Step 4 |
-| ADO tool call denied: "ADO runtime organization does not match local policy" | env var missing or mismatched | Step 4 (exact match, no trailing spaces) |
+| `ADO configuration error: ...` | Missing or invalid local ADO scope | Correct the named key in `config\harness.local.json`, then restart `ado-readonly` |
+| ADO server stops after a configuration edit | Organization or project changed during the session | Check the new scope and restart `ado-readonly` in this workspace |
+| `Blocked by Pre-Tool Use hook` on ADO calls | Missing project or a project/URL outside the configured scope | Read the denial reason; supply the configured project and URL |
+| ADO sign-in or access fails after local validation passes | Connector authentication or project permission is incomplete | Complete interactive OAuth, then verify access to the configured project |
+| Old "ADO runtime organization does not match local policy" error | Partially updated harness | Update the launcher, hooks, and MCP configuration together, then restart `ado-readonly` |
 | `Salesforce MCP startup blocked: development mode is disabled on Windows` / `exit code 2` | Stale MCP config — the `salesforce-development` server was removed 2026-07-14 | Pull the latest `main` and reload VS Code; only `salesforce` and `ado-readonly` should be listed |
 | A review tool answers `BLOCKED` with `IDENTITY_HOST_MISMATCH` / `IDENTITY_ORG_ID_MISMATCH` / `NOT_SANDBOX` / `ORG_ID_DENIED` | the host signature and live identity disagree, the pins point at a different org, or the org ID is on `deniedOrganizationIds`. `IsSandbox=false` alone is not a failure | Step 5/6: verify the intended identity and correct stale pins; check the denylist and role limits. Sanity-check with `python scripts/verify_salesforce_org.py --org <alias>` |
 | `webidl.util.markAsUncloneable is not a function` | Node < 22 | Install Node 22+ (Step 1) |

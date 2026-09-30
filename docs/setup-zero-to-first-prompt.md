@@ -151,10 +151,12 @@ done; `first_launch.py` lists every unresolved placeholder by path.
 
 ## Part 6 — Local configuration
 
-Create your machine-local config from the tracked example:
+Create your machine-local config only if it does not exist:
 
 ```powershell
-Copy-Item config\harness.example.json config\harness.local.json
+if (!(Test-Path config\harness.local.json)) {
+    Copy-Item config\harness.example.json config\harness.local.json
+}
 ```
 
 This file is **gitignored**: it never leaves your machine and is never committed. Open it in
@@ -165,6 +167,7 @@ team lead / harness maintainer:
 |---|---|---|
 | `ado.organization` | Azure DevOps organization slug (e.g. `contoso`, not a URL) | team lead |
 | `ado.project` | ADO project name | team lead |
+| `ado.allowedHttpsOrigins` | Include `https://dev.azure.com/contoso`, matching the organization slug | derived from `ado.organization` |
 | `ado.releaseQueryId` | Saved ADO query id for release scope (only release flows need it) | team lead |
 | `salesforce.orgs[].alias` | Your local alias for each sandbox (you choose it; reuse it in Part 7) | you |
 | `salesforce.orgs[].expectedInstanceHost` | The org's My Domain host (optional pin; set together with the org id) | filled in Part 7 |
@@ -176,23 +179,26 @@ uses direct `sf`/`sfdx` commands for in-scope org changes. Every real deployment
 chat confirmation for its exact target and scope; data mutations do not use that deploy-specific
 gate.
 
-## Part 7 — Set `ADO_ORGANIZATION` and authorize a sandbox
+## Part 7 — ADO sign-in and sandbox authorization
 
-### 7.1 The environment variable (the #1 setup pitfall)
+### 7.1 Start ADO from the local configuration
 
-The ADO MCP server URL is built from an **environment variable**, and the safety hook requires
-it to exactly equal `ado.organization` in your config. Set it persistently:
+The local JSON is the only ADO target configuration. Each workspace supports one organization
+and one project. Use another workspace for a different scope. The no-argument launcher
+`scripts/start_ado_mcp.mjs` validates the configuration before it starts the installed vendor MCP.
+Correct the named key if a startup error reports missing fields, placeholders, or invalid origins.
 
-```powershell
-setx ADO_ORGANIZATION "your-org-slug"
-```
+Start `ado-readonly` in VS Code and complete the connector's interactive OAuth sign-in.
+This is the pinned vendor version 2.8.1 default in VS Code Local. Azure CLI login is not required.
+Never put a token, PAT, or password in `config\harness.local.json`.
 
-Then **fully quit VS Code** (all windows — check no `Code.exe` remains in Task Manager) and
-reopen it. "Reload Window" is NOT enough; environment variables are read at process launch.
-Verify in a new terminal: `echo $env:ADO_ORGANIZATION` prints your slug.
+After changing `ado.organization` or `ado.project`, restart `ado-readonly` in this workspace.
+The launcher stops the old process when it detects a scope change. If you edit the organization
+manually, replace its old ADO origins too. Onboarding preserves other approved HTTPS origins.
 
-macOS/Linux: `export ADO_ORGANIZATION="your-org-slug"` in your shell profile, then launch VS
-Code from that shell.
+For an existing installation, keep your local JSON and update the launcher, hooks, and MCP
+configuration together. The retired `ADO_ORGANIZATION` variable is ignored, including conflicting
+values. You can leave it in place for other tools. No shell profile changes are needed.
 
 ### 7.2 Authorize the sandbox
 
@@ -224,11 +230,11 @@ unlisted alias is also readable, but only configured entries can anchor Knowledg
 .\.venv\Scripts\python.exe -m unittest discover -s tests                          # optional, ~20s
 ```
 
-Both should PASS now. There is no separate readiness command: Salesforce MCP proves the selected
-org's live identity before tool discovery; ADO scope is checked on every
-tool call. If an ADO call fails on the organization not matching local policy, re-check
-Part 7.1 (exact slug, no trailing spaces, VS Code fully restarted). To diagnose one org by
-hand: `.\.venv\Scripts\python.exe scripts\verify_salesforce_org.py --org <alias>`.
+Both should PASS now. These checks do not prove authentication or ADO access. Salesforce MCP
+proves the selected org's live identity before tool discovery. ADO scope is checked on every
+tool call. For an ADO configuration error, correct the named field and restart `ado-readonly`.
+To diagnose one Salesforce org by hand:
+`.\.venv\Scripts\python.exe scripts\verify_salesforce_org.py --org <alias>`.
 
 ## Part 9 — First Copilot prompt
 
@@ -247,7 +253,8 @@ hand: `.\.venv\Scripts\python.exe scripts\verify_salesforce_org.py --org <alias>
    (any real work-item id from your ADO project). The agent should persist the requirement
    snapshot to `work-items/12345-<slug>/ado-context.md`, report it, and stop with the next
    command — without ever showing raw CLI commands or credentials.
-5. Use `docs/production-policy-pilot.md` for a synthetic production CLI query/deploy denial test.
+5. Read one known wiki page in the same project to verify wiki access after setup or migration.
+6. Use `docs/production-policy-pilot.md` for a synthetic production CLI query/deploy denial test.
    Existing MCP reads remain permitted within role limits; Test Strategist cannot target prod.
    Never test forbidden execution on a real production org.
 
@@ -264,9 +271,9 @@ Get-Content .cache\denials.log -Tail 20
 ```
 
 Then use the symptom table in [windows-setup.md](windows-setup.md#troubleshooting--the-exact-errors-and-their-fixes).
-The three most common failures are: `ADO_ORGANIZATION` not set / VS Code not fully restarted
-(Part 7.1), the `.venv` interpreter not selected (Part 3), and placeholders still present in
-`config\harness.local.json` (Part 6).
+Check the named ADO configuration field and restart `ado-readonly` after scope changes
+(Part 7.1). Also check the `.venv` interpreter selection (Part 3) and unresolved placeholders
+in `config\harness.local.json` (Part 6).
 
 ## Production read-only migration and acceptance
 

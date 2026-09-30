@@ -218,6 +218,8 @@ def check_required_files(audit: Audit) -> None:
         ".vscode/mcp.json",
         ".github/mcp.json",
         "scripts/knowledge_mcp_server.mjs",
+        "scripts/start_ado_mcp.mjs",
+        "scripts/ado_config.py",
         "config/harness.example.json",
         "schemas/harness-config.schema.json",
         "requirements-dev.lock",
@@ -636,22 +638,13 @@ def check_settings_and_mcp(audit: Audit) -> None:
     audit.require(ado.get("cwd") == "${workspaceFolder}", "ADO MCP must start in the workspace root")
     audit.require(
         ado.get("args")
-        == [
-            "node_modules/@azure-devops/mcp/dist/index.js",
-            "${env:ADO_ORGANIZATION}",
-            "-d",
-            "work-items",
-            "wiki",
-            "search",
-        ],
-        "ADO MCP args must resolve the lockfile-installed entrypoint, take the organization "
-        "from the environment (checked per-call by the safety hook), and bound the domains to "
-        "work-items/wiki/search (the Test Plans domain retired with the QA sync lane; linked "
-        "Test Cases are read as Work Items)",
+        == ["scripts/start_ado_mcp.mjs"],
+        "ADO MCP must use the local-config launcher without environment organization or extra arguments",
     )
+    audit.require(not ado.get("env") and not ado.get("envFile"), "ADO MCP must not add a second environment configuration source")
     audit.require(
-        "@azure-devops/mcp" in json.dumps(load_json(ROOT / "package.json", audit) or {}),
-        "@azure-devops/mcp must be a declared dependency, not a runtime acquisition",
+        (load_json(ROOT / "package.json", audit) or {}).get("dependencies", {}).get("@azure-devops/mcp") == "2.8.1",
+        "@azure-devops/mcp must remain pinned to 2.8.1, not a runtime acquisition",
     )
     audit.require(not any(item.get("id") == "ado_org" for item in mcp.get("inputs", [])), "independent ADO organization prompt is forbidden")
     for name in ("salesforce",):

@@ -84,6 +84,11 @@ Salesforce review MCP proves the selected org's live identity live at startup, a
 scope is checked on every tool call. `python scripts/verify_salesforce_org.py --org <alias>` is
 an optional human diagnostic for one org.
 
+ADO uses one organization and project from `config/harness.local.json`. The launcher validates
+that scope before starting the pinned vendor MCP. Complete the connector's interactive OAuth
+sign-in in VS Code Local. Restart `ado-readonly` after changing the organization or project.
+See [the setup guide](SETUP.md#3-local-configuration) for configuration and migration details.
+
 The workflows that need `config/harness.local.json` intentionally fail closed until it contains
 real, human-owned environment/process values and the package/component review scope.
 Empty Knowledge produces explicit unknowns, not fabricated package facts.
