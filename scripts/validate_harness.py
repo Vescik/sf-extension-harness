@@ -467,6 +467,22 @@ def check_customizations(audit: Audit, root: Path = ROOT) -> None:
             effective_tools = data.get("tools", agents[prompt_agent].get("tools")) or []
             audit.require("execute/runInTerminal" in effective_tools,
                           f"{relative(path)}: prompt must retain the role's guarded terminal for GitHub reads")
+        if name == "document-solution":
+            audit.require(prompt_agent == "developer", "document-solution must use the Developer role guard")
+            required_tools = {"read", "search", "edit/editFiles", "execute/runInTerminal"}
+            documentation_tools = required_tools | {
+                "vscode/askQuestions", "ado-readonly/*", "knowledge/*",
+                "salesforce/review_org_identity", "salesforce/review_installed_packages",
+                "salesforce/review_object_contract", "salesforce/review_soql_query",
+            }
+            selected_tools = data.get("tools", agents.get(prompt_agent, {}).get("tools"))
+            selected = set(selected_tools) if isinstance(selected_tools, list) and all(
+                isinstance(tool, str) for tool in selected_tools
+            ) else set()
+            audit.require(required_tools.issubset(selected),
+                          "document-solution needs source reads, search, file edits, and guarded Git")
+            audit.require(selected.issubset(documentation_tools),
+                          "document-solution tools must stay within documentation and read-only sources")
         audit.require("skill](" in body.lower(), f"{relative(path)}: prompt must link its skill")
         if isinstance(name, str):
             prompt_names.append(name)

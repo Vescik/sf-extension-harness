@@ -31,7 +31,7 @@ Four points hold across every path:
   existing read-only Salesforce facade within role limits. Confirmation cannot override a
   production denial. Test Strategist cannot use production, including MCP, in either QA lane.
 - You decide whether a proposed design, scope, or Knowledge approval proceeds.
-- Durable work belongs in repository artifacts (`work-items/`, `.ai/knowledge/`),
+- Durable work belongs in repository artifacts (`work-items/`, `docs/solutions/`, `.ai/knowledge/`),
   not in chat memory. `output/` holds ignored temporary drafts and reports.
 
 Agents answer in the conversation language; English chat uses technical English. New artifact
@@ -480,6 +480,33 @@ artifacts:
   (or a contiguous `base=<ref> head=<ref>` range). Without exact attribution the review
   returns `INCOMPLETE` rather than guessing.
 
+## Document an implemented solution
+
+Use `/document-solution` when you want a coherent explanation of a solution across components
+or Stories. Name the topic and its boundaries, for example:
+
+```text
+/document-solution Invoice approval: routing, reviewer actions, and failure handling
+```
+
+You can add `itemId=<ID>` or `documentationPath=docs/solutions/<slug>/`. A Work Item and design
+are optional. The Developer uses the [document-solution skill](../.github/skills/document-solution/SKILL.md)
+to create or update exactly three plain Markdown files in one stable solution directory:
+
+- `overview.md`: purpose, scope, architecture, configuration, limitations, and useful links;
+- `flows.md`: scenarios, component interactions, outcomes, failures, and available verification;
+- `components.md`: the component catalog, behavior, dependencies, and implementation rationale.
+
+Later Stories update relevant passages in the same set and preserve human notes. The command
+runs on request, on the current work branch, with the existing local commit procedure.
+It does not require Knowledge setup, create a design, or replace `/document-metadata-change`.
+Delivery documentation, handover, and Knowledge keep their existing contracts.
+
+The files can describe implementation on a work branch before deployment. Sources and material
+unknowns stay explicit; a local commit or merge does not prove production state. Wiki publication
+and any ADO links remain separate requested work. The main wiki describes deployed production
+behavior. Business-domain navigation can link to one solution without duplicating its local set.
+
 ## Feature Knowledge
 
 Two kinds of governed Knowledge live in this workspace, and they answer different questions:
@@ -516,6 +543,7 @@ reviewing impact across a curated feature boundary. For the governing detail, se
 | `work-items/<id>-<slug>/technical-documentation.md` | Optional durable documentation of a requested change or existing state; separate from review and wiki publication |
 | `work-items/<id>-<slug>/org-changes.md` | Optional append-only operational history of qualifying Salesforce mutations; an agent report, not approval/evidence |
 | `work-items/<feature-id>-<slug>/delivery-map.md` | Explicit membership and order of an actively prepared ADO Feature's delivery — coordination only (Feature folders only) |
+| `docs/solutions/<slug>/{overview,flows,components}.md` | Optional three-file description of an implemented solution, maintained across Stories; separate from delivery documentation and wiki publication |
 | `docs/org-changes/**` | Standalone org-change history only when no Work Item or prepared Feature applies |
 | `output/**` | Ignored temporary drafts and reports, including monthly handover, Feature Health, and adhoc fix notes |
 | `.ai/knowledge/**` | Governed Knowledge, written only through its existing lanes |
@@ -553,6 +581,7 @@ action — supply it, or stop the work.
 | Author Feature Knowledge | `/author-feature <slug-or-name>` |
 | Assess feature coverage | `/feature-health itemId=<Feature ID>` |
 | Document one Work Item's change or existing state | `/document-metadata-change itemId=<ID>` |
+| Document an implemented solution across components or Stories | `/document-solution <topic and scope>` with optional `itemId=<ID>` and `documentationPath=docs/solutions/<slug>/` |
 | Publish/update a PR or merge | Explicitly ask the active executing author; Git Agent is optional assistance |
 
 This table lists the entry points behind the playbooks above, not the whole catalog — the

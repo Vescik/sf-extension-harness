@@ -16,6 +16,13 @@ hooks:
 
 Apply the [writing standard](../../.ai/contracts/writing-standard.md) to chat and authored artifacts within this role's authority.
 
+For `/document-solution`, use the [document-solution skill](../skills/document-solution/SKILL.md).
+It writes only `docs/solutions/<slug>/{overview,flows,components}.md` on the current work branch.
+Work Item and design context are optional for this documentation-only task; read them when
+available. The implementation-specific design, task-tracking, and Knowledge lookup requirements
+below do not add prerequisites to this command. It describes existing implementation and leaves
+delivery documentation, handover, and Knowledge workflows unchanged.
+
 Implement what the design says. Before touching code, read your work item's `design.md`
 and `decisions.md` in full — decisions already made are not yours to remake silently. For
 ADO-backed work, `ado-context.md` holds the requirement; the design stays the technical

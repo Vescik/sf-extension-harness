@@ -163,13 +163,25 @@ Use the artifact's natural sections. Do not impose new headings, a template, or 
 gate on `design.md`, source snapshots, test cases, or append-only logs. Cross-cutting documents
 do not need a fictional Story. Review status, implementation state, and test results are separate.
 
-Requested documentation for a concrete Work Item belongs in
+Requested delivery documentation for a concrete Work Item belongs in
 `work-items/<id>-<slug>/technical-documentation.md`. Use the stable folder and update procedure
 in the Generate Technical Documentation skill. This optional file is not a development or QA gate.
 Read it only when the current task needs it. `output/` holds temporary results, including the
 existing handover, Feature Health, and adhoc outputs. A local document is not committed,
 reviewed, deployed, or published merely because its path is durable. Wiki publication and its
 confirmed Work Item link remain separate. Do not migrate historical output in bulk.
+
+`/document-solution` has a separate, scoped output contract: exactly `overview.md`, `flows.md`,
+and `components.md` in `docs/solutions/<solution-slug>/`. These are plain Markdown files, with
+useful source links and material unknowns beside the relevant description. The report envelope
+below does not apply to this set. Do not add frontmatter, JSON envelopes, claims, SHA/digests,
+revision fields, freshness registries, or a fourth report. Follow the
+[Document Solution skill](../../.github/skills/document-solution/SKILL.md) for creation and updates.
+Work Item context and design are optional sources for this workflow; missing ones do not require
+intake or a substitute design. Repository sources can support the description without a new
+Knowledge lookup, bootstrap, or authoring step. If the current task already uses governed
+Knowledge, preserve its existing read and reference-validation rules. These exceptions apply
+only to `/document-solution`; other workflows retain their entry, Knowledge, and output contracts.
 
 Every generated report, draft, or returned structured context states:
 

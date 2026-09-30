@@ -52,6 +52,7 @@
         "instructions": [],
         "skills": [
           "development",
+          "document-solution",
           "git-workflow"
         ]
       },
@@ -230,7 +231,7 @@
     },
     {
       "path": "docs",
-      "purpose": "Setup, architecture, compatibility docs"
+      "purpose": "Setup, architecture, compatibility, and solution documentation"
     },
     {
       "path": "evals",
@@ -329,6 +330,13 @@
       "description": "Generate or update a sourced technical-documentation draft for one work item.",
       "name": "document-metadata-change",
       "path": ".github/prompts/document-metadata-change.prompt.md"
+    },
+    {
+      "agent": "developer",
+      "argumentHint": "<solution topic and scope> [itemId=<ID>] [documentationPath=docs/solutions/<slug>/]",
+      "description": "Create or update three linked Markdown files for an implemented Salesforce solution.",
+      "name": "document-solution",
+      "path": ".github/prompts/document-solution.prompt.md"
     },
     {
       "agent": "test-strategist",
@@ -460,6 +468,11 @@
       "path": ".github/skills/development/SKILL.md"
     },
     {
+      "description": "Create or update three plain Markdown files that explain one implemented Salesforce solution, its scenarios, components, and rationale.",
+      "name": "document-solution",
+      "path": ".github/skills/document-solution/SKILL.md"
+    },
+    {
       "description": "Fetch and normalize one Azure DevOps work item or a one-level hierarchy with cache completeness, optional Test Case relations, and provenance. Internal context for documentation, coverage, and handover workflows; the public delivery intake additionally persists work-items/<id>-<slug>/ado-context.md.",
       "name": "fetch-ado-item",
       "path": ".github/skills/fetch-ado-item/SKILL.md"
@@ -536,13 +549,13 @@
     }
   ],
   "sourceDigests": {
-    ".ai/contracts/execution-contract.md": "sha256:72e8ec5ecea4d6fd9029780781061e67de4416c129e4bf20926312682710057a",
+    ".ai/contracts/execution-contract.md": "sha256:c7c8b8d66fb0ff9b569824e3041982355973461023fe06b9ed14252bf34dbb64",
     ".ai/contracts/source-authority.md": "sha256:2f09e0dd29304be2c53df4c8abe01776868051326867f7efcf82332557079183",
     ".ai/contracts/tool-capabilities.md": "sha256:45fd93c811ea923c2eb0426896a600386e56d07b944522e304cc0ed608e9cc2c",
     ".ai/contracts/writing-standard.md": "sha256:edf666b8198130c907f4f9bf52abc6572182dc1565025503870a0a54fdfa2b50",
     ".github/agents/config-investigator.agent.md": "sha256:a8834db3bce7aecb1d6b8a2579d88df83088f0bb73398d1c62ce840b1c333f91",
     ".github/agents/designer.agent.md": "sha256:a42edf23c6e5629616b942b9fa755aaef06f7a1f24f6e541e6d80ce5f3319472",
-    ".github/agents/developer.agent.md": "sha256:75fead69415ca7a8fa8ba423c25d4bb1444570056138e26bbc7e3549eb146a8e",
+    ".github/agents/developer.agent.md": "sha256:b116cb0499cf7642212cf53dc1b277a4c3f024401e5fe63369724e3fbb23c4bf",
     ".github/agents/git-agent.agent.md": "sha256:a2ac20faba89479bc66da0f13718b84a3b1a215288bfbdaf61bc36752ed65374",
     ".github/agents/knowledge-curator.agent.md": "sha256:544b3e94791faa05558e7101428d289a29e788d93d15285d926046e586562890",
     ".github/agents/reviewer.agent.md": "sha256:23f5130cbe63cc05b2dfc1770136ab1cec4d69f3bca270e4959037128c71ffa9",
@@ -557,6 +570,7 @@
     ".github/prompts/check-against-principles.prompt.md": "sha256:77bed8a8bfa93825f1770480295faf7e70e3630e8597b2cc9538c87f08273310",
     ".github/prompts/curate-knowledge.prompt.md": "sha256:818076a6aefcff40a5620d74b946ebe72d3def5f0ae52302768346b870132fed",
     ".github/prompts/document-metadata-change.prompt.md": "sha256:b1997d99f62dafebb49873211e88401d97b57c954ef7c8d3fcd2fa1733921095",
+    ".github/prompts/document-solution.prompt.md": "sha256:bf4675735790942615579a42e86848db866ecee41e679694b2b949217dc93e4c",
     ".github/prompts/feature-health.prompt.md": "sha256:c7c088352f0ac57905695c8d571152bddeef8dd6352a958ebe23e0cc0331e8e2",
     ".github/prompts/fetch-ado-item.prompt.md": "sha256:f53408c09319c6f02a4016c9faa95a884ee2f8126c663fc0bf0c06bcd55555ba",
     ".github/prompts/inventory-force-app.prompt.md": "sha256:6ced25c44d8b41fd537e0d72884e72c223ad4a0b566ef6bf217b9818c555a9ee",
@@ -576,6 +590,7 @@
     ".github/skills/check-feature-coverage/SKILL.md": "sha256:6c85754ef9eccdf94ab15cadcfa5cd1a5937aeff58a467e7de35ebb879731da2",
     ".github/skills/curate-knowledge/SKILL.md": "sha256:a8cb40548103832468240a086c07bf5450f8e35aaaaeae9548fbbb26fab3387f",
     ".github/skills/development/SKILL.md": "sha256:c8e382bbe0b8cd8407a9b8fcedd4aebe3d97372157df74777f0bf07aa955222e",
+    ".github/skills/document-solution/SKILL.md": "sha256:48a654a5b13ede23aeb4473a39b051695c40c2ba24f26bf2ea1943e31ffd10c4",
     ".github/skills/fetch-ado-item/SKILL.md": "sha256:0e749a9211662d396de8516efed58d04262160b4d1af7dbe2bf732446abd0b93",
     ".github/skills/generate-release-handover/SKILL.md": "sha256:f5a9cf38a5887743c0901c02a93ee61fe6a2057d6124197a8b33d735a89ee159",
     ".github/skills/generate-technical-documentation/SKILL.md": "sha256:cf2d1cd06c08441e8796ec14107ba6c8efaa20287a73106fb9b13a22d32099d2",
@@ -591,7 +606,7 @@
     ".github/skills/search-knowledge/SKILL.md": "sha256:c526fa7f5435eb80f8064a59d147fd0c37ec714389cb197400d3d7d2b158cd07",
     ".github/skills/selected-files-knowledge/SKILL.md": "sha256:414eebec8329142c45eab0bae4166a9a1e5ead894eaae82b8c697ff3bb7ec122",
     ".github/skills/solution-design/SKILL.md": "sha256:ed4bc8957ce64e012922a80070769a924ec2bca69dac3849101657c292ec6c03",
-    "config/repo-map-seed.json": "sha256:72f5c79f4b9f26e0f5f1520e434621fef6bbac10cdd7812e7d47d316b82c77e6"
+    "config/repo-map-seed.json": "sha256:03eb16ff96ee467b436ce639a6c89ad1af2520efe09e4575d7dd36141f2c023c"
   },
-  "wordCount": 864
+  "wordCount": 880
 }

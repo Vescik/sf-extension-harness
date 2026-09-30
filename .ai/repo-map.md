@@ -20,7 +20,7 @@ the deep directory tree lives in `docs/workspace-topology.md`.
 | `.github/skills` | Internal skill procedures (SKILL.md per folder) |
 | `.vscode` | Workspace settings and MCP server definitions |
 | `config` | Harness config (harness.local.json), policies, seed |
-| `docs` | Setup, architecture, compatibility docs |
+| `docs` | Setup, architecture, compatibility, and solution documentation |
 | `evals` | Safety scenarios, agent scenarios, schema fixtures |
 | `extensions` | Native VS Code tools and packages |
 | `force-app` | The only SFDX source root |
@@ -35,7 +35,7 @@ the deep directory tree lives in `docs/workspace-topology.md`.
 
 - **config-investigator** — Read-only evidence collector for allowlisted …. Loads instructions: managed-package; contracts: source-authority, tool-capabilities, writing-standard; skills: git-workflow, inventory-force-app, investigate-config-records, investigate-object, org-discovery, selected-files-knowledge.
 - **designer** — Design subscriber-owned extensions of the …. Loads contracts: writing-standard; skills: fetch-ado-item, git-workflow, prepare-delivery-feature, solution-design.
-- **developer** — Implement a designed work item …. Loads contracts: writing-standard; skills: development, git-workflow.
+- **developer** — Implement a designed work item …. Loads contracts: writing-standard; skills: development, document-solution, git-workflow.
 - **git-agent** — Help developers with Git conventions, …. Loads contracts: writing-standard; skills: git-workflow.
 - **knowledge-curator** — Maintains governed Knowledge from repository …. Loads instructions: managed-package; contracts: source-authority, writing-standard; skills: approve-knowledge-drafts, curate-knowledge, git-workflow, search-knowledge.
 - **reviewer** — Challenge a design or implementation …. Loads contracts: writing-standard; skills: check-against-principles, git-workflow.
@@ -51,6 +51,7 @@ the deep directory tree lives in `docs/workspace-topology.md`.
 - `check-feature-coverage` — Compare a current Azure DevOps …
 - `curate-knowledge` — Procedure for knowledge-curator — health …
 - `development` — Implement a designed Salesforce work …
+- `document-solution` — Create or update three plain …
 - `fetch-ado-item` — Fetch and normalize one Azure …
 - `generate-release-handover` — Compose a current, sourced monthly …
 - `generate-technical-documentation` — Generate or update durable technical …
@@ -75,6 +76,7 @@ the deep directory tree lives in `docs/workspace-topology.md`.
 - `/check-against-principles` → reviewer
 - `/curate-knowledge` → knowledge-curator
 - `/document-metadata-change` → developer
+- `/document-solution` → developer
 - `/feature-health` → test-strategist
 - `/fetch-ado-item` → designer
 - `/inventory-force-app` → config-investigator

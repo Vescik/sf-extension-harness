@@ -18,6 +18,10 @@ from urllib.parse import urlparse
 AUTHOR_ROLES = frozenset({"designer", "developer", "test-strategist", "workspace-maintainer"})
 PUBLISH_ROLES = AUTHOR_ROLES | {"git-agent"}
 PR_BODY = ".cache/github/pr-body.md"
+# Shared exact-file scope for the editor and local documentation commits.
+SOLUTION_DOCUMENTATION_PATTERN = re.compile(
+    r"docs/solutions/[a-z0-9]+(?:-[a-z0-9]+)*/(?:overview|flows|components)\.md"
+)
 BRANCH = re.compile(r"(?:(work-item|feature)/([1-9][0-9]*)-([a-z0-9][a-z0-9-]*)|chore/([a-z0-9][a-z0-9-]*))\Z")
 SHA = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})\Z")
 STATE_MARKERS = ("MERGE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD", "rebase-merge", "rebase-apply", "BISECT_LOG", "index.lock")
@@ -422,12 +426,15 @@ def scope_paths(repo: Repo, branch: str, paths: set[str], item: str | None = Non
     kind, branch_id = match.group(1, 2)
     if kind == "work-item":
         context = context_path(repo, branch_id, required=False)
-        # Plan 02 permits technical documentation from current ADO source without
-        # manufacturing ado-context.md. Empty bootstrap checks may precede writing it.
-        if context is None and paths and not all(re.fullmatch(
-            rf"work-items/{branch_id}-[^/]+/technical-documentation\.md", path
-        ) for path in paths):
-            raise Rejected("Without local intake, only the existing current-source technical-documentation lane is supported.")
+        # Documentation can describe existing sources without manufacturing intake:
+        # the Plan 02 delivery file or Plan 03b's exact three solution files.
+        # Empty bootstrap checks keep their existing behavior.
+        if context is None and paths and not all(
+            re.fullmatch(rf"work-items/{branch_id}-[^/]+/technical-documentation\.md", path)
+            or SOLUTION_DOCUMENTATION_PATTERN.fullmatch(path)
+            for path in paths
+        ):
+            raise Rejected("Without local intake, only delivery or three-file solution documentation is supported.")
         permitted = {branch_id}
     elif kind == "feature":
         members = feature_members(repo, branch_id, ref=ref)

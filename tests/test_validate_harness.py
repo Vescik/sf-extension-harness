@@ -233,6 +233,44 @@ class TestInventoryIsDiscoveredNotCountPinned(GithubCopyBase):
         self.assertIn("public slash-command names collide", audit.errors)
 
 
+class TestSolutionDocumentationRouting(GithubCopyBase):
+    """Protect the new documentation prompt's effective capabilities.
+
+    Generic discovery accepts a different valid role or inherited Developer tools.
+    Such changes would lose the exact-path author or expose native org execution.
+    Mutate those inputs; existing guard and native-policy suites retain runtime proof.
+    """
+
+    PROMPT_PATH = ".github/prompts/document-solution.prompt.md"
+
+    def test_documentation_prompt_has_valid_routing_and_tools(self) -> None:
+        audit = self.run_audit(validate_harness.check_customizations, root=self.root)
+        self.assertEqual(audit.errors, [])
+
+    def test_other_valid_agent_is_rejected(self) -> None:
+        self.rewrite_frontmatter(self.PROMPT_PATH, lambda data: data.update(agent="designer"))
+        audit = self.run_audit(validate_harness.check_customizations, root=self.root)
+        self.assertIn("document-solution must use the Developer role guard", audit.errors)
+
+    def test_inheriting_native_operation_capability_is_rejected(self) -> None:
+        self.rewrite_frontmatter(self.PROMPT_PATH, lambda data: data.pop("tools"))
+        audit = self.run_audit(validate_harness.check_customizations, root=self.root)
+        self.assertIn(
+            "document-solution tools must stay within documentation and read-only sources",
+            audit.errors,
+        )
+
+    def test_missing_edit_capability_is_rejected(self) -> None:
+        self.rewrite_frontmatter(
+            self.PROMPT_PATH, lambda data: data["tools"].remove("edit/editFiles")
+        )
+        audit = self.run_audit(validate_harness.check_customizations, root=self.root)
+        self.assertIn(
+            "document-solution needs source reads, search, file edits, and guarded Git",
+            audit.errors,
+        )
+
+
 class TestWritingStandardWiring(TempRootBase):
     """Plan 02 checks shared contract wiring without a language or style linter."""
 

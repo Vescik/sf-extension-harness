@@ -470,6 +470,8 @@ WORK_ITEM_ORG_CHANGE_LOG_PATTERN = re.compile(
 STANDALONE_ORG_CHANGE_LOG_PATTERN = re.compile(
     r"docs/org-changes/[0-9]{4}-[0-9]{2}-[0-9]{2}-[a-z0-9][a-z0-9-]*\.md"
 )
+# Solution documentation is an exact three-file grant, never a docs/ prefix grant.
+SOLUTION_DOCUMENTATION_PATTERN = git_policy.SOLUTION_DOCUMENTATION_PATTERN
 
 
 PATH_KEYS = {
@@ -825,6 +827,9 @@ def resolve_candidate(raw: str, resolution_root: Path) -> Path | None:
 
 
 def development_edit_allowed(raw: str, resolution_root: Path, role: str = "developer") -> bool:
+    solution_decision = solution_documentation_edit_decision(raw, resolution_root)
+    if solution_decision is not None:
+        return role == "developer" and solution_decision
     if git_policy.pr_body_path(METADATA_ROOT, str(resolution_root / raw)):
         return role in git_policy.PUBLISH_ROLES
     candidate = resolve_candidate(raw, resolution_root)
@@ -841,6 +846,38 @@ def development_edit_allowed(raw: str, resolution_root: Path, role: str = "devel
     if STANDALONE_ORG_CHANGE_LOG_PATTERN.fullmatch(brain_relative):
         return role == "developer"
     return allowed(brain_relative, ALLOWED_PREFIXES[role])
+
+
+def solution_documentation_edit_decision(raw: str, resolution_root: Path) -> bool | None:
+    """Check both the requested name and its target before other Developer grants."""
+    if not raw or raw.startswith(("http://", "https://")):
+        return None
+    candidate = Path(os.path.expanduser(raw))
+    if not candidate.is_absolute():
+        candidate = resolution_root / candidate
+    root = METADATA_ROOT.resolve()
+    try:
+        lexical = candidate.relative_to(root).as_posix()
+    except ValueError:
+        lexical = ""
+    try:
+        resolved = candidate.resolve(strict=False).relative_to(root).as_posix()
+    except ValueError:
+        resolved = ""
+    except (OSError, RuntimeError):
+        return False
+    if not any(path.casefold() == "docs/solutions" or path.casefold().startswith("docs/solutions/")
+               for path in (lexical, resolved)):
+        return None
+    if not SOLUTION_DOCUMENTATION_PATTERN.fullmatch(lexical):
+        return False
+    try:
+        # Reuse the Git workflow's existing traversal, symlink and containment checks.
+        git_policy.exact_path(root, lexical)
+        # An in-place editor write must not alter a protected hard-linked file.
+        return not candidate.exists() or (candidate.is_file() and candidate.stat().st_nlink == 1)
+    except (ValueError, OSError):
+        return False
 
 
 def collect_paths(value: Any, parent_key: str = "") -> Iterable[str]:
@@ -893,6 +930,8 @@ def allowed(relative_path: str, prefixes: tuple[str, ...]) -> bool:
 def role_path_allowed(relative_path: str, role: str) -> bool:
     if relative_path == git_policy.PR_BODY:
         return role in git_policy.PUBLISH_ROLES
+    if SOLUTION_DOCUMENTATION_PATTERN.fullmatch(relative_path):
+        return role == "developer"
     if WORK_ITEM_ORG_CHANGE_LOG_PATTERN.fullmatch(relative_path):
         return role == "developer"
     if STANDALONE_ORG_CHANGE_LOG_PATTERN.fullmatch(relative_path):
