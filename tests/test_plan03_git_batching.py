@@ -94,8 +94,12 @@ class GitBatchingTests(unittest.TestCase):
                     if condition == "hidden edit":
                         file = fixture.root / last
                         metadata = file.stat()
-                        file.write_bytes(b"altered 19\n")
+                        content = file.read_bytes()
+                        # Preserve native CRLF/LF so only content changes, not size.
+                        file.write_bytes(content.replace(b"changed", b"altered", 1))
                         os.utime(file, ns=(metadata.st_atime_ns, metadata.st_mtime_ns))
+                        self.assertEqual(metadata.st_size, file.stat().st_size)
+                        self.assertNotEqual(content, file.read_bytes())
                         self.assertEqual("", fixture.git("diff", "--", last))
                     elif condition == "skip-worktree":
                         fixture.git("update-index", "--skip-worktree", "--", last)
