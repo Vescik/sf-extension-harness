@@ -44,8 +44,10 @@ import subprocess
 import sys
 from pathlib import Path
 try:
+    from scripts.ado_config import ado_config_error
     from scripts import salesforce_operation_policy as sf_policy
 except ModuleNotFoundError:
+    from ado_config import ado_config_error
     import salesforce_operation_policy as sf_policy
 
 from urllib.parse import urlsplit
@@ -210,6 +212,7 @@ def sf_json(sf_path: str, args: list[str]) -> dict | None:
 
 def collect_ado(pending: dict[str, object]) -> None:
     step("Azure DevOps configuration (press Enter to keep the current value)")
+    print("    One organization and project per workspace; saved only in config/harness.local.json.")
     ado_org = prompt("ADO organization")
     ado_project = prompt("ADO project")
     ado_query = prompt("ADO release saved-query id")
@@ -355,11 +358,30 @@ def apply_config(pending: dict[str, object]) -> None:
     ado_org = pending.get("ado.organization")
     if ado_org:
         cfg["ado"]["organization"] = ado_org
-        cfg["ado"]["allowedHttpsOrigins"] = [f"https://dev.azure.com/{ado_org}"]
+        # Keep owner-approved non-ADO origins. Replace all old ADO origins so a
+        # changed organization cannot retain the previous organization's scope.
+        origins = cfg["ado"].get("allowedHttpsOrigins", [])
+        if not isinstance(origins, list):
+            raise ValueError("ADO configuration error: ado.allowedHttpsOrigins must be an array. Set it in config/harness.local.json.")
+        retained = []
+        for origin in origins:
+            try:
+                host = urlsplit(origin).hostname if isinstance(origin, str) else None
+            except ValueError:
+                host = None
+            if (host in {"dev.azure.com", "visualstudio.com"}
+                    or (host and host.endswith((".dev.azure.com", ".visualstudio.com")))):
+                continue
+            retained.append(origin)
+        cfg["ado"]["allowedHttpsOrigins"] = [f"https://dev.azure.com/{ado_org}", *retained]
     if pending.get("ado.project"):
         cfg["ado"]["project"] = pending["ado.project"]
     if pending.get("ado.releaseQueryId"):
         cfg["ado"]["releaseQueryId"] = pending["ado.releaseQueryId"]
+    if any(key.startswith("ado.") for key in pending):
+        error = ado_config_error(cfg)
+        if error:
+            raise ValueError(error)
 
     for key, entry in pending.items():
         if not key.startswith("org."):
@@ -430,6 +452,9 @@ def local_config_findings(config_text: str, schema_text: "str | None") -> list[s
     findings = [
         f"unresolved placeholder at {path}" for path in placeholder_paths(config)
     ]
+    ado_error = ado_config_error(config)
+    if ado_error:
+        findings.append(ado_error)
     if schema_text is not None:
         try:
             from jsonschema import Draft202012Validator  # deferred: pre-install python may lack it
@@ -472,6 +497,16 @@ def verify() -> "tuple[bool, list[str] | None]":
     findings = local_config_findings(
         CONFIG_PATH.read_text(encoding="utf-8"), schema_text
     )
+    package_dir = REPO_ROOT / "node_modules" / "@azure-devops" / "mcp"
+    try:
+        package = json.loads((package_dir / "package.json").read_text(encoding="utf-8"))
+        dependency_valid = (isinstance(package, dict) and package.get("name") == "@azure-devops/mcp"
+                            and package.get("version") == "2.8.1"
+                            and (package_dir / "dist" / "index.js").is_file())
+    except (OSError, ValueError):
+        dependency_valid = False
+    if not dependency_valid:
+        findings.append("ADO dependency is missing or does not match version 2.8.1; run npm ci --ignore-scripts.")
     return validate.returncode == 0, findings
 
 
@@ -523,7 +558,7 @@ def main() -> None:
     if config_findings is None:
         warn("config/harness.local.json does not exist yet; re-run this script to create it")
     elif config_findings:
-        warn("local configuration needs setup follow-up:")
+        warn("local setup needs follow-up:")
         for finding in config_findings:
             warn(f"  - {finding}")
         warn("Workflows that need these values will fail closed until they are filled in.")
@@ -537,6 +572,9 @@ def main() -> None:
     )
     print(_c("36", "\nNext steps:"))
     print("  - In VS Code, select the .venv interpreter (Python: Select Interpreter).")
+    print("  - Start ado-readonly in VS Code and complete the connector's interactive OAuth sign-in.")
+    print("  - Restart ado-readonly after changing ado.organization or ado.project.")
+    print("  - Verify one Work Item and one wiki page in the configured project; setup checks do not prove ADO access.")
     print(
         "  - Start the Salesforce MCP; when prompted for \"sf_review_org\", enter an "
         "authorized alias."

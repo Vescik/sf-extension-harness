@@ -320,6 +320,8 @@ ROOT_OF_TRUST_EXACT = frozenset(
     for path in (
         "scripts/copilot_role_guard.py",
         "scripts/copilot_safety_hook.py",
+        "scripts/ado_config.py",
+        "scripts/start_ado_mcp.mjs",
         "scripts/salesforce_operation_policy.py",
         "scripts/git_workflow_policy.py",
         "scripts/salesforce_operation_session.py",

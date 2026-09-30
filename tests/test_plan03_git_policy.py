@@ -729,6 +729,7 @@ class ShellParsingTests(unittest.TestCase):
             with tempfile.TemporaryDirectory() as temp:
                 root = Path(temp)
                 (root / "salesforce_operation_policy.py").write_text("# Import-only fixture\n")
+                shutil.copy2(source / "ado_config.py", root / "ado_config.py")
                 if failure:
                     (root / "git_workflow_policy.py").write_text(failure)
                 for name in ("copilot_role_guard.py", "copilot_safety_hook.py"):

@@ -60,8 +60,9 @@ root rather than searching subfolders, parent directories, sibling directories, 
 
 ## 3. Local configuration
 
-From the repository root, copy `config/harness.example.json` to ignored
-`config/harness.local.json`, then replace every placeholder with approved values. Keep
+From the repository root, create `config/harness.local.json` from `config/harness.example.json`
+only if the local file does not exist. Keep existing settings and replace unresolved placeholders
+with approved values. Keep
 `workspace.salesforceRootName` set to `brain-core`; manifest and promoted-test paths are relative
 to the repository/SFDX root. Select the read facade target explicitly within the active role's
 permissions; production access follows `docs/production-read-only.md`. An org entry is
@@ -93,27 +94,28 @@ keys wherever they appear, or the config schema check in `first_launch.py` repor
 `cache.adoItemMaxAgeMinutes`, `cache.testCaseMaxAgeMinutes`, `workspace.promotedTestsPath`,
 and the whole `browser` section.
 
-The file holds identifiers, allowlists, and paths, not secrets. ADO uses OAuth through VS Code; Salesforce uses
-existing CLI authorization.
+The file holds identifiers, allowlists, and paths, not secrets. ADO uses the connector's
+interactive OAuth flow in VS Code Local. Salesforce uses existing CLI authorization.
 Alias names and environment labels are not identity proof. Salesforce MCP startup checks local
 authorization against live org identity and `Organization.IsSandbox`, with configured pins and
 explicit denylist checks. `IsSandbox=false` alone does not distinguish production from Developer
 Edition; technical org type never overrides the configured production CLI policy. The Developer uses direct `sf`/`sfdx` for org operations; the configured
 MCP remains the structured read/evidence path.
 
-Set `ADO_ORGANIZATION` to the exact non-secret organization slug in local configuration before
-opening VS Code. The MCP URL uses this environment variable, and the global hook requires every
-ADO tool call to match the configured organization and carry the configured project:
+Set `ado.organization` and `ado.project` in `config/harness.local.json`. Use the organization
+slug, such as `example-org`, and the project name. This file is the only ADO target configuration.
+Each workspace supports one organization and one project. Use a separate workspace for another scope.
+Include `https://dev.azure.com/<your-org-slug>` in `ado.allowedHttpsOrigins`. The onboarding
+script replaces old ADO origins when you change the organization and preserves other approved HTTPS origins.
 
-```bash
-# macOS/Linux
-export ADO_ORGANIZATION="example-org"
-# Windows PowerShell
-$env:ADO_ORGANIZATION = "example-org"
-```
+VS Code starts `scripts/start_ado_mcp.mjs` without arguments. The launcher validates the local
+scope before it starts the installed vendor server. It reports configuration errors on stderr.
+Correct the named field in the existing file. Do not replace your local file with the example.
 
-Launch VS Code from the environment where this variable is set, or configure it through the
-approved workstation-management mechanism. Do not substitute an independent organization prompt.
+Restart `ado-readonly` after changing `ado.organization` or `ado.project`. The launcher stops
+the old process when it detects a scope change. Restart only that workspace's ADO server.
+The retired `ADO_ORGANIZATION` variable is ignored, including conflicting values. You can leave
+it in place for other tools. No shell profile change or system environment synchronization is needed.
 
 ## 4. Install validation dependencies
 
@@ -213,11 +215,13 @@ owner decision of 2026-07-14.)
 
 ## 6. External runtimes
 
-- `ado-readonly` runs the local stdio `@azure-devops/mcp` server, version-pinned in
-  `.vscode/mcp.json` and domain-bounded to `work-items`, `wiki`, and `search` (the
-  hosted endpoint did not honor its toolset header, so the local `-d` args replace it). It
-  authenticates with your own Azure CLI login — run `az login` once; agents never handle the
-  credentials.
+- `ado-readonly` starts through `scripts/start_ado_mcp.mjs`. It runs the installed stdio
+  `@azure-devops/mcp` 2.8.1, pinned in `package-lock.json`, with the `work-items`, `wiki`,
+  and `search` domains. Startup does not download a package. In VS Code Local, the vendor
+  defaults to interactive OAuth. Complete its sign-in prompt with your own account.
+  Azure CLI login is not a prerequisite. Never put tokens, PATs, or passwords in local JSON.
+  Local validation does not prove authentication or ADO access. After setup or migration,
+  read one Work Item and one wiki page in the configured project.
 - `salesforce` starts through `scripts/salesforce_review_server.py` (via the interpreter-resolving launcher). It binds one exact
   selected org within the active role's permissions and exposes identity, configured-package,
   allowlisted-object review, composed read-only SOQL (`review_soql_query`), and (when

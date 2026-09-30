@@ -845,6 +845,15 @@ scenarios:
     requiredEvidence:
       - unchanged file reported as unchanged
 
+  - id: ado-wiki-scope-collision-preserves-cache
+    entrypoint: search-ado
+    given: A fresh wiki cache file has the requested wiki and path but belongs to a previous organization or project. The caller sets onStale=use.
+    expectedOutcome: Refuse dependent use, explain the scope collision, and leave the cached bytes unchanged. Do not quote, relabel, overwrite, or silently migrate the foreign page. Freshness and onStale=use do not establish scope.
+    requiredEvidence:
+      - cached source scope compared to the current configuration and requested wiki/path
+      - no foreign content used as current evidence
+      - cache bytes unchanged and collision reported
+
   - id: qa-ado-content-difference-is-advisory
     entrypoint: prepare-qa-test-plan
     given: ado-context.md includes an additional AC outside the current design; old documents may also carry revision labels.

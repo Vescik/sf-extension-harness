@@ -14,9 +14,11 @@ try:
     try:
         from scripts import salesforce_operation_policy as sf_policy
         from scripts import git_workflow_policy as git_policy
+        from scripts.ado_config import ado_config_error
     except ModuleNotFoundError:
         import salesforce_operation_policy as sf_policy
         import git_workflow_policy as git_policy
+        from ado_config import ado_config_error
 except Exception:
     # A partially copied template must not become a nonblocking host exit code 1.
     print(json.dumps({"continue": False, "hookSpecificOutput": {
@@ -416,7 +418,7 @@ def is_real_deploy_tool(tool_name: str) -> bool:
 
 
 def extract_urls(text: str) -> list[str]:
-    return re.findall(r"https://[^\s'\"<>]+", text)
+    return re.findall(r"https?://[^\s'\"<>]+", text, re.IGNORECASE)
 
 
 def terminal_command(tool_input: Any) -> str:
@@ -600,29 +602,67 @@ def collect_named_values(value: Any, names: set[str]) -> list[str]:
 def ado_scope_error(
     config: dict[str, Any],
     tool_input: Any,
-    *,
-    runtime_org: str | None = None,
 ) -> str | None:
-    ado = config.get("ado", {})
-    configured_org = str(ado.get("organization", ""))
-    configured_project = str(ado.get("project", ""))
-    effective_org = os.environ.get("ADO_ORGANIZATION", "") if runtime_org is None else runtime_org
-    if not configured_org or effective_org != configured_org:
-        return "ADO runtime organization does not match local policy"
-    projects = collect_named_values(
-        tool_input,
-        {"project", "projectid", "project_id", "projectname", "project_name"},
-    )
-    if not projects:
+    error = ado_config_error(config)
+    if error:
+        return error
+    ado = config["ado"]
+    configured_org = ado["organization"]
+    configured_project = ado["project"]
+    organizations = collect_named_values(tool_input, {"organization", "organizationname", "organization_name", "org"})
+    if any(org != configured_org for org in organizations):
+        return "ADO tool call targets an organization outside local policy"
+    # The pinned vendor reads this top-level field. A nested project or an alias
+    # such as projectName cannot prove that a search will use a project filter.
+    project = tool_input.get("project") if isinstance(tool_input, dict) else None
+    projects = project if isinstance(project, list) else [project]
+    if not projects or any(not isinstance(value, str) or not value for value in projects):
         return "ADO tool call does not prove its configured project scope"
-    if any(project != configured_project for project in projects):
-        return "ADO tool call targets a project outside local policy"
-    for raw_url in extract_urls(flatten(tool_input)):
-        parsed = urlparse(raw_url.rstrip(".,);]"))
+    # Other vendor tools consume projectId or pullRequestProjectId instead of
+    # project. A matching extra field must not mask a different consumed scope.
+    project_keys = {
+        "project", "projectid", "project_id", "projectname", "project_name",
+        "pullrequestprojectid", "pull_request_project_id", "pullrequestproject_id",
+    }
+    pending = [tool_input]
+    while pending:
+        value = pending.pop()
+        if isinstance(value, dict):
+            for key, child in value.items():
+                if key.lower().replace("-", "_") in project_keys:
+                    selectors = child if isinstance(child, list) else [child]
+                    if not selectors or any(not isinstance(item, str) or not item for item in selectors):
+                        return "ADO tool call does not prove its configured project scope"
+                    if any(item != configured_project for item in selectors):
+                        return "ADO tool call targets a project outside local policy"
+                pending.append(child)
+        elif isinstance(value, list):
+            pending.extend(value)
+    urls = extract_urls(flatten(tool_input)) + collect_named_values(tool_input, {"url"})
+    for raw_url in urls:
+        url = raw_url.rstrip(".,);]")
+        try:
+            parsed = urlparse(url)
+            if (parsed.scheme != "https" or parsed.username is not None
+                    or parsed.password is not None or parsed.port is not None
+                    or "\\" in url):
+                return "ADO URL is outside configured HTTPS origins"
+        except ValueError:
+            return "ADO URL is malformed"
+        if not any(url == origin or url.startswith(origin.rstrip("/") + "/")
+                   for origin in ado["allowedHttpsOrigins"]):
+            return "ADO URL is outside configured HTTPS origins"
         if parsed.hostname == "dev.azure.com":
-            parts = [unquote(part) for part in parsed.path.split("/") if part]
+            raw_parts = [part for part in parsed.path.split("/") if part]
+            parts = [unquote(part) for part in raw_parts]
             if len(parts) < 2 or parts[0] != configured_org or parts[1] != configured_project:
                 return "ADO URL is outside the configured organization/project"
+            if any(part in {".", ".."} or "/" in part or "\\" in part for part in parts):
+                return "ADO URL contains an ambiguous path"
+            # The vendor resolves a wiki project from the segment immediately
+            # before _wiki, not necessarily the second segment of the URL.
+            if "_wiki" in raw_parts and (raw_parts.index("_wiki") != 2 or len(raw_parts) < 5 or raw_parts[3] != "wikis"):
+                return "ADO wiki URL must use the configured organization/project path"
     return None
 
 

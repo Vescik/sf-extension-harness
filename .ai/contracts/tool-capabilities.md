@@ -42,9 +42,11 @@ keeps its `testplan` write-tool classification as defense in depth; an accidenta
 reintroduced domain stays denied.
 
 Exact dispatcher input schemas come from the running server and must be captured in sanitized
-fixtures. The server organization comes only from `ADO_ORGANIZATION`, which must equal local
-configuration; the global hook rejects calls without the configured project or with a mismatched
-project/ADO URL. The local stdio server has no server-side read-only mode, and its domains do
+fixtures. The launcher reads organization and project only from `config/harness.local.json`.
+It validates configuration before starting the installed vendor and checks the bound scope
+before forwarding input or output. A detected scope change stops the process until restart.
+Already dispatched requests cannot be recalled. The global hook rejects calls without the
+configured project or with a mismatched project/ADO URL. The local stdio server has no server-side read-only mode, and its domains do
 include write-capable tools; agents are policy-bound to the read actions listed above (owner
 decision 2026-07-14 — no hook denylist on ADO writes yet; revisit if governed ADO writes become
 desirable).

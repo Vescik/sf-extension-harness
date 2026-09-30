@@ -1520,57 +1520,29 @@ class SafetyClassificationTests(unittest.TestCase):
                 self.assertEqual(hook_decision(output), want)
 
     def test_ado_scope_requires_matching_org_and_project(self) -> None:
-        config = {
-            "ado": {"organization": "example-org", "project": "Example Project"}
-        }
-        self.assertIsNone(
-            safety.ado_scope_error(
-                config,
-                {"project": "Example Project", "id": 1201},
-                runtime_org="example-org",
-            )
-        )
-        self.assertIsNotNone(
-            safety.ado_scope_error(
-                config,
-                {"project": "Other Project", "id": 1201},
-                runtime_org="example-org",
-            )
-        )
-        self.assertIsNotNone(
-            safety.ado_scope_error(
-                config,
-                {"id": 1201},
-                runtime_org="example-org",
-            )
-        )
-        self.assertIsNotNone(
-            safety.ado_scope_error(
-                config,
-                {"project": "Example Project"},
-                runtime_org="other-org",
-            )
-        )
-        self.assertIsNotNone(
-            safety.ado_scope_error(
-                config,
-                {
-                    "project": "Example Project",
-                    "url": "https://dev.azure.com/other-org/Other%20Project/_apis/wit/workitems/1",
-                },
-                runtime_org="example-org",
-            )
-        )
-        self.assertIsNone(
-            safety.ado_scope_error(
-                config,
-                {
-                    "project": "Example Project",
-                    "url": "https://dev.azure.com/example-org/Example%20Project/_apis/wit/workitems/1",
-                },
-                runtime_org="example-org",
-            )
-        )
+        # Plan 03a removes env authority; preserve project and URL isolation proof.
+        config = {"ado": {
+            "organization": "example-org", "project": "Example Project",
+            "allowedHttpsOrigins": ["https://dev.azure.com/example-org"],
+        }}
+        for payload, allowed in (
+            ({"project": "Example Project", "id": 1201}, True),
+            ({"project": ["Example Project"], "searchText": "invoice"}, True),
+            ({"project": "Other Project", "id": 1201}, False),
+            ({"id": 1201}, False),
+            ({"project": "Example Project", "organization": "other-org"}, False),
+            ({"extra": {"project": "Example Project"}}, False),
+            ({"projectName": "Example Project"}, False),
+            ({"project": "Example Project", "url":
+              "https://dev.azure.com/other-org/Other%20Project/_apis/wit/workitems/1"}, False),
+            ({"project": "Example Project", "url":
+              "https://example-org.visualstudio.com/OtherProject/_wiki/wikis/wiki/12/Page"}, False),
+            ({"project": "Example Project", "url":
+              "https://dev.azure.com/example-org/Example%20Project/_apis/wit/workitems/1"}, True),
+        ):
+            with self.subTest(payload=payload):
+                self.assertEqual(allowed, safety.ado_scope_error(config, payload) is None)
+
     def test_sandbox_origin_recognition_is_strict(self) -> None:
         self.assertTrue(
             safety.is_salesforce_sandbox_origin(
@@ -1771,6 +1743,8 @@ class WorkspaceMaintainerTests(unittest.TestCase):
     ROOT_OF_TRUST = (
         "scripts/copilot_role_guard.py",
         "scripts/copilot_safety_hook.py",
+        "scripts/ado_config.py",
+        "scripts/start_ado_mcp.mjs",
         ".github/hooks/safety.json",
         ".github/agents/developer.agent.md",
         ".github/agents/new-role.agent.md",  # creating an agent is as sensitive as editing one
