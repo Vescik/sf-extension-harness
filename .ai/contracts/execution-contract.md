@@ -181,7 +181,14 @@ Work Item context and design are optional sources for this workflow; missing one
 intake or a substitute design. Repository sources can support the description without a new
 Knowledge lookup, bootstrap, or authoring step. If the current task already uses governed
 Knowledge, preserve its existing read and reference-validation rules. These exceptions apply
-only to `/document-solution`; other workflows retain their entry, Knowledge, and output contracts.
+to `/document-solution` and publication of that same set through `/publish-wiki`.
+Publication keeps the source format, requires no fictional Work Item/design or Knowledge
+authoring, and reports page and link outcomes without adding an envelope to the pages.
+The [Publish Wiki skill](../../.github/skills/publish-wiki/SKILL.md) requires explicit publication
+scope and, for current solution pages, evidence of the deployed scope. Delivery documentation
+keeps its existing format and Work Item relation. Internal ETags and conditional relation
+revisions remain connector transport details; do not persist or report them as workflow gates.
+Other workflows retain their entry, Knowledge, and output contracts.
 
 Every generated report, draft, or returned structured context states:
 

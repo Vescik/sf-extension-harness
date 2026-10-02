@@ -11,6 +11,7 @@ const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const CONFIG_PATH = resolve(REPO_ROOT, "config/harness.local.json");
 const PACKAGE_ROOT = resolve(REPO_ROOT, "node_modules/@azure-devops/mcp");
 const VENDOR_ENTRY = resolve(PACKAGE_ROOT, "dist/index.js");
+const WIKI_PRELOAD = resolve(REPO_ROOT, "scripts/ado_wiki_preload.mjs");
 const VENDOR_VERSION = "2.8.1";
 const CONFIG_POLL_MS = 250;
 const SHUTDOWN_GRACE_MS = 1000;
@@ -101,8 +102,11 @@ function checkDependency() {
         !statSync(VENDOR_ENTRY).isFile()) {
       throw new Error("incorrect vendor dependency");
     }
+    for (const file of [WIKI_PRELOAD, ...["ado_wiki_loader.mjs", "ado_wiki_tools.mjs", "ado_wiki_link_tools.mjs"].map(name => resolve(REPO_ROOT, "scripts", name))]) {
+      if (!statSync(file).isFile()) throw new Error("Wiki publication adapter unavailable");
+    }
   } catch {
-    throw new Error(`ADO MCP dependency unavailable: install the pinned @azure-devops/mcp ${VENDOR_VERSION} with npm ci in the workspace.`);
+    throw new Error(`ADO MCP dependency unavailable: restore the reviewed Wiki adapter and install the pinned @azure-devops/mcp ${VENDOR_VERSION} with npm ci in the workspace.`);
   }
 }
 
@@ -116,7 +120,7 @@ function main() {
     throw new Error("ADO configuration changed during startup. Restart the ADO MCP server.");
   }
   const [organization] = JSON.parse(initialScope);
-  const child = spawn(process.execPath, [VENDOR_ENTRY, organization, "-d", "work-items", "wiki", "search"], {
+  const child = spawn(process.execPath, ["--import", new URL("./ado_wiki_preload.mjs", import.meta.url).href, VENDOR_ENTRY, organization, "-d", "work-items", "wiki", "search"], {
     cwd: REPO_ROOT,
     shell: false,
     stdio: ["pipe", "pipe", "inherit"],

@@ -730,6 +730,9 @@ class ShellParsingTests(unittest.TestCase):
                 root = Path(temp)
                 (root / "salesforce_operation_policy.py").write_text("# Import-only fixture\n")
                 shutil.copy2(source / "ado_config.py", root / "ado_config.py")
+                # Keep all unrelated imports present: this test must exercise
+                # the missing/broken Git policy, not an absent ADO dependency.
+                shutil.copy2(source / "ado_tool_policy.py", root / "ado_tool_policy.py")
                 if failure:
                     (root / "git_workflow_policy.py").write_text(failure)
                 for name in ("copilot_role_guard.py", "copilot_safety_hook.py"):

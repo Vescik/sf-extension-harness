@@ -14,10 +14,12 @@ try:
     try:
         from scripts import salesforce_operation_policy as sf_policy
         from scripts import git_workflow_policy as git_policy
+        from scripts import ado_tool_policy as ado_policy
         from scripts.ado_config import ado_config_error
     except ModuleNotFoundError:
         import salesforce_operation_policy as sf_policy
         import git_workflow_policy as git_policy
+        import ado_tool_policy as ado_policy
         from ado_config import ado_config_error
 except Exception:
     # A partially copied template must not become a nonblocking host exit code 1.
@@ -177,10 +179,7 @@ def safety_toggle(config: dict[str, Any] | None, name: str) -> bool:
 # MCP tool classification. VS Code may hand the hook either a "server/tool" name or a BARE "tool"
 # name (observed live: `core_list_orgs`). Server-prefix matching alone therefore leaks — classify by
 # the unqualified tool token too, and fail-closed on unrecognized MCP-shaped tools.
-ADO_TOOL_PREFIXES = (
-    "core_", "wit_", "wiki", "testplan", "build_", "repo_", "release_",
-    "pipelines_", "search_", "advsec_", "work_item",
-)
+ADO_TOOL_PREFIXES = ado_policy.ADO_TOOL_PREFIXES
 ENUMERATION_TOOLS = frozenset({"list_all_orgs", "core_list_orgs", "core_list_projects"})
 SALESFORCE_DEV_TOOL_TOKENS = frozenset({
     "run_soql_query", "list_all_orgs", "deploy_metadata", "retrieve_metadata",
@@ -710,7 +709,7 @@ def main() -> int:
     lowered_name = tool_name.lower()
     # Unqualified tool token, so a bare `core_list_orgs` is classified the same as `ado-readonly/core_list_orgs`.
     bare_tool = tool_name.rsplit("/", 1)[-1].lower()
-    is_ado = "ado-readonly" in lowered_name or bare_tool.startswith(ADO_TOOL_PREFIXES)
+    is_ado = ado_policy.is_ado_tool(tool_name)
     is_sf_review = (
         lowered_name == "salesforce"
         or lowered_name.startswith("salesforce/")
@@ -724,7 +723,10 @@ def main() -> int:
         error = native_operation_input_error(tool_input)
         print(json.dumps(hook_response("deny", error) if error else hook_response()))
         return 0
-    text = flatten(tool_input)
+    # Wiki Markdown may contain quoted commands or source URLs. Only the known
+    # adapter's top-level text fields are data; all selectors remain guarded.
+    checked_input = ado_policy.selector_input(tool_name, tool_input) if is_ado else tool_input
+    text = flatten(checked_input)
     root = HARNESS_ROOT
     # Shell-command semantics apply only to terminal-shaped tools. For read/list/search tools the
     # flatten() fallback returned file PATHS here, and any path inside this repository contains an
@@ -797,12 +799,19 @@ def main() -> int:
         print(json.dumps(hook_response("deny", "Org/project enumeration is disabled; the harness is bound to one org.")))
         return 0
     if is_ado:
+        # Retain the existing read diagnostic for read/unknown tool names. The
+        # same configuration and scope authority governs the two narrow writes.
+        operation = "publication" if ado_policy.bare_tool_name(tool_name) in ado_policy.WRITE_TOOLS else "read"
         if config is None:
-            print(json.dumps(hook_response("deny", "ADO read blocked: local harness configuration is missing.")))
+            print(json.dumps(hook_response("deny", f"ADO {operation} blocked: local harness configuration is missing.")))
             return 0
-        scope_error = ado_scope_error(config, tool_input)
+        scope_error = ado_scope_error(config, checked_input)
         if scope_error:
-            print(json.dumps(hook_response("deny", f"ADO read blocked: {scope_error}.")))
+            print(json.dumps(hook_response("deny", f"ADO {operation} blocked: {scope_error}.")))
+            return 0
+        capability_error = ado_policy.tool_error(tool_name, tool_input)
+        if capability_error:
+            print(json.dumps(hook_response("deny", f"ADO {operation} blocked: {capability_error}.")))
             return 0
     if is_sf_review:
         scope_error = salesforce_review_tool_error(config, tool_name, tool_input)

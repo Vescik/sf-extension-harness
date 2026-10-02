@@ -2,7 +2,7 @@
 
 A private, team-versioned GitHub Copilot harness for Salesforce development around any configured
 managed-package environment. It combines a minimal always-on safety/grounding kernel, seven SDLC agents,
-eighteen public prompt commands, twenty-two internal skills, governed but initially unseeded
+twenty public prompt commands, twenty-four internal skills, governed but initially unseeded
 Knowledge/Memory/QA layers, reconciled read-only org review, durable per-work-item design files,
 and repeatable validation. No object, namespace, package behavior, or business meaning is built in.
 
@@ -88,6 +88,10 @@ ADO uses one organization and project from `config/harness.local.json`. The laun
 that scope before starting the pinned vendor MCP. Complete the connector's interactive OAuth
 sign-in in VS Code Local. Restart `ado-readonly` after changing the organization or project.
 See [the setup guide](SETUP.md#3-local-configuration) for configuration and migration details.
+
+Use `/publish-wiki` with the Developer to publish the three solution files or a delivery document.
+It preserves stable pages, reads live content before conditional updates, and confirms the delivery
+Story link. See [Wiki publication](docs/wiki-publication.md) for production scope and migration.
 
 The workflows that need `config/harness.local.json` intentionally fail closed until it contains
 real, human-owned environment/process values and the package/component review scope.

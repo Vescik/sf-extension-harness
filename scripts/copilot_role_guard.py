@@ -15,9 +15,11 @@ try:
     try:
         from scripts import salesforce_operation_policy as sf_policy
         from scripts import git_workflow_policy as git_policy
+        from scripts import ado_tool_policy as ado_policy
     except ModuleNotFoundError:
         import salesforce_operation_policy as sf_policy
         import git_workflow_policy as git_policy
+        import ado_tool_policy as ado_policy
 except Exception:
     # A partially copied template must not become a nonblocking host exit code 1.
     print(json.dumps({"continue": False, "hookSpecificOutput": {
@@ -322,6 +324,11 @@ ROOT_OF_TRUST_EXACT = frozenset(
         "scripts/copilot_safety_hook.py",
         "scripts/ado_config.py",
         "scripts/start_ado_mcp.mjs",
+        "scripts/ado_tool_policy.py",
+        "scripts/ado_wiki_preload.mjs",
+        "scripts/ado_wiki_loader.mjs",
+        "scripts/ado_wiki_tools.mjs",
+        "scripts/ado_wiki_link_tools.mjs",
         "scripts/salesforce_operation_policy.py",
         "scripts/git_workflow_policy.py",
         "scripts/salesforce_operation_session.py",
@@ -975,6 +982,10 @@ def main() -> int:
     _EVENT_CONTEXT["role"] = args.role
     root = HARNESS_ROOT
     event_root = Path(event.get("cwd") or os.getcwd()).resolve()
+    if ado_policy.is_ado_tool(tool_name):
+        error = ado_policy.tool_error(tool_name, event.get("tool_input", {}), args.role)
+        print(json.dumps(response("deny", error) if error else response()))
+        return 0
     if tool_name in NATIVE_OPERATION_TOOLS:
         error = native_operation_input_error(event.get("tool_input"))
         if args.role != "developer":

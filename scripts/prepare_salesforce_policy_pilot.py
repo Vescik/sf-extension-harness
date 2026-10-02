@@ -19,7 +19,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 SOURCES = (
     "scripts/copilot_safety_hook.py", "scripts/copilot_role_guard.py",
-    "scripts/ado_config.py", "scripts/git_workflow_policy.py",
+    "scripts/ado_config.py", "scripts/ado_tool_policy.py", "scripts/git_workflow_policy.py",
     "scripts/salesforce_operation_policy.py", "scripts/verify_salesforce_org.py",
 )
 

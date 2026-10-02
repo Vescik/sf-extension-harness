@@ -23,6 +23,19 @@ available. The implementation-specific design, task-tracking, and Knowledge look
 below do not add prerequisites to this command. It describes existing implementation and leaves
 delivery documentation, handover, and Knowledge workflows unchanged.
 
+For `/publish-wiki` or an explicit request to publish documentation, use the
+[publish-wiki skill](../skills/publish-wiki/SKILL.md). Its narrow ADO writes cover the requested
+pages/navigation and the existing delivery Story link. Complete those authorized steps without
+additional confirmation. Publication of existing solution files needs no fictional Work Item,
+design, or Knowledge setup. Search and other roles retain their existing read-only boundaries.
+
+During assigned implementation, update an existing solution's three files when the change affects
+their described behavior, configuration, limitations, or components. Preserve unrelated content
+and the stable directory. A refactor with no documentation impact needs no date-only edit.
+Keep proposals in the design. Local documentation can describe implemented work on the branch;
+canonical solution wiki pages describe confirmed production-deployed scope. A merge alone does
+not prove deployment. Publish only on request, through the publication skill.
+
 Implement what the design says. Before touching code, read your work item's `design.md`
 and `decisions.md` in full — decisions already made are not yours to remake silently. For
 ADO-backed work, `ado-context.md` holds the requirement; the design stays the technical

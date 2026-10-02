@@ -8,14 +8,14 @@ Last verified against vendor documentation: 2026-07-10
 
 | Component | Supported baseline | Notes |
 |---|---|---|
-| VS Code | 1.112+; certify current stable before rollout | Windows is the primary platform. The configured MCP surface is read-only; Developer writes use reviewed direct CLI or the native operation tool. |
+| VS Code | 1.112+; certify current stable before rollout | Windows is the primary platform. Salesforce MCP is read-only; Developer Salesforce writes use reviewed CLI or the native operation tool. Requested Wiki publication uses its narrow ADO connector adaptation. |
 | GitHub Copilot | Consolidated `GitHub.copilot` extension bundled/supported by the chosen VS Code release | The old separate Copilot Chat prerequisite is not used. |
 | Python | 3.11+ | Runs validation, safety hooks, and tests using the standard library plus the dev requirement below. |
 | GitHub CLI | `gh`/`gh.exe` on PATH with `pr create/edit/ready/merge` and `--match-head-commit` support | Authentication is human-managed for the host in origin; no automatic login or token output. CLI/parser checks do not certify host approvals. |
 | PyYAML | `>=6,<7`; CI uses the lock file | Frontmatter and evaluation validation. |
 | jsonschema | `>=4,<5`; CI uses the lock file | Draft 2020-12 configuration/cache/output validation. |
 | Node.js | 22+ (`.nvmrc` pins 24) | MCP launchers and the ADO server run on Node; CI installs the `.nvmrc` version. |
-| Azure DevOps MCP | Local stdio `@azure-devops/mcp` 2.8.1, installed from `package-lock.json` and started through `node scripts/start_ado_mcp.mjs`; domains work-items/wiki/search (linked Test Cases read as Work Items) | The no-argument launcher reads one organization/project from local JSON and checks scope before vendor startup. It stops the old process after a scope change; restart `ado-readonly` in that workspace. Startup downloads no package. The installed vendor defaults to interactive OAuth in VS Code Local; Azure CLI login is not required. Read-only remains harness policy because the vendor domains include write tools. |
+| Azure DevOps MCP | Local stdio `@azure-devops/mcp` 2.8.1, installed from `package-lock.json` and started through `node scripts/start_ado_mcp.mjs`; domains work-items/wiki/search (linked Test Cases read as Work Items) | The no-argument launcher reads one organization/project from local JSON and checks scope before vendor startup. It stops the old process after a scope change; restart `ado-readonly` in that workspace. Startup downloads no package. The installed vendor defaults to interactive OAuth in VS Code Local; Azure CLI login is not required. A local preload adapts only Wiki reads/writes and the delivery Wiki relation; role/safety hooks deny other mutations. See [Wiki publication](wiki-publication.md). |
 | Salesforce review facade | `scripts/salesforce_review_server.py` (REST) | Replaced the vendor-MCP child architecture (plan-2026-08-09, F-4); Salesforce CLI 2.136.8+ required for token access. |
 
 ## Required Copilot capabilities
