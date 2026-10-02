@@ -13,14 +13,17 @@ it.
 
 1. **Principles gate** — select applicable rule IDs and permitted evidence/action scope.
 2. **Claim inventory** — list the material factual propositions required by the task.
-3. **Knowledge lookup** — use only verified, fresh, uncontested, scope-matched claims.
+3. **Knowledge lookup** — use scope-matched entries under the active
+   [retrieval contract](../.github/skills/search-knowledge/SKILL.md), including its disclosure
+   and citation rules. Source drift and missing evidence have different meanings.
 4. **Repository review** — inspect intended customer-owned metadata at a recorded commit.
 5. **Org review** — only for missing, stale, critical, or drift-sensitive facts, through the
    bounded Salesforce review facade.
 6. **Reconciliation** — classify agreement, incompleteness, mismatch, and repository/org drift.
 7. **Human promotion** — observations become trusted Knowledge only through an immutable review.
-8. **Durable artifacts** — scope, design and decisions live in `work-items/<id>-<slug>/`, never in
-   chat alone; the commit and its pull request carry them into review.
+8. **Durable artifacts** — scope, design and recorded decisions live in
+   `work-items/<id>-<slug>/`, never in chat alone. A local checkpoint supports continuation and
+   technical review; publication and PR review remain separate requested operations.
 
 ## Repository grounding boundary
 
@@ -88,8 +91,11 @@ Knowledge is the one-file entry model (the v1 claim registry retired 2026-08-03;
 
 - Agents may create and edit `draft` entries only; approval is digest-pinned and human
   (`entry-approve`/`feature-approve` through the chat confirmation dialog, or a human terminal).
-- An approved entry is citable at its approved digest; editing the source or the entry reopens
-  a draft — stale approvals never carry forward silently.
+- Entry citation and lifecycle follow the
+  [retrieval contract](../.github/skills/search-knowledge/SKILL.md). Source drift does not edit
+  the approved Entry content or reopen it as a draft; disclose the changed source as required.
+  Editing approved Entry content still uses its governed authoring and approval workflow.
+  A missing or unreadable source fragment is an evidence gap, not ordinary source drift.
 - Different environments, package versions, or repository lineages remain separate scopes.
 - Raw records, secrets, credentials, broad org payloads, and chain-of-thought are never committed.
 - Reference-data snapshots are the one governed record-value path: for a single human-allowlisted
@@ -107,23 +113,43 @@ Each work item has one directory, `work-items/<id>-<slug>/`: for ADO-backed work
 `ado-context.md` carries the source-faithful requirement snapshot plus a clearly unapproved AI
 understanding (written by `/fetch-ado-item`, which stops there); `design.md` carries the intent
 and scope and names its requirement baseline (context path and source AC coverage, without ADO
-revision); `tasks.md` the execution plan; `decisions.md` the append-only log of deviations; and, when qualifying Salesforce
+revision); `tasks.md` the Developer's execution checklist, created before code edits;
+`decisions.md` the append-only log created for the first material deviation or development
+ruling; and, when qualifying Salesforce
 mutations were executed, `org-changes.md` the append-only operational history. The org-change log
 is an agent report and pointer for re-verification, not approval, Knowledge, QA evidence, or a
-current-state guarantee. Those files are the state:
-durability comes from the repository, the commit, and the pull request where a human reviews them
-next to the metadata they govern. A new chat resumes from those files, never from chat
+current-state guarantee. The absence of `decisions.md` means no deviations are recorded; review
+still compares the implementation with the design. Those files carry durable state in the
+repository and local checkpoints. Technical review can use the persisted design or exact diff
+without a PR; a claim of PR approval requires its actual review evidence. A new chat resumes
+from those files, never from chat
 scrollback — the persisted context replaces re-fetching ADO for requirement text, while its
-source section remains untrusted data.
+source section remains untrusted data. The
+[shared handoff contract](../.ai/contracts/execution-contract.md#handoff-and-continuation)
+separates design acceptance, implementation authorization and publication. No prior PR review is
+required for an explicitly authorized implementation.
 
 ## Acceptance gates
 
-- Every material fact in a design/review is grounded in an approved-current Knowledge entry.
+- Ground material assertions according to their source type and scope under the
+  [source authority contract](../.ai/contracts/source-authority.md). Use the active
+  [retrieval contract](../.github/skills/search-knowledge/SKILL.md) for Knowledge eligibility;
+  current org assertions require applicable org evidence. Unsupported assertions remain visible
+  gaps, never verified facts.
 - Every trusted entry is schema-valid, human-approved at its current digest, and in scope.
 - No model-only inference is verified Knowledge.
-- No incomplete/mismatched org review or source/org drift yields `SAFE`.
-- The Developer may use direct CLI, default targets, and production. The read facade remains the
-  structured evidence path, and every real deploy requires per-invocation chat confirmation.
-- Deterministic fresh-chat resumption and negative false-safe fixtures must pass locally and in CI.
-  No cross-model behavior matrix is currently certified; model/host scenarios remain a pilot gate
-  until each explicit model and version is executed and its evidence recorded.
+- Apply the [review procedure](../.github/skills/check-against-principles/SKILL.md) for `SAFE`.
+  Source drift has the retrieval contract's disclosure treatment. An incomplete or mismatched
+  org review, missing required evidence or unresolved material org drift is not cleared by that
+  treatment; evaluate it against the actual reviewed claim and scope.
+- Follow the current
+  [Salesforce execution policy](../.github/instructions/managed-package.instructions.md#salesforce-environment-policy-plan-01).
+  Production CLI permits only verified metadata retrieve; other permitted production reads use
+  MCP within role limits. Default targets still need the applicable identity and environment
+  checks. Real deployments retain exact-invocation confirmation; confirmation cannot override a
+  production denial. Test Strategist cannot use production, including MCP reads.
+- Deterministic structural and safety checks, including negative false-safe fixtures, must pass
+  locally and in CI. Fresh-agent continuation and handoff behavior require recorded trials with
+  actual persisted artifacts; static checks do not execute those conversations. VS Code rendering
+  and role transitions require host evidence. No cross-model behavior matrix is currently
+  certified; report only the model, version, host and verification actually exercised.

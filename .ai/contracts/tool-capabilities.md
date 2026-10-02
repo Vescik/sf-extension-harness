@@ -22,7 +22,7 @@ upgrade.
 | Scoped PR create/edit/ready/merge and branch push on instruction | GitHub CLI plus direct Git; exact repository/PR and expected merge head | Designer, Developer, Test Strategist, Workspace Maintainer, Git Agent |
 | Local task branch preparation and coherent-result commits | guarded Git with the shared Git Workflow | active authors within role; Git Agent retains broader existing local assistance |
 | Interactive human confirmation | `vscode/askQuestions` | prompts and approval gates |
-| Subagent delegation | `agent` plus explicit `agents` allowlist | Designer, Developer |
+| Manual role handoff | User selects a role and sends the bounded request; Designer also offers two optional `send: false` shortcuts | existing roles; Designer shortcuts target Reviewer or Developer |
 
 ## Azure DevOps actions used
 
@@ -107,8 +107,10 @@ MCP and CLI agreement is transport corroboration from the same org, not independ
 
 Design work has no MCP runtime and no machine state: it is the `fetch-ado-item` prompt and skill
 persisting `work-items/<id>-<slug>/ado-context.md` (requirement intake), then the
-`solution-design` prompt and skill writing prose into `work-items/<id>-<slug>/design.md`,
-each reviewed by a human on the pull request.
+`solution-design` prompt and skill writing prose into `work-items/<id>-<slug>/design.md`.
+The persisted design can be reviewed and explicitly authorized for bounded implementation
+before publication. A claim of human PR approval still requires that PR's actual evidence;
+follow the [shared handoff contract](execution-contract.md#handoff-and-continuation).
 
 Feature delivery preparation (`/prepare-delivery-feature`, 2026-08-12) introduces **no new
 capability or MCP surface**: it is another consumer of the existing `ado-readonly` work-item
