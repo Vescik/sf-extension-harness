@@ -68,11 +68,18 @@ class AdoLauncherTests(unittest.TestCase):
         root = Path(self.temp.name) / name
         (root / "scripts").mkdir(parents=True)
         (root / "config").mkdir()
-        shutil.copyfile(ROOT / "scripts/start_ado_mcp.mjs", root / "scripts/start_ado_mcp.mjs")
+        # Keep the real preload boundary in the process test. The inert vendor
+        # stub still proves scope drift/shutdown independently of Wiki callbacks.
+        for name in ("start_ado_mcp.mjs", "ado_wiki_preload.mjs", "ado_wiki_loader.mjs",
+                     "ado_wiki_tools.mjs", "ado_wiki_link_tools.mjs"):
+            shutil.copyfile(ROOT / "scripts" / name, root / "scripts" / name)
         package = root / "node_modules/@azure-devops/mcp"
         (package / "dist").mkdir(parents=True)
         (package / "package.json").write_text(json.dumps({"name": "@azure-devops/mcp", "version": "2.8.1", "type": "module"}), encoding="utf-8")
         (package / "dist/index.js").write_text(VENDOR_STUB, encoding="utf-8")
+        (package / "dist/tools").mkdir()
+        for name in ("wiki.js", "work-items.js"):
+            (package / "dist/tools" / name).write_text("// inert vendor fixture\n", encoding="utf-8")
         config = copy.deepcopy(VALID_CONFIG)
         config["ado"]["organization"] = organization
         config["ado"]["allowedHttpsOrigins"][0] = f"https://dev.azure.com/{organization}"
@@ -206,6 +213,14 @@ class AdoLauncherTests(unittest.TestCase):
                 self.assertEqual(result.stdout, b"")
                 self.assertIn(b"npm ci", result.stderr)
                 self.assertFalse((self.root / "vendor-started.json").exists())
+
+    def test_missing_publication_adapter_never_falls_back_to_vendor_writes(self) -> None:
+        adapter = self.root / "scripts/ado_wiki_preload.mjs"
+        adapter.unlink()
+        result = self.run_launcher()
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(result.stdout, b"")
+        self.assertFalse((self.root / "vendor-started.json").exists())
 
     def test_extra_launcher_arguments_cannot_override_scope_or_domains(self) -> None:
         result = subprocess.run([NODE, str(self.root / "scripts/start_ado_mcp.mjs"), "other-org"],

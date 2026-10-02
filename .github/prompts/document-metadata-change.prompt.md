@@ -24,5 +24,7 @@ with source quotations preserved. Validate the resolved path, retain human notes
 and keep document review status separate from implementation and test results. Include the
 fetched ADO link, relative repository links, rule/entry references, verification, and gaps.
 Complete the permitted local stage/commit through the [Git Workflow](../skills/git-workflow/SKILL.md)
-as the active Developer, then return the actual path and commit outcome. Do not add ADO links
-or publish to wiki; PR publication/merge require an explicit instruction for those operations.
+as the active Developer, then return the actual path and commit outcome. Publish only when the
+request includes wiki publication, using the [publish-wiki skill](../skills/publish-wiki/SKILL.md).
+That request also covers the existing delivery Story link without another confirmation.
+PR publication/merge require an explicit instruction for those operations.

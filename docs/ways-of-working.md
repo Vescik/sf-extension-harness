@@ -169,7 +169,7 @@ results are separate. It projects the design's verification strategy and does no
 development or QA prerequisite. Other roles read it only when their task needs it.
 
 Use relative repository links to this durable file. Keeping it in Git does not publish it:
-wiki publication remains a separate step, and release handover still requires a wiki link
+request `/publish-wiki` to publish it and confirm its Story link. Release handover still requires a wiki link
 attached to the Work Item. A local document does not clear `Missing Wiki Link`. Historical
 `output/` drafts are not migrated automatically; monthly handover and Feature Health remain
 temporary reports in their existing paths.
@@ -507,6 +507,20 @@ unknowns stay explicit; a local commit or merge does not prove production state.
 and any ADO links remain separate requested work. The main wiki describes deployed production
 behavior. Business-domain navigation can link to one solution without duplicating its local set.
 
+## Publish documentation to wiki
+
+Use `/publish-wiki docs/solutions/<slug>/` for a solution or
+`/publish-wiki work-items/<id>-<slug>/technical-documentation.md` for one delivery.
+The Developer publishes the requested pages and navigation through the existing ADO connector.
+For delivery documentation, the same request includes its Story link without another confirmation.
+
+The solution parent contains the overview, with Flows and Components below it. Existing addresses
+remain stable across Stories and releases. Current solution pages require confirmed production
+scope; delivery documentation can be published before deployment for handover.
+Full live reads preserve manual content, conditional writes detect conflicts, and read-back checks
+verify links. Results distinguish page success from Story-link success. See
+[Wiki publication](wiki-publication.md) for examples, retry behavior, and gradual migration.
+
 ## Feature Knowledge
 
 Two kinds of governed Knowledge live in this workspace, and they answer different questions:
@@ -582,6 +596,7 @@ action — supply it, or stop the work.
 | Assess feature coverage | `/feature-health itemId=<Feature ID>` |
 | Document one Work Item's change or existing state | `/document-metadata-change itemId=<ID>` |
 | Document an implemented solution across components or Stories | `/document-solution <topic and scope>` with optional `itemId=<ID>` and `documentationPath=docs/solutions/<slug>/` |
+| Publish existing solution or delivery documentation | `/publish-wiki <solution directory or delivery document>` |
 | Publish/update a PR or merge | Explicitly ask the active executing author; Git Agent is optional assistance |
 
 This table lists the entry points behind the playbooks above, not the whole catalog — the

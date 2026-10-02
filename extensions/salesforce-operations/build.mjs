@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 
 export const RUNTIME_FILES = Object.freeze([
   'salesforce_operation_session.py', 'salesforce_operation_policy.py', 'verify_salesforce_org.py',
-  'copilot_safety_hook.py', 'ado_config.py', 'git_workflow_policy.py', 'salesforce_job_selection.py', 'salesforce_job_executor.mjs',
+  'copilot_safety_hook.py', 'ado_config.py', 'ado_tool_policy.py', 'git_workflow_policy.py', 'salesforce_job_selection.py', 'salesforce_job_executor.mjs',
 ]);
 const extensionRoot = path.dirname(fileURLToPath(import.meta.url));
 export async function buildRuntime(repositoryRoot = path.resolve(extensionRoot, '../..'), destination = path.join(extensionRoot, 'runtime')) {

@@ -130,5 +130,8 @@ Developer stages and commits it through [Git Workflow](../git-workflow/SKILL.md)
 separate commit request or Git Agent handoff. Prepare/reuse the correct branch before new work,
 preserve unrelated changes, and report the actual SHA or unresolved checkpoint state. A no-op
 makes no empty commit. This workflow does not automatically add ADO links or publish to wiki.
-Wiki publication remains a separate human-controlled step; a local document cannot satisfy a
-required published wiki link. A local commit does not create or merge a PR.
+When the request includes publication, continue with [Publish Wiki](../publish-wiki/SKILL.md).
+That request covers the delivery page and its existing Story link without another confirmation.
+Delivery documentation may be published before deployment for handover. Keep its format and
+review status. A local document cannot satisfy a required published wiki link.
+A local commit does not create or merge a PR.

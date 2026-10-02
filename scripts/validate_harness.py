@@ -220,6 +220,13 @@ def check_required_files(audit: Audit) -> None:
         "scripts/knowledge_mcp_server.mjs",
         "scripts/start_ado_mcp.mjs",
         "scripts/ado_config.py",
+        "scripts/ado_tool_policy.py",
+        "scripts/ado_wiki_preload.mjs",
+        "scripts/ado_wiki_loader.mjs",
+        "scripts/ado_wiki_tools.mjs",
+        "scripts/ado_wiki_link_tools.mjs",
+        ".github/prompts/publish-wiki.prompt.md",
+        ".github/skills/publish-wiki/SKILL.md",
         "config/harness.example.json",
         "schemas/harness-config.schema.json",
         "requirements-dev.lock",
@@ -469,6 +476,12 @@ def check_customizations(audit: Audit, root: Path = ROOT) -> None:
             effective_tools = data.get("tools", agents[prompt_agent].get("tools")) or []
             audit.require("execute/runInTerminal" in effective_tools,
                           f"{relative(path)}: prompt must retain the role's guarded terminal for GitHub reads")
+        if name == "publish-wiki":
+            audit.require(prompt_agent == "developer", "publish-wiki belongs only to Developer")
+            publication_tools = {"read", "search", "edit/editFiles", "execute/runInTerminal", "vscode/askQuestions", "ado-readonly/*"}
+            selected_tools = data.get("tools", agents.get(prompt_agent, {}).get("tools"))
+            selected = set(selected_tools) if isinstance(selected_tools, list) and all(isinstance(tool, str) for tool in selected_tools) else set()
+            audit.require(selected == publication_tools, "publish-wiki needs the bounded publication tools without Salesforce, Knowledge, or delegated execution")
         if name == "document-solution":
             audit.require(prompt_agent == "developer", "document-solution must use the Developer role guard")
             required_tools = {"read", "search", "edit/editFiles", "execute/runInTerminal"}

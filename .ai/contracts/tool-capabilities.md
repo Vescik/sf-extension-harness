@@ -6,6 +6,7 @@ upgrade.
 | Logical capability | Configured implementation | Consumers |
 |---|---|---|
 | ADO work-item/query/wiki reads + project-scoped text search (includes reading a formally linked Test Case as a Work Item) | `ado-readonly/*` local stdio MCP (`@azure-devops/mcp`, version-pinned, domains bounded to work-items/wiki/search) | intake, Feature delivery preparation, feature health, QA test-plan authoring, handover, search-ado |
+| Requested wiki page/navigation publication and delivery Story Wiki link | Narrow adaptation of the same `ado-readonly` connector: conditional `wiki_create_or_update_page` and Wiki-only `wit_add_artifact_link` | Developer through publish-wiki only |
 | Reconciled Salesforce org identity | `salesforce/review_org_identity` | runtime startup proof and operator diagnostics |
 | Reconciled installed package inventory | `salesforce/review_installed_packages` | investigator, design, review |
 | Reconciled allowlisted object contract | `salesforce/review_object_contract` | investigator, design, review, QA |
@@ -28,8 +29,18 @@ upgrade.
 - `wit_work_item`: get, get_batch, list_comments; do not fetch revision history
 - `wit_query`: get, get_results
 - `wit_work_item_attachment`: download only after MIME/size validation
-- `wiki`: list/get operations only (`wiki_list_wikis`, `wiki_list_pages`, `wiki_get_page`,
-  `wiki_get_page_content`); `wiki_create_or_update_page` is never used
+- `wiki`: read operations (`wiki_list_wikis`, `wiki_list_pages`, `wiki_get_page`,
+  `wiki_get_page_content`) remain available within each role's existing scope
+- `wiki_create_or_update_page`: Developer only, for explicitly requested documentation and
+  navigation through [Publish Wiki](../../.github/skills/publish-wiki/SKILL.md). Pass configured
+  `project`, `wikiIdentifier`, `path`, `content`, and `mode: create|update`. Updates carry the
+  opaque `etag` from the complete live read. Creates omit `etag` and require not-found.
+  Keep the verified `branch` consistent across read/write; the default is `wikiMaster`.
+- `wit_add_artifact_link`: Developer publication only, with `project`, `workItemId`,
+  `linkType: Wiki`, `wikiIdentifier`, and `pagePath`. The adaptation derives the artifact URI
+  from live page identity on the wiki's single published branch and adds only a missing relation.
+  Unknown or ambiguous branch metadata refuses linking. Other link types, raw artifact URIs,
+  work-item field edits, relation removal, and unrelated ADO mutations remain denied.
 - `search_wiki`, `search_workitem`: always with the configured `project` (the hook denies
   unscoped calls); `search_code` is exposed by the domain but unused
 
@@ -46,10 +57,19 @@ fixtures. The launcher reads organization and project only from `config/harness.
 It validates configuration before starting the installed vendor and checks the bound scope
 before forwarding input or output. A detected scope change stops the process until restart.
 Already dispatched requests cannot be recalled. The global hook rejects calls without the
-configured project or with a mismatched project/ADO URL. The local stdio server has no server-side read-only mode, and its domains do
-include write-capable tools; agents are policy-bound to the read actions listed above (owner
-decision 2026-07-14 — no hook denylist on ADO writes yet; revisit if governed ADO writes become
-desirable).
+configured project or with a mismatched project/ADO URL. The vendor domains include write-capable
+tools. The existing connector's narrow publication adaptation and role/safety guards allow only
+the two Developer publication operations above. The server name `ado-readonly` is retained for
+compatibility. Search, Reviewer, handover, and Knowledge retain their existing read-only behavior.
+
+Publication cannot use the sanitized wiki cache as a write base. The adapted page read returns
+full content and its ETag together. Conditional updates reject a changed page; conditional creates
+reject an existing page. The agent re-reads conflicts and reconciles the requested passages rather
+than retrying a stale overwrite. ETag is opaque transport data, not an ADO revision report or page
+registry. The Wiki-link adaptation re-reads page identity and current Story relations, then uses
+internal concurrency checks to avoid duplicate links. The agent verifies pages and relations after
+the operation and reports partial results. These transport checks do not prove chat authorization,
+business scope, deployed production state, or completed host/live acceptance.
 
 Ignore transport `rev`, `revision`, and `System.Rev` metadata in ADO projections, including
 related items and Test Cases. Preserve the actual requirement text, IDs/links, retrieval time,
