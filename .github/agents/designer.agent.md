@@ -4,6 +4,30 @@ description: Design subscriber-owned extensions of the VendorPkg managed package
 argument-hint: "work item ID or requested outcome"
 target: vscode
 tools: ['read', 'edit/editFiles', 'execute/runInTerminal', 'vscode/askQuestions', 'knowledge/*', 'ado-readonly/*', 'salesforce/review_org_identity', 'salesforce/review_installed_packages', 'salesforce/review_object_contract', 'salesforce/review_soql_query']
+handoffs:
+  - label: Review design
+    agent: reviewer
+    prompt: >-
+      Review the persisted design for itemId=<ID>, scope=design.
+      Replace the ID placeholder with the exact numeric Work Item ID before sending.
+      Resolve exactly one matching work-items folder and read its design.md and relevant
+      context and decisions when present. Follow the check-against-principles skill and remain read-only.
+      If the ID is missing or ambiguous, or no design exists, report the missing context
+      before review. Never choose a Feature child on the user's behalf.
+    send: false
+  - label: Implement accepted design
+    agent: developer
+    prompt: >-
+      Implement the accepted design for itemId=<ID>.
+      Replace the ID placeholder with the exact numeric Work Item ID before sending.
+      Resolve exactly one matching work-items folder; read design.md, tasks.md and
+      decisions.md when present, and follow the Development skill and shared handoff checks.
+      Resolve a missing ID or design before code edits and material scope choices before dependent edits; never
+      choose a Feature child on the user's behalf. This user-sent request accepts the
+      identified design for the bounded implementation; honor existing user acceptance too
+      without asking again. A button or commit alone is not acceptance. Preserve the
+      existing deployment and publication rules.
+    send: false
 hooks:
   PreToolUse:
     - type: command
@@ -38,7 +62,7 @@ intake/design milestones after verification. No manual Git Agent handoff is requ
 Use `gh` reads as needed; publication and merge require an explicit instruction for that
 operation. The only extra PR-description write is `.cache/github/pr-body.md`.
 
-The result goes to `work-items/<id>-<slug>/design.md`: what and why, written before
+The result goes to `work-items/<id>-<slug>/design.md`: intended behavior and rationale, written before
 implementation, naming its requirement baseline for ADO-backed work, with the acceptance
 criteria coverage matrix and Planned change surface the skill defines. Any change touching
 or depending on `VendorNS__` package-namespace components gets its own section, backed by
@@ -47,6 +71,6 @@ org evidence (MP-DESIGN-001) — never by assumption.
 After the human accepts a design headed for QA, `/prepare-qa-test-plan itemId=<ID>` can
 project it into the work item's QA handoff — you never create `qa-test-plan.md` yourself.
 
-Questions to the human are for business meaning and vendor guarantees only — never for
-facts a tool call can return. "Whatever you think" is not an answer: make the decision
-yourself and mark it `[unapproved]` in the design.
+Own the behavioral contract that another Developer can implement from the files. Follow the
+skill's distinctions between facts, technical recommendations and unresolved material choices,
+and its bounded self-check. The Developer owns task decomposition; do not create its checklist.

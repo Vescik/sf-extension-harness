@@ -102,10 +102,15 @@ From a written requirement:
    coverage for ADO-backed work. It commits the completed draft locally after verification.
    A noticed ADO/design content difference may be reported briefly; it does not force redesign
    or block the requested work, and the agent does not silently expand the scope.
-4. You resolve business questions, vendor guarantees, and unapproved choices it surfaces.
+4. You resolve material business, policy and vendor-guarantee questions it surfaces. A technical
+   recommendation and an unresolved alternative are different; ordinary implementation details
+   within the designed behavior do not require a new approval.
 5. A reviewer can challenge the persisted design with `/check-against-principles`.
-6. After you accept the design, the developer implements against it and keeps `tasks.md` and
-   `decisions.md` current. It validates proportionally and, when a real deployment is in scope,
+6. When you ask to implement the identified persisted design, the Developer creates or reconciles
+   `tasks.md` before code edits and implements that bounded scope. The request can accept concrete
+   technical recommendations without a separate acceptance turn; an unresolved choice still waits
+   before dependent work. Decisions are recorded only when a material deviation or development
+   ruling occurs. It validates proportionally and, when a real deployment is in scope,
    tells you that changes will be deployed to the selected org, identifies target and scope, and
    asks for confirmation for that exact invocation. After any qualifying org mutation returns a
    result, it writes one sanitized entry to the canonical `org-changes.md`. A dry run is never
@@ -148,9 +153,10 @@ From a written requirement:
 
 - `work-items/<id>-<slug>/ado-context.md` — the ADO requirement snapshot (ADO-backed work
   only; absent for a written requirement);
-- `work-items/<id>-<slug>/design.md` — the accepted intent;
-- `work-items/<id>-<slug>/tasks.md` — the execution checklist;
-- `work-items/<id>-<slug>/decisions.md` — deviations recorded during implementation;
+- `work-items/<id>-<slug>/design.md` — the intended behavior, with acceptance stated separately;
+- `work-items/<id>-<slug>/tasks.md` — the Developer-owned execution checklist;
+- `work-items/<id>-<slug>/decisions.md` — the optional append-only record of material development
+  deviations and rulings, created when first needed;
 - `work-items/<id>-<slug>/qa-test-plan.md` — the QA handoff, only when the item goes to a
   tester;
 - `work-items/<id>-<slug>/technical-documentation.md` — durable documentation, only when
@@ -447,7 +453,7 @@ canonical org-change log.
 - assuming declarative means harmless;
 - mixing a metadata change with a live org-record write;
 - forgetting activation order or rollback;
-- editing package-owned configuration surfaces;
+- treating package ownership as proof of a permitted extension or as an automatic prohibition;
 - treating local `config/harness.local.json` as a deliverable.
 
 ## How a design, its implementation, and review stay aligned
@@ -461,11 +467,25 @@ artifacts:
   requirement outcome) a row naming its solution, its planned verification, and an honest
   status — `Covered`, `Explicit no-change` with a reason, or `Open`. Its
   `Planned change surface` table declares which logical components the work intends to
-  create, modify, or remove, and which package dependencies stay read-only.
+  create, modify, or remove, and which dependencies stay read-only. Its behavioral contract names
+  the caller, meaningful inputs and outcomes, side effects, boundaries and material failure
+  behavior. A class name and a generic instruction to test it are insufficient. `Covered` does
+  not mean accepted, implemented or tested.
+- **The Developer owns `tasks.md`.** Before code edits, create or reconcile coherent tasks with
+  an ID, checkbox, outcome, design/AC reference, observable completion and relevant dependencies.
+  Check a task only after its own completion condition is observed. Partial work remains
+  unchecked; cancelled work is removed from the active checklist with a reason, never marked done.
+  The [Development skill](../.github/skills/development/SKILL.md) owns creation, resumption and
+  changed-outcome handling.
 - **Development records material deviations, append-only, in `decisions.md`** — planned vs
-  actual surface, the reason, and any verification/rollback/QA impact. The design is not
-  rewritten to match the code.
-- **Implementation review compares all three with the exact diff** and reports a
+  actual behavior or surface, the reason, and any verification/rollback/QA impact, before acting.
+  Create it only for the first deviation or development ruling. A later correction names the
+  decision it supersedes; it does not rewrite history. The design is not rewritten to match the
+  code. An absent log is not proof that no deviation occurred.
+- **Review checks behavioral completeness and implementation evidence.** A design review asks
+  what material behavior an implementer would still have to invent; it does not require tasks
+  before the Developer creates them. Implementation review compares design, tasks, any recorded
+  decisions and the exact diff, and reports a
   `Scope alignment` classification (`ALIGNED`, `EXPLAINED DELTA`, `UNEXPLAINED DELTA`,
   `INCOMPLETE`) before its normal verdict. Tests, fixtures, and manifests that only support a
   planned component are not flagged as scope creep — but an explained delta is reviewable,
@@ -479,6 +499,25 @@ artifacts:
 
   (or a contiguous `base=<ref> head=<ref>` range). Without exact attribution the review
   returns `INCOMPLETE` rather than guessing.
+
+### Compact task example
+
+This synthetic example assumes the design already defines a before-insert Case priority policy,
+its existing-handler caller, input rules and failure behavior. The task references that contract;
+it does not leave those choices to the implementer.
+
+```markdown
+- [ ] T-03 — Apply the priority policy through the existing Case handler.
+  Design: design.md#priority-policy. Coverage: AC-2, AC-3.
+  Outcome: add CasePriorityPolicy.apply(List<Case>) and its existing-handler call.
+  Boundary: in-memory changes only; preserve fields outside the policy contract.
+  Done: tests verify matching, non-matching, existing-priority, empty-input,
+  null-element and mixed 200-record cases against the design's expected outcomes.
+  Depends on: T-01, which confirms the existing handler contract.
+```
+
+Private helper structure remains the Developer's choice. The checkbox stays unchecked until the
+specified tests have actually passed; missing org verification remains separate and visible.
 
 ## Document an implemented solution
 
@@ -550,9 +589,9 @@ reviewing impact across a curated feature boundary. For the governing detail, se
 | Artifact | Human meaning |
 |---|---|
 | `work-items/<id>-<slug>/ado-context.md` | Source-faithful ADO requirement snapshot plus clearly unapproved AI understanding (ADO-backed work) |
-| `work-items/<id>-<slug>/design.md` | Accepted intent, scope, trade-offs, verification, and rollback |
-| `work-items/<id>-<slug>/tasks.md` | Current execution checklist |
-| `work-items/<id>-<slug>/decisions.md` | Append-only deviations and rulings |
+| `work-items/<id>-<slug>/design.md` | Intended behavior, scope, trade-offs, verification, and rollback; acceptance is separate |
+| `work-items/<id>-<slug>/tasks.md` | Developer-owned execution checklist with observable completion |
+| `work-items/<id>-<slug>/decisions.md` | Optional append-only deviations and rulings; later entries explicitly supersede earlier ones |
 | `work-items/<id>-<slug>/qa-test-plan.md` | Optional QA handoff that projects the requirement, design, and deviations |
 | `work-items/<id>-<slug>/technical-documentation.md` | Optional durable documentation of a requested change or existing state; separate from review and wiki publication |
 | `work-items/<id>-<slug>/org-changes.md` | Optional append-only operational history of qualifying Salesforce mutations; an agent report, not approval/evidence |
@@ -576,8 +615,34 @@ durable state; if it matters, it belongs in one of these artifacts.
 - silently merge, release, or resolve ownership decisions;
 - convert incomplete evidence into certainty.
 
-If an outcome seems to require one of these, the missing piece is a human decision or a human
-action — supply it, or stop the work.
+If an outcome requires an unresolved human decision or action, resolve it before dependent work.
+Continue independent authorized work and keep the limitation visible.
+
+## Optional Designer handoffs
+
+Designer offers **Review design** and **Implement accepted design** buttons. Each switches to
+the named role and fills an editable request; neither sends it automatically. Replace the
+literal ID placeholder with the concrete Work Item ID before sending. The final response gives
+the actual ID, design path, current result, verification, open limits and a copyable next request.
+You can also select the role and paste that request manually.
+For a written requirement without an ADO ID, select the role manually and name the actual
+design path; the numeric-ID buttons do not apply.
+
+These buttons are static, so they can also appear after intake or Feature preparation. Follow
+the stated next action: a button does not mean a design exists or is accepted. Review remains
+read-only. Sending an explicit request to implement the identified design accepts its concrete
+technical recommendations for that bounded implementation; no separate acceptance turn is
+required. Earlier acceptance alone does not start implementation or resolve an open alternative.
+On a Feature branch, select the included child explicitly. A missing ID, ambiguous folder or
+missing design is resolved before work. Push, PR, merge and deployment keep their existing
+authorization rules. Local work can be handed off in its checkout without publication; see
+[pause and resume](delivery-process.md#pause-handoff-resume-and-recovery).
+
+For other specialists, use the manual request described by the
+[shared handoff contract](../.ai/contracts/execution-contract.md#handoff-and-continuation).
+There is no automatic subagent delegation. Rendering, prefilling and role transitions still
+require the VS Code host pilot in `evals/agent-scenarios.yaml`; static validation alone does not
+prove UI behavior.
 
 ## Quick reference
 

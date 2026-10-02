@@ -157,7 +157,7 @@ Local author checkpoints never trigger publication. Push only on the explicit in
 
 1. Run `/solution-design itemId=5001` on the matching branch.
 2. Resolve material owner questions and commit the first coherent `design.md` baseline.
-3. Push that checkpoint.
+3. Push that checkpoint only when publication is requested; otherwise retain the local result.
 4. On an explicit publication instruction, use GitHub CLI to create a Draft PR to `main`.
 5. Confirm the PR includes exactly `AB#5001` and ADO shows the PR association.
 6. Keep open questions and `Not verified` validation visible; do not wait for implementation to
@@ -169,12 +169,19 @@ For each coherent slice:
 
 1. fetch and inspect remote branch/base changes;
 2. synchronize from `origin/main` when the base affects the work;
-3. implement against the accepted design;
-4. update tasks and append decisions when scope or implementation changes;
+3. create or reconcile the Developer-owned `tasks.md` before code edits, then implement the
+   explicitly requested design scope;
+4. check tasks only when their own completion condition is observed; record material deviations
+   before acting, creating `decisions.md` only when needed;
 5. run proportional validation;
 6. commit as `[WI-5001] <imperative description> — AB#5001`;
-7. push;
-8. update the Draft PR when scope, risk, validation, or review focus changed.
+7. push only under an instruction covering publication;
+8. update a requested Draft PR when scope, risk, validation, or review focus changed; otherwise
+   report the local checkpoint and remaining verification.
+
+See the [compact task example](ways-of-working.md#compact-task-example). The
+[Development skill](../.github/skills/development/SKILL.md#executable-tasks) owns the full task
+and decision lifecycle; this delivery guide does not add another planning procedure.
 
 ### 5. Prepare, review, and merge
 
@@ -365,14 +372,15 @@ A file does not permanently belong to one Story. Decide by acceptance scope and 
 
 ### Deliver a prerequisite first
 
-1. Bring the blocked Story to a clean pushed checkpoint and explain the blocker in its Draft PR.
+1. Bring the blocked Story to a coherent local checkpoint and record the blocker in its existing
+   work-item files. Publish and update a Draft PR only when requested.
 2. Do not leave the only copy in a stash or cherry-pick incomplete work into the prerequisite.
 3. Use a separate Git worktree for the prerequisite if both checkouts must remain accessible; do
    not repeatedly switch one dirty worktree between branches.
 4. Deliver the prerequisite to the current authoritative base (`main` or the Feature branch).
 5. Return to the blocked Story, fetch and merge the updated base.
 6. Reconcile its design when the prerequisite changed behavior or AC coverage.
-7. Rerun affected checks and push before continuing.
+7. Rerun affected checks and record the local checkpoint. Push only when requested.
 
 Use a technical/enabler Work Item only when the shared foundation is independently reviewable and
 does not naturally belong to an existing Story. It receives its own ADO identity, proportional
@@ -384,27 +392,45 @@ design, branch, PR, and validation.
 
 - reach a coherent checkpoint;
 - run checks appropriate to its state;
-- commit and push;
-- update the Draft PR with blockers and `Not verified` items;
+- commit completed in-scope work locally through Git Workflow;
+- push and create/update the Draft PR only when the user requested that operation;
+- record blockers and `Not verified` items in the existing work-item files and final report;
 - leave branch, base, Work Item, next action, and latest validation understandable without chat;
 - never leave meaningful work available only in a local stash or untracked file overnight.
 
 ### Handoff
 
-The remote branch and Draft PR are the handoff vehicle. Durable state lives in `design.md`,
-tasks/decisions, any canonical `org-changes.md`, validation evidence, and PR text. The recipient
-fetches, verifies the declared base and ADO identity/scope, synchronizes, rechecks material logged org
-state, and reruns proportional validation before editing. The org-change log is an operational
-claim and pointer, not approval or independent evidence.
+For a local handoff, identify the checkout, branch and verified local commit. A remote branch
+or Draft PR is not required. For a published handoff, give the verified remote branch/PR and
+head; publication still requires the user's instruction. Another machine cannot resume an
+unpublished local checkpoint without an explicitly agreed transfer.
+
+Durable state lives in `design.md`, tasks, recorded decisions when present, any canonical
+`org-changes.md`, and actual validation evidence. Published PR text may summarize it. Use the
+[shared handoff summary](../.ai/contracts/execution-contract.md#handoff-and-continuation):
+next actor and action, exact Work Item and path, current result, verification and open limits.
+Name draft versus accepted design explicitly; a commit or review result is not user acceptance.
+Keep the current workflow's next-action count. Do not create a separate handoff file.
+
+The recipient reads these files, verifies the declared base and ADO identity/scope, and
+rechecks material logged org state. The org-change log is an operational claim and pointer,
+not approval or independent evidence. Repeat validation when the source, environment or
+unresolved finding requires it; do not rerun every completed check merely because the role changed.
 
 ### Resume
 
-1. Fetch origin and confirm branch/PR remote heads.
-2. Compare with the correct base.
+1. Locate the declared checkout and local branch/commit. For a published handoff, fetch origin
+   and confirm the declared remote head and PR when one exists; do not invent a missing PR.
+2. Fetch the correct remote base when available and compare with it. Report unavailable remote
+   verification without treating a local-only checkpoint as missing work.
 3. Read persisted scope and prepared Feature membership. Ignore historical ADO revision labels;
    a noticed content difference may be optional information, not a stop or forced redesign.
 4. Synchronize the Git base when required and continue the requested scope.
-5. Push the resulting checkpoint.
+5. Reconcile existing tasks with the assigned scope and observed progress. Preserve completed
+   evidence that still applies; pending verification stays pending. An absent decisions file
+   does not prove that the implementation conforms to the design.
+6. Commit a completed local checkpoint. Push or update a PR only under an instruction covering
+   that operation; otherwise report the local result and next action.
 
 ### Failed push or diverged remote
 
@@ -481,9 +507,10 @@ feature/5000-<slug> → final PR to main: AB#5000 + included AB#5001, AB#5002, A
 
 - [ ] Work is at a coherent checkpoint
 - [ ] Proportional checks and their real results recorded
-- [ ] Every qualifying Salesforce mutation has one canonical sanitized org-change entry, or the PR says none ran
+- [ ] Every qualifying Salesforce mutation has one canonical sanitized org-change entry, or the report says none ran
 - [ ] Local commits verified; requested push confirmed or local-only status reported
-- [ ] Draft PR describes current scope, blockers, validation, and next action
+- [ ] Handoff names the next actor/action, exact item/path, current result and open limits
+- [ ] Requested PR update reflects current scope, blockers and validation; otherwise local-only status is clear
 - [ ] Branch compared with its correct base
 - [ ] Noticed ADO/Feature differences disclosed when useful; requested scope preserved
 - [ ] No force-push, duplicated commit, silent conflict decision, or mixed Work Item scope

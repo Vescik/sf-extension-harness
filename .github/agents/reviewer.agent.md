@@ -28,6 +28,10 @@ how hard you push. Use the procedure in the
 [check-against-principles skill](../skills/check-against-principles/SKILL.md): name the
 rule, quote the evidence, state what would break.
 
+Use that skill to assess whether the design still leaves material behavior for the implementer
+to invent and whether claimed task completion is supported. Allow equivalent implementation
+details, and apply the skill's file-lifecycle rules without requiring empty task or decision files.
+
 Verify claims, don't trust them: a design that asserts an extension point or an object
 contract gets checked against the org through the review tools and against
 `knowledge_context` for the artifacts involved. A package-touching change without its own

@@ -6,7 +6,6 @@ Schema version: 2
 Source authority depends on the assertion being made. There is no universal ranking, and
 multiple records derived from the same underlying source are not independent corroboration.
 
-Two authorities may support a positive intended-source assertion, and only these two.
 **Approved one-file Knowledge Entries** (`entryRef`, SAFE-CLAIM-001, owner-approved 2026-07-24;
 the sole governed Knowledge store since the claim registry retired, owner-approved 2026-08-03)
 carry `metadata-repository` authority only: they establish the intended
@@ -15,19 +14,14 @@ fully-covered sections) and never deployed state, runtime behavior, business mea
 package limitations, vendor guarantees, or absence/completeness beyond the machine-emitted
 enumeration — see `docs/knowledge-one-file-contract.md` §8.
 
-The second authority is a **governed repository receipt** (`repository-receipt`, SAFE-CLAIM-001
-v4, 2026-08-05). It exists because an empty Knowledge store is a normal starting state and a
-blanket Knowledge prerequisite would block every first design. The receipt is authored by
-`scripts/repository_evidence_adapter.py`, which resolves the entry with `ls-tree` at a full
-commit SHA, accepts only regular blob modes, and reads the object by OID with `cat-file`. It
-rejects symlinks, submodules, directories, absolute/drive/UNC paths, alternate-data-stream
-syntax, traversal, option-like paths and short or ambiguous commits. Reading by object ID rather
-than by working-tree path is what removes the read-versus-resolve race and makes the behaviour
-identical on Windows and macOS.
-
-What the fallback does **not** license: a model opening a file and reporting what it saw. That
-is orientation and stays `UNVERIFIED` in both lanes. Absence and completeness claims stay
-outside both lanes entirely.
+Entry eligibility, source drift and citation handling follow the
+[Search Knowledge retrieval contract](../../.github/skills/search-knowledge/SKILL.md).
+The current runtime has no separate repository-receipt adapter. Do not invoke or recreate one,
+or manufacture its receipt. Ordinary repository reads support orientation and scoped source
+inspection; they do not become approved Knowledge. Label unsupported assertions `UNVERIFIED`
+with their source, bounds and consequence. A useful design draft may record such gaps without
+claiming the dependent behavior is ready to implement. Absence and completeness still require
+the evidence described below.
 
 | Evidence source type | Can establish | Cannot establish alone |
 |---|---|---|
@@ -35,7 +29,6 @@ outside both lanes entirely.
 | `org-tooling-enumeration` | Accessible automation/configuration inventory when pagination and permissions are complete | Invisible package internals or vendor guarantees |
 | `org-soql-sample` | Values of the bounded records observed | Universal behavior, absence, or field semantics |
 | `metadata-repository` | Customer-owned intended metadata at an exact commit | Deployed org state without deployment reconciliation |
-| `repository-receipt` | Customer-owned intended source at an exact commit/blob OID/range, with coverage stated | Deployed org state, absence beyond the stated range, business meaning, or the current working tree when drift is reported |
 | `installed-package-record` | Installed package identity and version | Package behavior or supported extension points |
 | `vendor-documentation` | Documented package behavior for the stated versions | Current org configuration |
 | `vendor-support-case` | Vendor-confirmed behavior for the case scope and stated versions | Broader behavior outside that scope |
@@ -44,8 +37,8 @@ outside both lanes entirely.
 | `human-sme-attestation` | Business terminology or process meaning within the speaker's accountable scope | Technical configuration without technical corroboration |
 | `controlled-sandbox-test` | Behavior under the recorded scenario, data, metadata, and package version | Universal behavior outside that fingerprint |
 
-Model output and existing Knowledge are never evidence. Existing Knowledge may lead to relevant
-evidence, but it cannot corroborate itself.
+Model output is not evidence. Existing Knowledge may lead to its underlying evidence, but it
+cannot provide independent corroboration of itself.
 
 ## Minimum provenance
 

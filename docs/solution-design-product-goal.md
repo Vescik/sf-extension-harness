@@ -1,7 +1,7 @@
 # Solution Design — product goal
 
 Status: normative. This document states **why Solution Design exists and what "working" means**.
-It stands above every plan, diagnosis and runtime design for this workflow: a plan may change how
+It stands above every plan and diagnosis for this workflow: a plan may change how
 the goal is reached, but not the goal.
 
 Scope test: **an element that does not serve §1 is out of scope.** That test is the reason this
@@ -11,10 +11,10 @@ document exists — without it, "more control" reads as "better product".
 
 ## 1. The goal
 
-> Given an ADO work item or a written description, the agent delivers a solution design grounded in
-> what actually exists in Knowledge and in the org, and verifies its own design several times
-> against managed-package constraints, recorded limitations and organization principles — and the
-> runtime helps it do that rather than getting in the way.
+> Given a concrete ADO work item or a written description, the agent delivers a design grounded
+> in the available Knowledge and org evidence. It specifies enough behavior for another agent
+> to implement without inventing material choices, and checks the design against applicable
+> constraints, recorded limitations, and organization principles before handing it over.
 
 For ADO-backed work the requirement arrives as a durable snapshot: `/fetch-ado-item` persists
 `work-items/<id>-<slug>/ado-context.md` first. The design names that path as its requirement
@@ -31,12 +31,14 @@ nothing about the design.
 
 Three obligations sit inside that sentence, and all three are load-bearing:
 
-1. **Deliver a design.** A session that ends without a document is a product failure, whatever the
-   state machine says. Non-completion is not a safe outcome; it is an outcome with no value.
+1. **Deliver a design.** Once the request's concrete identity and scope are established, produce
+   a useful draft even when some evidence or choices remain unavailable. Keep those gaps visible;
+   a draft is not a claim that all dependent work is executable. Preserve the skill's entry routing.
 2. **Ground it in what exists.** Reuse before creation, and both stated against measured reality —
    Knowledge entries, the object contract, installed package facts — not against recollection.
-3. **Check its own work.** Managed-package limits, recorded limitations and principles are reviewed
-   by the agent against its own design, more than once, before a human is asked to approve it.
+3. **Check its own work.** Perform the solution-design skill's one bounded final self-check against
+   the proposed behavior, managed-package constraints, recorded limitations and applicable rules.
+   Correct what can be resolved in the same turn and expose the remaining material choices.
 
 ---
 
@@ -45,12 +47,12 @@ Three obligations sit inside that sentence, and all three are load-bearing:
 | Reader | What they need from the output |
 |---|---|
 | The named human approver | One document they can read end to end, whose unknowns are visible before they approve, not after |
-| The developer implementing it | An unambiguous list of artefacts to build, and what "done" means per acceptance criterion |
+| The developer implementing it | An unambiguous behavioral contract for the artifacts to build, and observable completion per acceptance criterion |
 | The reviewer challenging it | The decisions and their alternatives, plus what evidence each rests on |
 | The next agent touching this work | Persisted state that reconstructs the design without the chat transcript |
 
-Nobody in that table needs internal identifiers, rule verdicts that passed, or gate mechanics in
-the main document. Those belong to machine state or a compact evidence appendix.
+Keep the main document focused on behavior, rationale and material evidence. Internal tool
+details belong only where they help inspect a claim; they do not require a new state artifact.
 
 ---
 
@@ -58,8 +60,13 @@ the main document. Those belong to machine state or a compact evidence appendix.
 
 - Every in-scope acceptance criterion maps to an artefact, an explicit no-change decision, or a
   named open question — and to a planned verification.
-- Every claim about existing state is labelled: measured, or assumed. An assumption is written
-  down as an assumption, with its consequence, and survives into the approval screen.
+- Every material component or interacting group has the behavior needed for implementation,
+  following the [Solution Design contract](../.github/skills/solution-design/SKILL.md#behavior-to-implement).
+  A name and a generic test statement are insufficient. Private implementation details remain
+  the Developer's choice when they preserve that behavior.
+- Every claim about existing state is labelled: measured, or unverified. An assumption is written
+  down with its source gap, consequence, and dependent work. Missing domain documents do not prove
+  the absence of constraints or prevent a useful draft.
 - Ceremony is proportional to risk. A single formula field does not earn the process a data
   migration earns.
 - The document is honest about what was not established. "We could not determine X, so the design
@@ -69,23 +76,27 @@ the main document. Those belong to machine state or a compact evidence appendix.
 
 ## 4. Construction principles
 
-1. **The runtime advises during the loop and refuses nothing. There is exactly one hard gate:
-   human approval.** An unmet condition becomes content in the design — an open item, an
-   assumption, an ungrounded label — never a refusal that ends the session empty-handed.
-2. **The runtime enforces only what prose cannot.** Three things qualify: that discovery was
-   actually performed per subject, that coverage is computed rather than declared, and that
-   iteration has a stop. Everything else is guidance in the skill, agent and instruction files.
+1. **Useful drafting and honest execution are separate.** A missing fact or unresolved choice
+   becomes explicit design content. Resolve material choices before dependent implementation;
+   independent work can continue. Role boundaries, input routing, and existing operational
+   safety controls remain in force.
+2. **Procedures have one owner.** The solution-design skill owns discovery, behavioral content,
+   and the bounded self-check. Development owns executable tasks and decision history; review
+   owns independent findings. Use the existing AC matrix and Planned change surface. No design
+   runtime, computed-coverage service, new readiness status, or approval ledger is required.
 3. **Evidence is an annotation on the design, not a precondition for writing it.** Missing evidence
    changes a claim's label; it does not prevent the claim from being proposed and reviewed.
 4. **Measure before asking a human.** A fact a governed read surface can return — package
    ownership, whether a field exists, an installed version — is read, not elicited. Humans are
    asked about business meaning, vendor guarantees and risk acceptance.
-5. **Proportional depth.** The runtime derives how much process a design needs; the model does not
-   choose it, and a broad artefact category alone does not make something high risk.
+5. **Proportional depth.** Address the relevant behavior and constraints for the actual change.
+   A broad artifact category alone does not justify more ceremony. Do not add mandatory empty
+   sections or duplicate architecture in the Developer's checklist.
 6. **Structural checks are not quality guarantees.** A deterministic checker verifies the
-   *structure* of coverage, never the *correctness* of the design. Semantics are verified by an
-   independent reviewer and by the human who approves. The number of gates is not a measure of
-   quality, and this document refuses to let it become one.
+   *structure* of coverage, never the *correctness* of the design. Review and observed fresh-agent
+   trials assess semantics within their stated evidence limits. A `Covered` row names a solution
+   and planned verification; it does not prove technical completeness, acceptance, implementation,
+   or test success. No extra mandatory review invocation is added to each work item.
 
 ---
 
@@ -94,13 +105,20 @@ the main document. Those belong to machine state or a compact evidence appendix.
 These hold regardless of any plan:
 
 - no org mutation from the design role; Salesforce and ADO access is read-only;
-- approval is human, named, and bound to the exact candidate digest — a model never approves;
+- acceptance and authorization come from the human, never a model's own verdict or a commit.
+  Apply the [shared handoff contract](../.ai/contracts/execution-contract.md#handoff-and-continuation):
+  an explicit request to implement an identified persisted design authorizes that bounded work;
+  acceptance alone does not start implementation. PR review, publication, deployment confirmation,
+  and Knowledge approval keep their separate rules;
 - model prose is not evidence, and an unsupported human assertion does not establish package
   behaviour, schema, deployed state or absence;
-- an assumption never closes a change to metadata inside a package namespace;
-- an answer that hands the decision back ("your call", "as you see fit") does not close a question;
-- persisted state outranks the conversation: candidate, approval and handoff reconstruct from the
-  repository alone.
+- an assumption never establishes package behavior or closes a material evidence gap; namespace
+  and ownership alone do not add a prohibition beyond the current managed-package rules;
+- an unresolved material business or policy choice is not an equivalent internal coding detail.
+  A vague answer does not select between unresolved alternatives;
+- intent, progress and deviations reconstruct from the existing repository files. Handoff prose
+  points to them. Those files do not manufacture authorization or replace the direct human
+  instruction; do not create a separate approval record or digest mechanism.
 
 ---
 
@@ -113,8 +131,10 @@ Observable, without a baseline to compare against:
 - **Proportionality** — a one-field change produces a compact design, not a full ceremony.
 - **Grounding** — every subject named in the acceptance criteria has a recorded lookup outcome
   before a plan item references it; items without one are visibly labelled.
-- **Termination** — the loop either converges or stops at a named blocker with the remaining delta
-  written down. It never spins.
+- **Implementability** — a fresh Developer can derive tasks from the persisted design without
+  inventing material behavior. A genuine gap is identified with its affected work instead.
+- **Termination** — the bounded self-check ends with a corrected design and named remaining
+  choices. It does not start an open-ended review loop.
 - **Honesty** — what could not be established appears in the document, and no verification is
   claimed that was not run.
 
@@ -131,5 +151,5 @@ solution-design-product-goal.md      (this document — why, and what "good" mea
 ```
 
 A plan that cannot trace an element to §1 should drop that element rather than justify it. A
-diagnosis explains the present; it does not set the target. Where a runtime design and this
-document disagree, this document wins and the runtime design is amended.
+diagnosis explains the present; it does not set the target. Where an implementation approach and
+this document disagree, preserve this goal while keeping the existing role and safety boundaries.

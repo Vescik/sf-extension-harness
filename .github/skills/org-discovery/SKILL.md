@@ -33,8 +33,12 @@ question — a one-field question does not need the full sweep.
    Never paste raw record rows into a design, a knowledge entry, or an ADO artifact —
    derive the counts and shapes you need. When the question outgrows a bounded read — a
    persisted snapshot of configuration records, org-usage numbers attached to an entry,
-   a deeper package investigation — hand it to `config-investigator` (its
-   investigate-object / investigate-config-records lanes) instead of widening discovery.
+   a deeper package investigation — prepare a manual request for `config-investigator` (its
+   investigate-object / investigate-config-records lanes). Include the question, bounded scope,
+   known sources, dependent decision and expected result under the
+   [shared handoff contract](../../../.ai/contracts/execution-contract.md#handoff-and-continuation).
+   Keep lasting findings in the calling role's existing artifact; this instruction does not
+   dispatch an automatic subagent or widen discovery.
 
 ## Knowledge freshness flags
 
