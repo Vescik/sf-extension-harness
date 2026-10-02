@@ -2,7 +2,8 @@
 
 Date: 2026-10-02. Base: `main` at `1a579ef` (Plans 03, 03a, and 03b included).
 Status: **LOCAL IMPLEMENTATION COMPLETE — local checks PASS** on `codex/plan04-wiki`.
-GitHub CI, VS Code/ADO acceptance, remote publication, and migration are not verified.
+GitHub delivery and CI status are tracked in [PR #55](https://github.com/Vescik/sf-extension-harness/pull/55).
+VS Code/ADO acceptance, remote Wiki publication, and migration are not verified.
 
 ## Delivered behavior
 
@@ -73,10 +74,18 @@ An independent offline skill exercise covered missing deployment evidence, a man
 overlapping conflict, an existing same-page Story link, and partial publication after timeout.
 It preserved the required scope and recovery behavior. This exercise is not host acceptance.
 
+The first PR CI run passed on Linux. Windows exposed an existing Git admission regression:
+porcelain diff refreshed index stat data despite `--no-optional-locks`. All Plan 04 tests passed.
+The equality check now disables that refresh and uses numstat to compare normalized content.
+The regression test forces stat drift, while retaining raw index-byte equality and every existing
+content, mode, deletion, clean-filter, and argument-budget assertion. The original code fails
+this deterministic case locally. Updated CI results belong to the PR's current head.
+
 ## Remaining acceptance
 
-The implementation has not been pushed or published. No remote Wiki page, Story, or Salesforce
-org was changed. No real ADO credentials or copied user configuration were used in tests.
+The user subsequently authorized push, PR, and merge. The implementation was pushed through
+PR #55. No remote Wiki page, Story, or Salesforce org was changed. No real ADO credentials or
+copied user configuration were used in tests.
 
 Before a live pilot, install this complete checkout and its rebuilt native package in the target
 VS Code Local host. Restart `ado-readonly` so the reviewed preload is active. Use an explicitly

@@ -262,7 +262,7 @@ def checked_commit_path(repo: Repo, raw: str, allowed: Callable[[str], bool]) ->
 
 def path_batches(repo: Repo, paths: set[str]):
     """Budget both OS encodings, including a prefix at least as long as every batch call."""
-    prefix = ["git", "--no-optional-locks", "-C", str(repo.root), "diff", "--name-only",
+    prefix = ["git", "--no-optional-locks", "-C", str(repo.root), "-c", "diff.autoRefreshIndex=false", "diff", "--numstat",
               "--no-ext-diff", "--no-textconv", "--no-renames", "-z", "--"]
     prefix_units = len(subprocess.list2cmdline(prefix).encode("utf-16-le")) // 2 + 1
     prefix_bytes = sum(len(os.fsencode(arg)) + 1 for arg in prefix) + 8 * (len(prefix) + 1)
@@ -547,7 +547,11 @@ def author_git_decision(parts: list[str], root: Path, role: str, allowed: Callab
 
 def require_index_equality(repo: Repo, paths: set[str]) -> None:
     for batch in path_batches(repo, paths):
-        if repo.git("diff", "--name-only", "--no-ext-diff", "--no-textconv", "--no-renames", "-z", "--", *batch):
+        # Porcelain diff can refresh matching files' cached stat data even with
+        # optional locks disabled. Numstat compares contents without that refresh;
+        # name-only would report stat-only differences with autoRefreshIndex off.
+        if repo.git("-c", "diff.autoRefreshIndex=false", "diff", "--numstat", "--no-ext-diff",
+                    "--no-textconv", "--no-renames", "-z", "--", *batch):
             raise Rejected("Selected files differ between index and working tree; do not restage automatically.")
         indexed: dict[str, tuple[str, str]] = {}
         records = repo.git("ls-files", "--stage", "-v", "-z", "--", *batch)

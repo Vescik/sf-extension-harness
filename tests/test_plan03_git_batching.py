@@ -137,6 +137,11 @@ class GitBatchingTests(unittest.TestCase):
         for path in paths:
             self.assertNotEqual(fixture.git("rev-parse", ":" + path),
                                 fixture.git("hash-object", "--no-filters", "--", path))
+        # Force stat drift outside the index timestamp window. Otherwise the
+        # index-refresh regression depends on filter speed and host timing.
+        fixture.git("config", "diff.autoRefreshIndex", "true")
+        for path in paths:
+            os.utime(fixture.root / path, (1_000_000_000, 1_000_000_000))
         self.assert_hooks(fixture, "allow", self.command("commit", paths))
 
     def test_partial_failed_or_malformed_hash_output_denies_the_whole_batch(self):
@@ -198,7 +203,7 @@ class GitBatchingTests(unittest.TestCase):
         paths = {f"work-items/123-example/file {index:02d} {'🌿' * 5}.md" for index in range(20)}
         commands = (
             ["check-ignore", "--no-index", "--"],
-            ["diff", "--name-only", "--no-ext-diff", "--no-textconv", "--no-renames", "-z", "--"],
+            ["-c", "diff.autoRefreshIndex=false", "diff", "--numstat", "--no-ext-diff", "--no-textconv", "--no-renames", "-z", "--"],
             ["ls-files", "--stage", "-v", "-z", "--"],
             ["hash-object", "--"],
         )
