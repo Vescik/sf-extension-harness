@@ -16,11 +16,11 @@ authoritative source. If you have not installed the workspace yet, start with
 
 ## How the workspace divides responsibility
 
-| Human owns | Agent helps with |
-|---|---|
-| Business intent and acceptance criteria | Evidence collection and structured design |
-| Vendor guarantees not established by evidence | Repository review and read-only org review within role limits |
-| Approval of scope, designs, and Knowledge | Drafting, comparison, and traceable artifacts |
+| Human owns                                                          | Agent helps with                                                                 |
+| ------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Business intent and acceptance criteria                             | Evidence collection and structured design                                        |
+| Vendor guarantees not established by evidence                       | Repository review and read-only org review within role limits                    |
+| Approval of scope, designs, and Knowledge                           | Drafting, comparison, and traceable artifacts                                    |
 | Merge and release decisions; confirmation of each exact real deploy | Repository edits and in-scope Salesforce CLI execution within the Developer role |
 
 Four points hold across every path:
@@ -42,12 +42,12 @@ adding publication or execution permission.
 
 ## Choose your path
 
-| Situation | Start here | Why |
-|---|---|---|
-| New feature or material change | [Default delivery work](#playbook-1--default-delivery-work) | Design and evidence first |
-| Small diagnosed defect | [Bounded bug fix](#playbook-2--bounded-bug-fix) | Existing express lane |
-| Any change touching or depending on managed-package components | [Managed-package namespace overlay](#playbook-3--managed-package-namespace-work) | Ownership and package evidence are mandatory |
-| Customer-owned declarative change with no code | [Configuration-only work](#playbook-4--configuration-only-work) | Keep scope proportional while preserving design and evidence |
+| Situation                                                      | Start here                                                                       | Why                                                          |
+| -------------------------------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| New feature or material change                                 | [Default delivery work](#playbook-1--default-delivery-work)                      | Design and evidence first                                    |
+| Small diagnosed defect                                         | [Bounded bug fix](#playbook-2--bounded-bug-fix)                                  | Existing express lane                                        |
+| Any change touching or depending on managed-package components | [Managed-package namespace overlay](#playbook-3--managed-package-namespace-work) | Ownership and package evidence are mandatory                 |
+| Customer-owned declarative change with no code                 | [Configuration-only work](#playbook-4--configuration-only-work)                  | Keep scope proportional while preserving design and evidence |
 
 Two routing rules:
 
@@ -235,8 +235,7 @@ You select the container; it is not inferred from the ADO parent relation:
   # implement, test, QA plan if needed, PR AB#5001
   ```
 
-- **Combined Feature delivery**: tell the active author to use combined delivery for Feature
-  5000. It prepares/resumes `feature/5000-<slug>` itself; included Stories land on that branch
+- **Combined Feature delivery**: tell the active author to use combined delivery for Feature 5000. It prepares/resumes `feature/5000-<slug>` itself; included Stories land on that branch
   as separate `[WI-<id>] … — AB#<id>` commits, with optional
   parallel `work-item/<id>` child branches targeting the Feature branch. One final Feature PR
   to `main` links the Feature and its included children and merges as a merge commit. See
@@ -508,12 +507,12 @@ it does not leave those choices to the implementer.
 
 ```markdown
 - [ ] T-03 — Apply the priority policy through the existing Case handler.
-  Design: design.md#priority-policy. Coverage: AC-2, AC-3.
-  Outcome: add CasePriorityPolicy.apply(List<Case>) and its existing-handler call.
-  Boundary: in-memory changes only; preserve fields outside the policy contract.
-  Done: tests verify matching, non-matching, existing-priority, empty-input,
-  null-element and mixed 200-record cases against the design's expected outcomes.
-  Depends on: T-01, which confirms the existing handler contract.
+      Design: design.md#priority-policy. Coverage: AC-2, AC-3.
+      Outcome: add CasePriorityPolicy.apply(List<Case>) and its existing-handler call.
+      Boundary: in-memory changes only; preserve fields outside the policy contract.
+      Done: tests verify matching, non-matching, existing-priority, empty-input,
+      null-element and mixed 200-record cases against the design's expected outcomes.
+      Depends on: T-01, which confirms the existing handler contract.
 ```
 
 Private helper structure remains the Developer's choice. The checkbox stays unchecked until the
@@ -586,20 +585,20 @@ reviewing impact across a curated feature boundary. For the governing detail, se
 
 ## Where work is recorded
 
-| Artifact | Human meaning |
-|---|---|
-| `work-items/<id>-<slug>/ado-context.md` | Source-faithful ADO requirement snapshot plus clearly unapproved AI understanding (ADO-backed work) |
-| `work-items/<id>-<slug>/design.md` | Intended behavior, scope, trade-offs, verification, and rollback; acceptance is separate |
-| `work-items/<id>-<slug>/tasks.md` | Developer-owned execution checklist with observable completion |
-| `work-items/<id>-<slug>/decisions.md` | Optional append-only deviations and rulings; later entries explicitly supersede earlier ones |
-| `work-items/<id>-<slug>/qa-test-plan.md` | Optional QA handoff that projects the requirement, design, and deviations |
-| `work-items/<id>-<slug>/technical-documentation.md` | Optional durable documentation of a requested change or existing state; separate from review and wiki publication |
-| `work-items/<id>-<slug>/org-changes.md` | Optional append-only operational history of qualifying Salesforce mutations; an agent report, not approval/evidence |
-| `work-items/<feature-id>-<slug>/delivery-map.md` | Explicit membership and order of an actively prepared ADO Feature's delivery — coordination only (Feature folders only) |
+| Artifact                                               | Human meaning                                                                                                                                    |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `work-items/<id>-<slug>/ado-context.md`                | Source-faithful ADO requirement snapshot plus clearly unapproved AI understanding (ADO-backed work)                                              |
+| `work-items/<id>-<slug>/design.md`                     | Intended behavior, scope, trade-offs, verification, and rollback; acceptance is separate                                                         |
+| `work-items/<id>-<slug>/tasks.md`                      | Developer-owned execution checklist with observable completion                                                                                   |
+| `work-items/<id>-<slug>/decisions.md`                  | Optional append-only deviations and rulings; later entries explicitly supersede earlier ones                                                     |
+| `work-items/<id>-<slug>/qa-test-plan.md`               | Optional QA handoff that projects the requirement, design, and deviations                                                                        |
+| `work-items/<id>-<slug>/technical-documentation.md`    | Optional durable documentation of a requested change or existing state; separate from review and wiki publication                                |
+| `work-items/<id>-<slug>/org-changes.md`                | Optional append-only operational history of qualifying Salesforce mutations; an agent report, not approval/evidence                              |
+| `work-items/<feature-id>-<slug>/delivery-map.md`       | Explicit membership and order of an actively prepared ADO Feature's delivery — coordination only (Feature folders only)                          |
 | `docs/solutions/<slug>/{overview,flows,components}.md` | Optional three-file description of an implemented solution, maintained across Stories; separate from delivery documentation and wiki publication |
-| `docs/org-changes/**` | Standalone org-change history only when no Work Item or prepared Feature applies |
-| `output/**` | Ignored temporary drafts and reports, including monthly handover, Feature Health, and adhoc fix notes |
-| `.ai/knowledge/**` | Governed Knowledge, written only through its existing lanes |
+| `docs/org-changes/**`                                  | Standalone org-change history only when no Work Item or prepared Feature applies                                                                 |
+| `output/**`                                            | Ignored temporary drafts and reports, including monthly handover, Feature Health, and adhoc fix notes                                            |
+| `.ai/knowledge/**`                                     | Governed Knowledge, written only through its existing lanes                                                                                      |
 
 See [work-items/README.md](../work-items/README.md) for the work-item files and
 [grounding-architecture.md](grounding-architecture.md) for the evidence boundary. Chat is not
@@ -646,27 +645,26 @@ prove UI behavior.
 
 ## Quick reference
 
-| Need | Entry point |
-|---|---|
-| Start from an ADO item | `/fetch-ado-item itemId=<ID>` includes the author's local Git step; then `/solution-design itemId=<ID>` |
-| Deliver one ADO Feature through several child Stories | `/prepare-delivery-feature itemId=<Feature ID>` once, then tell the same author whether to use independent or combined delivery |
-| Navigate an ADO Epic to a child Feature | `/fetch-ado-item itemId=<Epic ID>`, then choose one emitted `/prepare-delivery-feature itemId=<ID>` command |
-| Start from a written requirement | `/solution-design <requirement>` |
-| Review a persisted design or implementation | `/check-against-principles itemId=<ID> scope=design` (or `scope=implementation`) |
-| Apply a small diagnosed fix | `/adhoc-fix component=<Type:Name> org=<alias>` plus the diagnosis |
-| Search governed Artifact Knowledge | `/search-knowledge keyword=<term>` (other filters: `text=`, `subject=`, `anchor=`, `error=`) |
-| Investigate an allowlisted object | `/investigate-object objectApiName=<API name>` |
-| Investigate reference/config records | `/investigate-config-records objectApiName=<API name> org=<alias>` |
-| Author Feature Knowledge | `/author-feature <slug-or-name>` |
-| Assess feature coverage | `/feature-health itemId=<Feature ID>` |
-| Document one Work Item's change or existing state | `/document-metadata-change itemId=<ID>` |
-| Document an implemented solution across components or Stories | `/document-solution <topic and scope>` with optional `itemId=<ID>` and `documentationPath=docs/solutions/<slug>/` |
-| Publish existing solution or delivery documentation | `/publish-wiki <solution directory or delivery document>` |
-| Publish/update a PR or merge | Explicitly ask the active executing author; Git Agent is optional assistance |
+| Need                                                          | Entry point                                                                                                                     |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Start from an ADO item                                        | `/fetch-ado-item itemId=<ID>` includes the author's local Git step; then `/solution-design itemId=<ID>`                         |
+| Deliver one ADO Feature through several child Stories         | `/prepare-delivery-feature itemId=<Feature ID>` once, then tell the same author whether to use independent or combined delivery |
+| Navigate an ADO Epic to a child Feature                       | `/fetch-ado-item itemId=<Epic ID>`, then choose one emitted `/prepare-delivery-feature itemId=<ID>` command                     |
+| Start from a written requirement                              | `/solution-design <requirement>`                                                                                                |
+| Review a persisted design or implementation                   | `/check-against-principles itemId=<ID> scope=design` (or `scope=implementation`)                                                |
+| Apply a small diagnosed fix                                   | `/adhoc-fix component=<Type:Name> org=<alias>` plus the diagnosis                                                               |
+| Search governed Artifact Knowledge                            | `/search-knowledge keyword=<term>` (other filters: `text=`, `subject=`, `anchor=`, `error=`)                                    |
+| Investigate an allowlisted object                             | `/investigate-object objectApiName=<API name>`                                                                                  |
+| Investigate reference/config records                          | `/investigate-config-records objectApiName=<API name> org=<alias>`                                                              |
+| Author Feature Knowledge                                      | `/author-feature <slug-or-name>`                                                                                                |
+| Assess feature coverage                                       | `/feature-health itemId=<Feature ID>`                                                                                           |
+| Document one Work Item's change or existing state             | `/document-metadata-change itemId=<ID>`                                                                                         |
+| Document an implemented solution across components or Stories | `/document-solution <topic and scope>` with optional `itemId=<ID>` and `documentationPath=docs/solutions/<slug>/`               |
+| Publish existing solution or delivery documentation           | `/publish-wiki <solution directory or delivery document>`                                                                       |
+| Publish/update a PR or merge                                  | Explicitly ask the active executing author; Git Agent is optional assistance                                                    |
 
 This table lists the entry points behind the playbooks above, not the whole catalog — the
 Copilot slash menu shows the full current set of public prompts.
-
 
 ## Native one-operation Salesforce tool (plan 01a)
 

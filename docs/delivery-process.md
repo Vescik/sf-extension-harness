@@ -73,11 +73,11 @@ checkpoints. For exact commands, ownership and mixed-index recovery, use
 
 The branch identifies the delivery container; the commit identifies the implementation owner.
 
-| Purpose | Branch | Normal PR target | PR ADO reference |
-|---|---|---|---|
-| Concrete Work Item (Story, PBI, Task, Bug, approved enabler) | `work-item/<item-id>-<slug>` | `main`, or its Feature branch for a parallel child | `AB#<item ID>` |
-| Prepared Feature, combined delivery | `feature/<feature-id>-<slug>` | `main` | `AB#<Feature ID>` plus included children |
-| Maintenance without ADO | `chore/<short-description>` | `main` | Not applicable |
+| Purpose                                                      | Branch                        | Normal PR target                                   | PR ADO reference                         |
+| ------------------------------------------------------------ | ----------------------------- | -------------------------------------------------- | ---------------------------------------- |
+| Concrete Work Item (Story, PBI, Task, Bug, approved enabler) | `work-item/<item-id>-<slug>`  | `main`, or its Feature branch for a parallel child | `AB#<item ID>`                           |
+| Prepared Feature, combined delivery                          | `feature/<feature-id>-<slug>` | `main`                                             | `AB#<Feature ID>` plus included children |
+| Maintenance without ADO                                      | `chore/<short-description>`   | `main`                                             | Not applicable                           |
 
 `work-item/` delivers one concrete ADO Work Item directly; there is no separate `fix/` kind —
 a Bug's type stays visible in its `ado-context.md`. `feature/` is reserved for an ADO Feature
@@ -207,14 +207,14 @@ continuing the Feature on one shared Feature branch for combined delivery, or
 `/fetch-ado-item itemId=<first-included-ID>` for independent child delivery. Select one mode
 before child development:
 
-| Question | Independent delivery | Combined Feature delivery |
-|---|---|---|
-| Can each Story be reviewed and merged safely by itself? | Yes | No or materially unsafe |
-| Can incomplete child behavior exist safely on `main`? | Yes | No |
-| Is combined behavior the real acceptance boundary? | Not necessarily | Yes |
-| Must several Stories build a shared foundation before any works? | Usually no | Often yes |
-| Must the Feature release atomically? | No | Yes |
-| Default choice | **Yes** | Opt-in only |
+| Question                                                         | Independent delivery | Combined Feature delivery |
+| ---------------------------------------------------------------- | -------------------- | ------------------------- |
+| Can each Story be reviewed and merged safely by itself?          | Yes                  | No or materially unsafe   |
+| Can incomplete child behavior exist safely on `main`?            | Yes                  | No                        |
+| Is combined behavior the real acceptance boundary?               | Not necessarily      | Yes                       |
+| Must several Stories build a shared foundation before any works? | Usually no           | Often yes                 |
+| Must the Feature release atomically?                             | No                   | Yes                       |
+| Default choice                                                   | **Yes**              | Opt-in only               |
 
 Do not switch modes casually after child PRs exist. Retargeting several PRs or copying commits
 requires an explicit owner decision and migration plan.
@@ -360,15 +360,15 @@ visibility.
 
 A file does not permanently belong to one Story. Decide by acceptance scope and coherent delivery:
 
-| Discovery | Owner | Action |
-|---|---|---|
-| Small change required for current AC | current Story | implement and record later reuse implication |
-| Shared helper naturally needed by current Story | current Story unless independently valuable | implement once; later Stories inherit it |
-| Change independently satisfies another Story's AC | other Story | stop scope creep; deliver separately |
-| Current Story cannot proceed without another | prerequisite Story/enabler | pause current Story; deliver prerequisite first |
-| Foundation serves several Stories and belongs to none | explicit technical/enabler Work Item | obtain owner-approved Work Item before coding |
-| Same shared component edited concurrently | one designated active writer | others pause that surface and synchronize after merge |
-| Ownership remains unclear | human owner | stop; do not let a model choose by title or file history |
+| Discovery                                             | Owner                                       | Action                                                   |
+| ----------------------------------------------------- | ------------------------------------------- | -------------------------------------------------------- |
+| Small change required for current AC                  | current Story                               | implement and record later reuse implication             |
+| Shared helper naturally needed by current Story       | current Story unless independently valuable | implement once; later Stories inherit it                 |
+| Change independently satisfies another Story's AC     | other Story                                 | stop scope creep; deliver separately                     |
+| Current Story cannot proceed without another          | prerequisite Story/enabler                  | pause current Story; deliver prerequisite first          |
+| Foundation serves several Stories and belongs to none | explicit technical/enabler Work Item        | obtain owner-approved Work Item before coding            |
+| Same shared component edited concurrently             | one designated active writer                | others pause that surface and synchronize after merge    |
+| Ownership remains unclear                             | human owner                                 | stop; do not let a model choose by title or file history |
 
 ### Deliver a prerequisite first
 

@@ -44,12 +44,12 @@ Three obligations sit inside that sentence, and all three are load-bearing:
 
 ## 2. Who it serves, and what they get
 
-| Reader | What they need from the output |
-|---|---|
-| The named human approver | One document they can read end to end, whose unknowns are visible before they approve, not after |
-| The developer implementing it | An unambiguous behavioral contract for the artifacts to build, and observable completion per acceptance criterion |
-| The reviewer challenging it | The decisions and their alternatives, plus what evidence each rests on |
-| The next agent touching this work | Persisted state that reconstructs the design without the chat transcript |
+| Reader                            | What they need from the output                                                                                    |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| The named human approver          | One document they can read end to end, whose unknowns are visible before they approve, not after                  |
+| The developer implementing it     | An unambiguous behavioral contract for the artifacts to build, and observable completion per acceptance criterion |
+| The reviewer challenging it       | The decisions and their alternatives, plus what evidence each rests on                                            |
+| The next agent touching this work | Persisted state that reconstructs the design without the chat transcript                                          |
 
 Keep the main document focused on behavior, rationale and material evidence. Internal tool
 details belong only where they help inspect a claim; they do not require a new state artifact.
@@ -93,7 +93,7 @@ details belong only where they help inspect a claim; they do not require a new s
    A broad artifact category alone does not justify more ceremony. Do not add mandatory empty
    sections or duplicate architecture in the Developer's checklist.
 6. **Structural checks are not quality guarantees.** A deterministic checker verifies the
-   *structure* of coverage, never the *correctness* of the design. Review and observed fresh-agent
+   _structure_ of coverage, never the _correctness_ of the design. Review and observed fresh-agent
    trials assess semantics within their stated evidence limits. A `Covered` row names a solution
    and planned verification; it does not prove technical completeness, acceptance, implementation,
    or test success. No extra mandatory review invocation is added to each work item.

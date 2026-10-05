@@ -47,19 +47,19 @@ Count-service work under R1 is independent of this interface policy.
 
 ## Planned change surface
 
-| Surface | Ownership | Planned action | Purpose / source |
-| --- | --- | --- | --- |
-| CustomField:Example_Request__c.Processed_Count__c | Subscriber (synthetic) | Create | R1 counter, D-001 |
-| ApexClass:ExampleRequestProcessor | Subscriber (synthetic) | Modify | R1 success-only count update |
-| ApexClass:ExampleRequestProcessorTest | Subscriber (synthetic) | Create | R1 zero/blank/success/failure/bulk assertions |
-| Flow:Example_Request_Process | Subscriber (synthetic) | [conditional — decision: failure policy] Modify | R2 user-visible failure behavior |
+| Surface                                           | Ownership              | Planned action                                  | Purpose / source                              |
+| ------------------------------------------------- | ---------------------- | ----------------------------------------------- | --------------------------------------------- |
+| CustomField:Example_Request__c.Processed_Count__c | Subscriber (synthetic) | Create                                          | R1 counter, D-001                             |
+| ApexClass:ExampleRequestProcessor                 | Subscriber (synthetic) | Modify                                          | R1 success-only count update                  |
+| ApexClass:ExampleRequestProcessorTest             | Subscriber (synthetic) | Create                                          | R1 zero/blank/success/failure/bulk assertions |
+| Flow:Example_Request_Process                      | Subscriber (synthetic) | [conditional — decision: failure policy] Modify | R2 user-visible failure behavior              |
 
 ## Acceptance criteria coverage
 
-| Criterion | Solution / planned surfaces | Planned verification | Status |
-| --- | --- | --- | --- |
-| R1 | Count behavior and planned counter/service/test | Assert blank/zero becomes 1 on success; 4 becomes 5; failure preserves value; mixed batch | Covered |
-| R2 | Unresolved failure policy | Verify chosen save/message behavior after owner decision | Open |
+| Criterion | Solution / planned surfaces                     | Planned verification                                                                      | Status  |
+| --------- | ----------------------------------------------- | ----------------------------------------------------------------------------------------- | ------- |
+| R1        | Count behavior and planned counter/service/test | Assert blank/zero becomes 1 on success; 4 becomes 5; failure preserves value; mixed batch | Covered |
+| R2        | Unresolved failure policy                       | Verify chosen save/message behavior after owner decision                                  | Open    |
 
 ## Verification and rollback
 
@@ -117,7 +117,7 @@ This is controlled fixture evidence, not a live discovery or a production approv
 The operator seeds `Processing_Count__c.field-meta.xml` with this definition:
 
 ```xml
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8" ?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>Processing_Count__c</fullName>
     <defaultValue>0</defaultValue>

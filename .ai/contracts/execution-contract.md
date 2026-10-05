@@ -67,7 +67,7 @@ Developer, subject to the global real-deploy confirmation hook:
   post-action entry is incomplete delivery/review follow-up, not a pre-execution denial. It does
   not add confirmation to data, Apex, package, permission, or org-lifecycle commands.
 - **Read-only orientation is allowed for every role**: `git status|diff|log|show|blame|rev-parse|
-  ls-files|grep`, listing/reading (`ls`, `dir`, `cat`, `type`, `head`, `tail`, `wc`, `grep`,
+ls-files|grep`, listing/reading (`ls`, `dir`, `cat`, `type`, `head`, `tail`, `wc`, `grep`,
   `findstr`, `find`, `where`, `which`, and the PowerShell read cmdlets). Command chaining,
   redirection, substitution, and output flags (`--output`, `find -delete/-exec`) remain denied
   in this read-only lane. Scoped Git/GitHub authoring follows the separate contract below.

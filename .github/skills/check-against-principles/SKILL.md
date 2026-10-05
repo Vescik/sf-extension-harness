@@ -90,7 +90,7 @@ An implementation review is of one Work Item's exact diff, never a guessed one.
    disclosure only. An incomplete org review, an ungrounded component, a missing source/version,
    an unverified review claim, or an unresolved blocking question disqualifies `SAFE` the same way.
    Before issuing the verdict, verify every supplied envelope with `python
-   scripts/knowledge_store.py entry-verify-citations --envelope <path>`. Invalid citations block
+scripts/knowledge_store.py entry-verify-citations --envelope <path>`. Invalid citations block
    `SAFE`; approved-drifted produces disclosure only.
 
 ## Design coverage and planned scope (design review)

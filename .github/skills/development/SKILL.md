@@ -145,7 +145,7 @@ artifacts, agent configuration, tooling) never triggers it.
 3. **Confirm a real deploy**: immediately before `sf project deploy start` without
    `--dry-run`, `sf project deploy quick`, equivalent `sf deploy metadata`, or a legacy
    `sfdx` deploy, state: `This will be a real deployment of changes to Salesforce org
-   <target>. Scope: <scope>. Should I run this deployment?` Wait for an unambiguous answer.
+<target>. Scope: <scope>. Should I run this deployment?` Wait for an unambiguous answer.
    The confirmation binds only the exact invocation. Ask again for every retry or redeploy.
    For native operations, the extension's modal supplies that exact execution confirmation;
    a chat answer or generic tool approval cannot answer the modal. Use the native tool for

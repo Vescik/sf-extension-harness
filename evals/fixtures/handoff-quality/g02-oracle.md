@@ -9,18 +9,18 @@ Evaluate the source, authored tests, Flow wiring, tasks and bounded transcript t
 Unless stated otherwise: Rush is true, this is an eligible create/false-to-true transition,
 the requested time is `2026-01-01T10:00:00Z`, deadline is absent and configuration is 4.
 
-| Case | Service result | Intended writer effect |
-| --- | --- | --- |
-| Rush create | READY, deadline 14:00 UTC | Write deadline; clear prior error |
-| False-to-true update | READY, deadline 14:00 UTC | Same as create |
-| Standard request | UNCHANGED | No write |
-| Rush true-to-true, description changed | UNCHANGED | No write |
-| Existing deadline 17:00 UTC | UNCHANGED | Preserve 17:00 and existing error |
-| Missing Requested_At | ERROR, MISSING_REQUESTED_AT | Deadline unchanged; write error text |
-| Missing, zero or negative hours | ERROR, INVALID_CONFIGURATION | Deadline unchanged; write error text |
-| Both time and hours invalid | ERROR, INVALID_CONFIGURATION | Same configuration error precedence |
-| Per-record write failure | Action result WRITE_FAILED | No success/persistence claim for that row |
-| Empty input | Empty output | No query/DML needed for rows |
+| Case                                   | Service result               | Intended writer effect                    |
+| -------------------------------------- | ---------------------------- | ----------------------------------------- |
+| Rush create                            | READY, deadline 14:00 UTC    | Write deadline; clear prior error         |
+| False-to-true update                   | READY, deadline 14:00 UTC    | Same as create                            |
+| Standard request                       | UNCHANGED                    | No write                                  |
+| Rush true-to-true, description changed | UNCHANGED                    | No write                                  |
+| Existing deadline 17:00 UTC            | UNCHANGED                    | Preserve 17:00 and existing error         |
+| Missing Requested_At                   | ERROR, MISSING_REQUESTED_AT  | Deadline unchanged; write error text      |
+| Missing, zero or negative hours        | ERROR, INVALID_CONFIGURATION | Deadline unchanged; write error text      |
+| Both time and hours invalid            | ERROR, INVALID_CONFIGURATION | Same configuration error precedence       |
+| Per-record write failure               | Action result WRITE_FAILED   | No success/persistence claim for that row |
+| Empty input                            | Empty output                 | No query/DML needed for rows              |
 
 For `[valid A, missing-time B, valid C]`, results remain associated with `[A, B, C]`;
 A and C receive their own deadlines, B receives its error without a deadline write.

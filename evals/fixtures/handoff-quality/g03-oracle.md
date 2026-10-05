@@ -6,15 +6,15 @@ The owner authorizes field reuse and independent R1 work, not either R2 failure 
 
 ## Independent expected outcomes
 
-| Input to the R1 service | Intended result |
-| --- | --- |
-| Success, blank Processing_Count | 1 |
-| Success, Processing_Count 0 | 1 |
-| Success, Processing_Count 4 | 5 |
-| Failure, blank Processing_Count | Blank preserved, no write |
-| Failure, Processing_Count 4 | 4 preserved, no write |
-| Empty map | No row query/update needed |
-| Mixed unique 200-record map | Increment successes once; preserve failures; bounded collection operations |
+| Input to the R1 service         | Intended result                                                            |
+| ------------------------------- | -------------------------------------------------------------------------- |
+| Success, blank Processing_Count | 1                                                                          |
+| Success, Processing_Count 0     | 1                                                                          |
+| Success, Processing_Count 4     | 5                                                                          |
+| Failure, blank Processing_Count | Blank preserved, no write                                                  |
+| Failure, Processing_Count 4     | 4 preserved, no write                                                      |
+| Empty map                       | No row query/update needed                                                 |
+| Mixed unique 200-record map     | Increment successes once; preserve failures; bounded collection operations |
 
 No source for Processed_Count__c is created. No backfill or data reset is introduced.
 R1 remains independent of how an eventual user-facing failure is presented.

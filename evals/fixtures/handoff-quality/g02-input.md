@@ -16,25 +16,25 @@ tree. All custom surfaces below are fixture-owned subscriber metadata, not obser
 metadata. The object allows existing automation to update its records in this fixture;
 that assumption is not a production access assessment. No new permissions are requested.
 
-| Surface | Supplied definition |
-| --- | --- |
-| `Example_Request__c` | Custom object, Name is Text |
-| `Rush__c` | Checkbox, default false |
-| `Requested_At__c` | Optional DateTime, UTC in all test data |
-| `Escalate_At__c` | Optional DateTime, existing deadline |
-| `Deadline_Error__c` | Existing Text(255), internal operations error display |
-| `Description__c` | Optional Text(255), unrelated editable value |
-| `Rush_Setting__mdt.Interval_Hours__c` | Number(3,0) on a custom metadata type |
-| `Rush_Setting.Default` | Supplied configuration record, interval 4 |
-| `Flow:Example_Request_Deadline` | Existing active after-save record-triggered Flow, create and update, action `RequestDeadlineAction` |
-| `ApexClass:RequestDeadlineAction` | Existing invocable entry point; receives the current request ID plus create/old-rush context |
-| `ApexClass:RequestDeadlineService` | Existing computation seam described below; no query or DML |
+| Surface                               | Supplied definition                                                                                 |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `Example_Request__c`                  | Custom object, Name is Text                                                                         |
+| `Rush__c`                             | Checkbox, default false                                                                             |
+| `Requested_At__c`                     | Optional DateTime, UTC in all test data                                                             |
+| `Escalate_At__c`                      | Optional DateTime, existing deadline                                                                |
+| `Deadline_Error__c`                   | Existing Text(255), internal operations error display                                               |
+| `Description__c`                      | Optional Text(255), unrelated editable value                                                        |
+| `Rush_Setting__mdt.Interval_Hours__c` | Number(3,0) on a custom metadata type                                                               |
+| `Rush_Setting.Default`                | Supplied configuration record, interval 4                                                           |
+| `Flow:Example_Request_Deadline`       | Existing active after-save record-triggered Flow, create and update, action `RequestDeadlineAction` |
+| `ApexClass:RequestDeadlineAction`     | Existing invocable entry point; receives the current request ID plus create/old-rush context        |
+| `ApexClass:RequestDeadlineService`    | Existing computation seam described below; no query or DML                                          |
 
 Representative field metadata, relative to
 `force-app/main/default/objects/Example_Request__c/fields/`:
 
 ```xml
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8" ?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>Escalate_At__c</fullName>
     <label>Escalate at</label>

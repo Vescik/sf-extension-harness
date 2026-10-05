@@ -11,12 +11,24 @@ Files appear by lifecycle stage — nothing creates empty placeholders for later
   no proposed solution). Records ADO identity, link, state,
   retrieval time, fetch options, and completeness. Absent for a purely
   written requirement that never came from ADO.
-- `design.md`    — technical solution: what and why, written BEFORE implementation;
-  no mandatory template. For ADO-backed work it names its requirement baseline
-  (the `ado-context.md` path and acceptance-criteria coverage, without an ADO revision gate).
-- `tasks.md`     — progress checklist; the checkboxes are the entire state
-- `decisions.md` — APPEND-ONLY log of deviations and rulings made during development;
-  never edit backwards, always append
+- `design.md` — Designer-owned behavioral contract and rationale, written before implementation.
+  It defines the relevant inputs, outputs, side effects, conditions, failures, and verification
+  through the [Solution Design skill](../.github/skills/solution-design/SKILL.md), without a
+  mandatory template. For ADO-backed work it names the `ado-context.md` requirement baseline
+  and source AC coverage. `Covered` is not acceptance, implementation, or test success.
+- `tasks.md` — Developer-owned execution checklist, created or reconciled before the first
+  implementation edit in the same turn. New material tasks have stable local IDs, bounded
+  outcomes, design/AC references or a support reason, observable completion and verification,
+  and dependencies where needed. Checkboxes are the entire progress state; check one only
+  after its own completion is observed. Partial work stays unchecked with a factual note.
+  Follow the [Development task lifecycle](../.github/skills/development/SKILL.md#executable-tasks)
+  for changed outcomes, cancellation, dependency repair, and affected legacy tasks.
+- `decisions.md` — optional append-only log, created for the first material deviation or
+  development ruling and written before dependent implementation. Record planned versus actual
+  behavior, reason, and material verification, QA, and rollback impact under the
+  [Development skill](../.github/skills/development/SKILL.md). Supersede an earlier entry
+  explicitly while preserving it. Absence means no deviations are recorded, not that none
+  occurred. No empty placeholder is required; a logged choice does not authorize extra scope.
 - `org-changes.md` — OPTIONAL, lazy-created, APPEND-ONLY operational history of qualifying
   Salesforce org mutations executed for this Work Item. The Development skill owns its trigger,
   redaction, and entry procedure. It is an agent report, never deployment approval, Knowledge,
@@ -34,7 +46,7 @@ Files appear by lifecycle stage — nothing creates empty placeholders for later
 - `delivery-map.md` — OPTIONAL, and only ever in an ADO **Feature's** folder: the membership
   manifest written by `/prepare-delivery-feature itemId=<Feature ID>` when a human explicitly
   prepares that Feature as delivery context for its direct child Work Items. Repository-wide
-  it is optional; for an *active* prepared Feature scope it is required — the map is the only
+  it is optional; for an _active_ prepared Feature scope it is required — the map is the only
   thing that activates Feature context, and only for the exact child IDs it lists as
   `included`. An ADO parent relation alone activates nothing. The map owns membership,
   delivery order, deferred/unsupported children, and reconciliation warnings — never
@@ -73,6 +85,18 @@ Legacy revision labels remain readable but do not control the workflow.
 Push, PR creation/update, and merge use GitHub CLI only under an explicit instruction covering
 those operations. A milestone or local commit does not trigger publication or merge. One
 instruction can cover both publication and merge; a publication-only request does not.
+
+On pause or transfer, use the [shared handoff contract](../.ai/contracts/execution-contract.md#handoff-and-continuation)
+with the exact Work Item ID or written-requirement design path, branch, checkpoint, next
+actor/action, actual verification, and open limits. The receiving role reads the durable files.
+A user request to implement the identified design authorizes its bounded implementation;
+acceptance alone does not start it. Unresolved material choices still wait before dependent work.
+Local continuation does not require a push or PR.
+
+The [Reviewer](../.github/skills/check-against-principles/SKILL.md) checks implementability and
+actual task completion against the exact review subject. A design-only review needs no tasks.
+A conforming implementation may have no decisions file; unrecorded material deviations remain
+findings. Compact tasks may reference a complete design contract instead of duplicating it.
 
 The folder name is stable by ID: it is never renamed when the ADO title
 changes; the current title lives in `ado-context.md` and Git history.

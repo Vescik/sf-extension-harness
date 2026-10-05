@@ -31,7 +31,7 @@ The operator seeds this existing file in the disposable SFDX repository:
 `force-app/main/default/objects/Account/fields/Score__c.field-meta.xml`
 
 ```xml
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8" ?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>Score__c</fullName>
     <label>Score</label>

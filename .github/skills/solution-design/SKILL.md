@@ -114,6 +114,7 @@ Only after Stage 1 established the applicable local baselines:
   Story stays the sole design and QA unit, and its implementation keeps explicit `[WI-<id>]`
   commit ownership whether it is delivered on its own `work-item/` branch or as part of a
   combined Feature branch.
+
 - **Touched objects and components, each with ownership** — package-owned,
   subscriber-owned, or platform, from the org's object contract, not assumption.
 - **Package impact in its own section** — anything touching or depending on
@@ -165,7 +166,7 @@ verification — do not duplicate the same coverage in parallel prose:
 ## Acceptance criteria coverage
 
 | Criterion | Solution / planned surfaces | Planned verification | Status |
-|---|---|---|---|
+| --------- | --------------------------- | -------------------- | ------ |
 ```
 
 - **Criterion identity.** For ADO-backed work, use the source AC identifier/order from
@@ -203,7 +204,7 @@ The design declares its intended logical change surface in one compact table:
 ## Planned change surface
 
 | Surface | Ownership | Planned action | Purpose / source |
-|---|---|---|---|
+| ------- | --------- | -------------- | ---------------- |
 ```
 
 - **Logical identity, not file count.** Identify Salesforce surfaces as
@@ -223,7 +224,7 @@ The design declares its intended logical change surface in one compact table:
   `[conditional — decision: retry policy] Create`; the unresolved choice and its dependent
   work remain explicit.
 - **Material exclusions are prose, not an inventory.** An optional short `Explicit
-  exclusions` list after the table may name likely scope-creep non-goals. Do not enumerate every out-of-scope
+exclusions` list after the table may name likely scope-creep non-goals. Do not enumerate every out-of-scope
   component, and do not add confidence percentages, digests, state IDs, timestamps, or
   mandatory evidence IDs to the table.
 - **An authorized design update changes current intent.** When the user asks to update the

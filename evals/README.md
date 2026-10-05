@@ -25,10 +25,10 @@ design, the Developer's task lifecycle, and continuation from durable files. The
 production Work Items or approved Knowledge. No heading count or keyword score proves
 that a design is implementable.
 
-| Case | Agent input | Evaluator only |
-| --- | --- | --- |
-| G1: small formula | [g01-input.md](fixtures/handoff-quality/g01-input.md) | [g01-oracle.md](fixtures/handoff-quality/g01-oracle.md) |
-| G2: Flow and bulk Apex | [g02-input.md](fixtures/handoff-quality/g02-input.md) | [g02-oracle.md](fixtures/handoff-quality/g02-oracle.md) |
+| Case                     | Agent input                                           | Evaluator only                                          |
+| ------------------------ | ----------------------------------------------------- | ------------------------------------------------------- |
+| G1: small formula        | [g01-input.md](fixtures/handoff-quality/g01-input.md) | [g01-oracle.md](fixtures/handoff-quality/g01-oracle.md) |
+| G2: Flow and bulk Apex   | [g02-input.md](fixtures/handoff-quality/g02-input.md) | [g02-oracle.md](fixtures/handoff-quality/g02-oracle.md) |
 | G3: resume and supersede | [g03-input.md](fixtures/handoff-quality/g03-input.md) | [g03-oracle.md](fixtures/handoff-quality/g03-oracle.md) |
 
 Before a trial, the operator records the tested revision, instruction variant, model,

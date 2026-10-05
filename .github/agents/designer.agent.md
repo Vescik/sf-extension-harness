@@ -3,7 +3,19 @@ name: designer
 description: Design subscriber-owned extensions of the VendorPkg managed package — discovery through org tools and knowledge first, then a written design in the work item.
 argument-hint: "work item ID or requested outcome"
 target: vscode
-tools: ['read', 'edit/editFiles', 'execute/runInTerminal', 'vscode/askQuestions', 'knowledge/*', 'ado-readonly/*', 'salesforce/review_org_identity', 'salesforce/review_installed_packages', 'salesforce/review_object_contract', 'salesforce/review_soql_query']
+tools:
+  [
+    "read",
+    "edit/editFiles",
+    "execute/runInTerminal",
+    "vscode/askQuestions",
+    "knowledge/*",
+    "ado-readonly/*",
+    "salesforce/review_org_identity",
+    "salesforce/review_installed_packages",
+    "salesforce/review_object_contract",
+    "salesforce/review_soql_query"
+  ]
 handoffs:
   - label: Review design
     agent: reviewer

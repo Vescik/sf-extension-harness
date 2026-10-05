@@ -40,15 +40,15 @@ harness files remain governed by their role-specific mechanisms.
 
 ## Authority depends on claim type
 
-| Claim type | Required authority | What an org observation cannot establish alone |
-|---|---|---|
-| Safety or company policy | Versioned Principle plus named owner/source | Whether the policy should change |
-| Intended metadata | Repository commit plus accepted design | What is currently deployed |
-| Deployed configuration | Current bounded org evidence | Business meaning or intended design |
-| Managed-package limitation | Version-scoped vendor/approved source | Inaccessible package internals or vendor guarantee |
-| Business meaning | Reviewed organization/SME source | Meaning inferred from labels or sample values |
-| Reference-data value | Bounded current org observation | Universal semantics or permanence |
-| Absence | Complete enumeration, permissions, pagination, and freshness | Absence inferred from an empty/inaccessible result |
+| Claim type                 | Required authority                                           | What an org observation cannot establish alone     |
+| -------------------------- | ------------------------------------------------------------ | -------------------------------------------------- |
+| Safety or company policy   | Versioned Principle plus named owner/source                  | Whether the policy should change                   |
+| Intended metadata          | Repository commit plus accepted design                       | What is currently deployed                         |
+| Deployed configuration     | Current bounded org evidence                                 | Business meaning or intended design                |
+| Managed-package limitation | Version-scoped vendor/approved source                        | Inaccessible package internals or vendor guarantee |
+| Business meaning           | Reviewed organization/SME source                             | Meaning inferred from labels or sample values      |
+| Reference-data value       | Bounded current org observation                              | Universal semantics or permanence                  |
+| Absence                    | Complete enumeration, permissions, pagination, and freshness | Absence inferred from an empty/inaccessible result |
 
 Principle precedence applies to competing prescriptions, not to facts. When an observation violates
 a Principle, record noncompliance. When sources disagree on a normalized claim, mark it contested.

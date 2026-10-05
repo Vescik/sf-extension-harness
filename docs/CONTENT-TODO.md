@@ -26,8 +26,8 @@ wersję z żywym `review_installed_packages`):
 
 ```yaml
 ---
-package-version: "X.YZ"     # wersja pakietu, dla której treść była pisana
-last-verified: 2026-08-08   # kiedy człowiek ostatnio potwierdził prawdziwość treści
+package-version: "X.YZ" # wersja pakietu, dla której treść była pisana
+last-verified: 2026-08-08 # kiedy człowiek ostatnio potwierdził prawdziwość treści
 ---
 ```
 
@@ -77,6 +77,7 @@ Sekcje do wypełnienia:
 
 ```markdown
 ## Commity
+
 Format: `[WI-<work-item-id>] krótki opis — AB#<work-item-id>` — np.
 `[WI-242850] add notification pref flow — AB#242850`.
 Commity bez work-itemu (chore, docs): `[chore]` / `[docs]`, bez `AB#`.
