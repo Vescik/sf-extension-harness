@@ -43,7 +43,7 @@ class GitMessageHookTests(unittest.TestCase):
 
     def git(self, *args, ok=True, input=None, env=None):
         result = subprocess.run(["git", "-C", str(self.root), *args],
-                                input=input, env=env or self.env, text=True, capture_output=True)
+                                input=input, env=env or self.env, encoding="utf-8", capture_output=True)
         if ok:
             self.assertEqual(0, result.returncode, result.stderr)
         else:
@@ -99,6 +99,22 @@ class GitMessageHookTests(unittest.TestCase):
         self.change()
         self.git("commit", "-m", "bad subject", ok=False)
         self.git("commit", "-m", "[docs] Work on a branch without harness scripts")
+
+    def test_legacy_encoding_validates_format_without_rewriting_bytes(self):
+        self.change()
+        self.git("config", "i18n.commitEncoding", "ISO-8859-1")
+        message = self.root / "message.txt"
+        for content, valid in ((b"Bad caf\xe9 subject\n", False),
+                               (b"[WI-123] Caf\xe9 AB#456\n", False),
+                               (b"[WI-123] Caf\xe9 AB#123\n\nR\xe9sum\xe9\n", True)):
+            message.write_bytes(content)
+            result = subprocess.run(["git", "-C", str(self.root), "commit", "--cleanup=verbatim",
+                                     "-F", str(message)], env=self.env, capture_output=True)
+            self.assertEqual(valid, result.returncode == 0, result.stderr)
+            self.assertEqual(content, message.read_bytes())
+        stored = subprocess.run(["git", "-C", str(self.root), "cat-file", "commit", "HEAD"],
+                                env=self.env, capture_output=True, check=True).stdout
+        self.assertEqual(content, stored.split(b"\n\n", 1)[1])
 
     def test_installer_is_idempotent_and_preserves_custom_hooks(self):
         self.assertTrue(install(self.root)[0])

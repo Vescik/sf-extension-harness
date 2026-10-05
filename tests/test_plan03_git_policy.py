@@ -214,7 +214,7 @@ class ShellParsingTests(unittest.TestCase):
             ('git show HEAD~$((1 + $(sf org display)))', "sf org display"),
         ):
             with self.subTest(command=command):
-                result = self.inspect(command)
+                result = self.inspect(command, windows=False)
                 self.assertTrue(result.has_git)
                 self.assertIn(expected, result.remaining_commands)
         literal = self.inspect("git commit -m '[chore] Document $(rm -rf) and git reset --hard'")
@@ -245,6 +245,8 @@ class ShellParsingTests(unittest.TestCase):
         self.assertEqual(("Remove-Item -Recurse force-app",),
                          self.inspect("git status & Remove-Item -Recurse force-app", windows=True).remaining_commands)
         self.assertEqual("allow", self.inspect('git commit -m "%MESSAGE%"', windows=True).decision)
+        self.assertEqual(("rm -rf force-app",), self.inspect(
+            "bash -c 'git status `rm -rf force-app`'", windows=True).remaining_commands)
 
 
 if __name__ == "__main__":

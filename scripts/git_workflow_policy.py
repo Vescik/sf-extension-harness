@@ -231,7 +231,9 @@ def _read_message(path: Path) -> str | None:
     try:
         if not stat.S_ISREG(path.stat().st_mode):
             return None
-        return path.read_text(encoding="utf-8")
+        # Prefixes and IDs use ASCII. Preserve undecodable bytes so a legacy Git
+        # message encoding does not become an additional commit restriction.
+        return path.read_text(encoding="utf-8", errors="surrogateescape")
     except (OSError, UnicodeError, ValueError):
         # Missing/dynamic inputs are handled by Git and its final commit-msg hook.
         return None
@@ -336,7 +338,7 @@ def inspect_command(command: str, cwd: Path | None, *, windows: bool | None = No
             body = next((words[index + 1] for index in range(1, len(words) - 1)
                          if words[index].text.lower() == shell_option), None) if shell_option else None
             if body is not None and not body.dynamic:
-                nested = inspect_command(body.text, command_cwd, windows=windows or exe in {"cmd", "powershell", "pwsh"})
+                nested = inspect_command(body.text, command_cwd, windows=exe in {"cmd", "powershell", "pwsh"})
                 has_git = has_git or nested.has_git
                 error = error or (nested.reason if nested.decision == "deny" else None)
                 remaining.extend(" && ".join([*navigation, residual]) for residual in nested.remaining_commands)
@@ -396,7 +398,7 @@ def main() -> int:
     parser.add_argument("--message-file", type=Path, required=True)
     args = parser.parse_args()
     message = _read_message(args.message_file)
-    error = message_error(message) if message is not None else "Could not read the final commit message as UTF-8 text."
+    error = message_error(message) if message is not None else "Could not read the final commit message file."
     if error:
         print(error, file=sys.stderr)
         return 1
