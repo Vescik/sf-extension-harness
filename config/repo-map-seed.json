@@ -27,6 +27,10 @@
       "purpose": "Ignored transient caches, drafts, receipts"
     },
     {
+      "path": ".githooks",
+      "purpose": "Git commit-message hook"
+    },
+    {
       "path": ".github",
       "purpose": "Copilot surface: kernel, agents, prompts, skills, hooks, CI"
     },
@@ -76,7 +80,7 @@
     },
     {
       "path": "output",
-      "purpose": "Ignored temporary drafts and reports, including handover, Feature Health, and adhoc fix notes"
+      "purpose": "Ignored drafts and reports"
     },
     {
       "path": "schemas",

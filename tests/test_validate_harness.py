@@ -198,6 +198,60 @@ class TestCustomizationsHostileFrontmatter(GithubCopyBase):
         )  # original hooks content still present; the date must not abort serialization
 
 
+class TestDesignerHandoffs(GithubCopyBase):
+    """The configured routes must stay explicit, valid and independent of chat prose.
+
+    Fault injection exercises the existing validator on each real route; it does not
+    certify VS Code button rendering, recipient behavior or approval interpretation.
+    Those remain manual scenarios in evals/agent-scenarios.yaml.
+    """
+
+    DESIGNER = ".github/agents/designer.agent.md"
+
+    def test_configured_review_and_development_routes_are_optional(self) -> None:
+        audit = validate_harness.Audit()
+        data, _ = validate_harness.frontmatter(self.root / self.DESIGNER, audit)
+        handoffs = data.get("handoffs", [])
+        self.assertCountEqual(
+            [handoff["agent"] for handoff in handoffs], ["reviewer", "developer"]
+        )
+        for handoff in handoffs:
+            self.assertIs(handoff.get("send"), False, handoff)
+        validate_harness.check_customizations(audit, root=self.root)
+        self.assertEqual(audit.errors, [])
+
+    def test_unsafe_changes_to_each_configured_route_are_rejected(self) -> None:
+        path = self.root / self.DESIGNER
+        original = path.read_text(encoding="utf-8")
+        mutations = (
+            ("automatic send", lambda handoff: handoff.update(send=True),
+             "must remain human-triggered with send: false"),
+            ("implicit send", lambda handoff: handoff.pop("send"),
+             "must remain human-triggered with send: false"),
+            ("unknown recipient", lambda handoff: handoff.update(agent="missing-agent"),
+             "has unknown agent 'missing-agent'"),
+            ("context above", lambda handoff: handoff.update(prompt="Use the design above."),
+             "handoff depends on chat context"),
+            ("previous response", lambda handoff: handoff.update(prompt="Use the previous response."),
+             "handoff depends on chat context"),
+        )
+        for target in ("reviewer", "developer"):
+            for defect, mutate, expected_error in mutations:
+                with self.subTest(target=target, defect=defect):
+                    path.write_text(original, encoding="utf-8")
+
+                    def change_route(data):
+                        route = next(handoff for handoff in data["handoffs"]
+                                     if handoff["agent"] == target)
+                        mutate(route)
+
+                    self.rewrite_frontmatter(self.DESIGNER, change_route)
+                    audit = self.run_audit(validate_harness.check_customizations, root=self.root)
+                    self.assertTrue(
+                        any(expected_error in message for message in audit.errors), audit.errors
+                    )
+
+
 class TestInventoryIsDiscoveredNotCountPinned(GithubCopyBase):
     """D7 (lightweight-validation plan): structural discovery, no exact totals.
 
@@ -1104,7 +1158,11 @@ class TestSolutionDesignProcedureOwnership(unittest.TestCase):
         cls.prompt = (ROOT / ".github/prompts/solution-design.prompt.md").read_text(
             encoding="utf-8"
         )
-        cls.agent = (ROOT / ".github/agents/designer.agent.md").read_text(encoding="utf-8")
+        # Recipient handoff prompts have their own validation. This contract checks
+        # the Designer's procedure body, not the inputs passed to another role.
+        _, cls.agent = validate_harness.frontmatter(
+            ROOT / ".github/agents/designer.agent.md", validate_harness.Audit()
+        )
 
     def test_skill_owns_the_two_stage_procedure(self) -> None:
         self.assertIn("Stage 1 — local routing", self.skill)

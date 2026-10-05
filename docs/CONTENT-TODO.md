@@ -1,12 +1,18 @@
 # CONTENT-TODO — pliki do uzupełnienia przez ownera (faza 2)
 
-Ten plik to cała pozostała robota fazy 2 planu context-first z 2026-08-07 (§3.3–§3.6;
-plan zarchiwizowany — tag docs-history-2026-08-11). Cztery pliki poniżej **nie istnieją** — tworzysz je i wypełniasz treścią,
-której nie da się wygenerować: wiedzą o pakiecie VendorPkg z Twojej głowy i oparzeń
-zespołu. Po uzupełnieniu wszystkich czterech **usuń ten plik**.
+This owner-content backlog originated in phase 2 of the context-first plan from 2026-08-07
+(archived under `docs-history-2026-08-11`). `docs/package-concept.md` and
+`docs/package-constraints.md` are absent. `docs/design-guides.md` exists with limited recorded
+conventions; preserve it rather than recreating it. The governed vocabulary remains in
+`.ai/knowledge/keyword-taxonomy.md`; the older proposed domain document below is owner follow-up,
+not an instruction to move or rewrite governed Knowledge.
 
-Agenci już wskazują na te ścieżki (designer czyta concept + constraints na starcie),
-więc każdy uzupełniony plik zaczyna działać natychmiast, bez żadnej dodatkowej zmiany.
+Missing domain documentation does not stop a useful design draft or prove that the package has
+no constraints. Use applicable instructions and permitted evidence. Name each material unknown
+and the behavior or task it affects; resolve it before dependent implementation while continuing
+independent work. Do not invent vendor content or team conventions. The
+[Solution Design skill](../.github/skills/solution-design/SKILL.md) owns that procedure.
+Filling these domain documents remains a separate owner task.
 
 ---
 
@@ -20,8 +26,8 @@ wersję z żywym `review_installed_packages`):
 
 ```yaml
 ---
-package-version: "X.YZ"     # wersja pakietu, dla której treść była pisana
-last-verified: 2026-08-08   # kiedy człowiek ostatnio potwierdził prawdziwość treści
+package-version: "X.YZ" # wersja pakietu, dla której treść była pisana
+last-verified: 2026-08-08 # kiedy człowiek ostatnio potwierdził prawdziwość treści
 ---
 ```
 
@@ -71,6 +77,7 @@ Sekcje do wypełnienia:
 
 ```markdown
 ## Commity
+
 Format: `[WI-<work-item-id>] krótki opis — AB#<work-item-id>` — np.
 `[WI-242850] add notification pref flow — AB#242850`.
 Commity bez work-itemu (chore, docs): `[chore]` / `[docs]`, bez `AB#`.
@@ -86,8 +93,9 @@ rozwiązujące realne dwuznaczności Waszego języka, po jednej linii:
 - „faktura za projekt" → `VendorNS__Invoice__c` per assignment, NIE per project
 ```
 
-Zalążek istnieje w `.ai/knowledge/keyword-taxonomy.md` — przejrzyj i przenieś tu linie,
-które się bronią. Rytuał zasilania: agent coś źle zrozumiał → jedna linia tutaj.
+The existing `.ai/knowledge/keyword-taxonomy.md` remains governed Knowledge. Read it through
+the applicable workflow; this backlog does not authorize moving its contents or creating a
+second authoritative taxonomy. Any separate domain glossary remains an owner-content decision.
 
 ---
 

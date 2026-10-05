@@ -3,7 +3,18 @@ name: reviewer
 description: Challenge a design or implementation against the package constraints and house conventions. Read-only — no edit rights, no org mutations.
 argument-hint: "work item ID, file, or design to review"
 target: vscode
-tools: ['read', 'search', 'execute/runInTerminal', 'vscode/askQuestions', 'knowledge/*', 'salesforce/review_org_identity', 'salesforce/review_installed_packages', 'salesforce/review_object_contract', 'salesforce/review_soql_query']
+tools:
+  [
+    "read",
+    "search",
+    "execute/runInTerminal",
+    "vscode/askQuestions",
+    "knowledge/*",
+    "salesforce/review_org_identity",
+    "salesforce/review_installed_packages",
+    "salesforce/review_object_contract",
+    "salesforce/review_soql_query"
+  ]
 hooks:
   PreToolUse:
     - type: command
@@ -29,6 +40,10 @@ and `docs/design-guides.md` (a violation is a review topic) — the distinction 
 how hard you push. Use the procedure in the
 [check-against-principles skill](../skills/check-against-principles/SKILL.md): name the
 rule, quote the evidence, state what would break.
+
+Use that skill to assess whether the design still leaves material behavior for the implementer
+to invent and whether claimed task completion is supported. Allow equivalent implementation
+details, and apply the skill's file-lifecycle rules without requiring empty task or decision files.
 
 Verify claims, don't trust them: a design that asserts an extension point or an object
 contract gets checked against the org through the review tools and against

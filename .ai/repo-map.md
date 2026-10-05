@@ -13,6 +13,7 @@ the deep directory tree lives in `docs/workspace-topology.md`.
 | `.ai/memory` | Human-curated decisions-log.md |
 | `.ai/templates` | Document templates |
 | `.cache` | Ignored transient caches, drafts, receipts |
+| `.githooks` | Git commit-message hook |
 | `.github` | Copilot surface: kernel, agents, prompts, skills, hooks, CI |
 | `.github/agents` | Role agents with tools, handoffs, role-guard hooks |
 | `.github/instructions` | Tiered Principle instruction files, loaded per role |
@@ -25,7 +26,7 @@ the deep directory tree lives in `docs/workspace-topology.md`.
 | `extensions` | Native VS Code tools and packages |
 | `force-app` | The only SFDX source root |
 | `manifest` | package.xml starter manifest |
-| `output` | Ignored temporary drafts and reports, including handover, Feature Health, and adhoc fix notes |
+| `output` | Ignored drafts and reports |
 | `schemas` | JSON Schemas for every governed artifact |
 | `scripts` | Guarded scripts: safety hook, role guard, registries, wrappers |
 | `tests` | Harness unit tests + promoted tests/e2e |
@@ -34,7 +35,7 @@ the deep directory tree lives in `docs/workspace-topology.md`.
 ## Roles (`.github/agents/`)
 
 - **config-investigator** — Read-only evidence collector for allowlisted …. Loads instructions: managed-package; contracts: source-authority, tool-capabilities, writing-standard; skills: git-workflow, inventory-force-app, investigate-config-records, investigate-object, org-discovery, selected-files-knowledge.
-- **designer** — Design subscriber-owned extensions of the …. Loads contracts: writing-standard; skills: fetch-ado-item, git-workflow, prepare-delivery-feature, solution-design.
+- **designer** — Design subscriber-owned extensions of the …. Loads contracts: writing-standard; skills: fetch-ado-item, git-workflow, prepare-delivery-feature, solution-design. Hands off to: developer, reviewer.
 - **developer** — Implement a designed work item …. Loads contracts: writing-standard; skills: development, document-solution, git-workflow, publish-wiki.
 - **git-agent** — Help with Git and GitHub …. Loads contracts: writing-standard; skills: git-workflow.
 - **knowledge-curator** — Maintains governed Knowledge from repository …. Loads instructions: managed-package; contracts: source-authority, writing-standard; skills: approve-knowledge-drafts, curate-knowledge, git-workflow, search-knowledge.

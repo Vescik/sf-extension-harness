@@ -12,7 +12,7 @@ Apply the [shared execution contract](../../../.ai/contracts/execution-contract.
 ## Inputs
 
 Require the persisted subject under review — `work-items/<id>-<slug>/design.md` for a design
-(with `decisions.md` for deviations, and `ado-context.md` when present as the requirement
+(with `decisions.md` when present for deviations, and `ado-context.md` when present as the requirement
 snapshot) — or the exact repository diff for an implementation —
 plus exact proposed/implemented scope, repository revisions, environment proof, rule/entry
 references, and current package identity when applicable. When the work item carries a
@@ -27,6 +27,12 @@ content difference may be an optional advisory; by itself it never changes the v
 review or forces redesign/approval. Assess real coverage and implementation defects within the
 requested subject, without silently adding requirements or mandating a fresh comparison on
 every action. The Reviewer remains read-only and does not stage or commit.
+
+For implementation review, read `tasks.md` when present to assess claimed progress against
+the exact diff and verification. A design-only review does not require tasks that the Developer
+has not created yet. Absence of `decisions.md` means no deviations are recorded, not proof that
+none occurred; never request an empty log. Compare the actual implementation with the design
+regardless of that file's presence.
 
 When `org-changes.md` exists for the reviewed Work Item or prepared Feature, read it as
 operational history. Its absence is normal when no qualifying Salesforce mutation was executed.
@@ -56,11 +62,16 @@ An implementation review is of one Work Item's exact diff, never a guessed one.
 
 ## Procedure
 
-1. Validate the persisted review subject, repository revision, affected-artifact list, and —
-   when approval is claimed — evidence of the current pull-request review. Never infer approval
-   from file presence or chat context.
+1. Validate the persisted review subject, repository revision, and affected-artifact list.
+   When PR approval is claimed, verify evidence of that exact pull-request review. File presence,
+   an agent summary, or a reviewer verdict does not establish human acceptance. Apply the shared
+   contract's distinction between design acceptance and implementation authorization: an
+   authorized implementation does not require prior PR review, and a technical verdict grants
+   no execution or publication authority.
 2. Load `.github/copilot-instructions.md` and every scoped Principle instruction whose `applyTo`
-   matches an affected path. Apply precedence only to competing prescriptions.
+   matches an affected path. For design-only review, also select applicable Apex and Flow
+   instructions by planned metadata type as the solution-design skill requires; a Markdown
+   filename does not exclude the engineering rules. Apply precedence only to competing prescriptions.
 3. Discover the baseline of facts the subject must address instead of relying only on citations
    supplied by its author. Ground findings in Knowledge first, applying the
    [search-knowledge](../search-knowledge/SKILL.md) retrieval rules verbatim — same tools, lane
@@ -79,7 +90,7 @@ An implementation review is of one Work Item's exact diff, never a guessed one.
    disclosure only. An incomplete org review, an ungrounded component, a missing source/version,
    an unverified review claim, or an unresolved blocking question disqualifies `SAFE` the same way.
    Before issuing the verdict, verify every supplied envelope with `python
-   scripts/knowledge_store.py entry-verify-citations --envelope <path>`. Invalid citations block
+scripts/knowledge_store.py entry-verify-citations --envelope <path>`. Invalid citations block
    `SAFE`; approved-drifted produces disclosure only.
 
 ## Design coverage and planned scope (design review)
@@ -97,17 +108,48 @@ the solution-design skill:
   scope is optional advisory context, not a missing-coverage defect or a verdict downgrade by
   itself. Do not silently widen the review subject.
 - The `Planned change surface` is complete and internally consistent with the proposed
-  solution: missing ownership, a proposed component absent from the table, or a package-owned
-  component planned for modification is reported through the normal findings/verdict contract.
+  solution: missing ownership or a proposed component absent from the table is reported through
+  the normal findings/verdict contract. For a package-owned component, identify the actual
+  evidenced constraint or scope violation; namespace or ownership alone is not a prohibition.
+- Ask: **Which material behavior would the implementer still need to invent?** Apply the
+  solution-design skill's behavioral contract to the relevant components and interactions.
+  Name each missing choice, its affected component/AC, and why different answers change the
+  outcome. A component name and generic test statement are insufficient. A `Covered` row
+  establishes named solution and verification, not behavioral completeness or acceptance.
+  Accept private structure and equivalent algorithms within the contract. Assess unverified
+  facts, concrete technical recommendations, and unresolved business or policy choices
+  separately; report actual gaps rather than treating every legacy `[unapproved]` marker as
+  a missing user decision.
 - No implementation comparison classification is emitted — there is no implementation subject
   yet.
+
+If a package concept or constraint document is absent, report the missing source and its effect
+on the reviewed scope. Do not invent vendor facts, infer no constraints, or mistake a useful
+draft for verified implementation readiness.
+
+## Task completion (implementation review)
+
+Apply the [Development task contract](../development/SKILL.md#executable-tasks) to the reviewed
+implementation. Check the tasks, applicable decisions, exact diff, and actual verification.
+A finding names the affected task and missing behavioral choice or unsupported completion
+condition. A compact task linking a complete design contract is sufficient; do not require
+duplicated architecture. A checkbox with an unrun required test or missing required org proof
+is not supported by local compilation or an author summary.
+
+Partial work can remain unchecked with factual notes. Check that changed outcomes invalidate
+earlier completion where necessary, cancelled work is not presented as completed, and replacement
+tasks and superseding decisions leave usable references. A legacy checklist does not require a
+bulk migration; assess the assigned work and its claimed completion. Missing tasks during an
+implementation review are a progress-evidence gap to report, not a reason to invent a checklist
+or to stop independent review of the exact implementation.
 
 ## Scope Delta (implementation review)
 
 Given the exact implementation subject, compare it with the current design and decisions:
 
 1. resolve the current requirement/design baseline;
-2. read the `Planned change surface` and `decisions.md`;
+2. read the `Planned change surface` and `decisions.md` when present, following explicit
+   supersession links without discarding earlier entries;
 3. map changed files to logical Salesforce or material repository surfaces (metadata may
    decompose into several files — compare stable logical surfaces, with paths as evidence);
 4. separate **direct support** from material surface change: tests, generated companions,
@@ -119,9 +161,9 @@ Given the exact implementation subject, compare it with the current design and d
    that changes independent behavior is reclassified as a material surface;
 5. identify planned, missing, additional, removed, and substituted surfaces. A conditional row
    whose decision is unresolved is not expected work. `Read dependency only` never requires a
-   repository diff — and a diff that modifies such a package-owned surface is both a scope
-   mismatch and an independent managed-package finding (a `decisions.md` explanation is never
-   permission);
+   repository diff — changing such a surface is a scope delta regardless of namespace.
+   Report an additional managed-package finding only when an actual applicable constraint is
+   violated; a `decisions.md` explanation is never permission;
 6. check whether every material delta has an adequate append-only decision naming
    planned/actual surface and action, the reason, and material verification/rollback/QA
    impact;
@@ -148,10 +190,13 @@ implementation is a `Missing planned implementation` finding; when the subject i
 in-progress slice, report the same absence as pending scope, not a completed-work defect.
 
 For a final Feature PR review: identify included children from the current Feature
-`delivery-map.md`, require every included child's current `design.md` and `decisions.md`,
+`delivery-map.md`, require every included child's current `design.md` and read its
+`decisions.md` when present,
 compare the aggregate planned child surfaces with the final Feature diff, and treat Feature
-coordination files separately from Story implementation. Missing or ambiguous child evidence is
-reported (`Scope alignment: INCOMPLETE`), never replaced by invented attribution — and no
+coordination files separately from Story implementation. A conforming diff with no decisions
+file is not a finding. A material delta without an adequate entry remains an unexplained delta.
+Missing or ambiguous required child evidence is reported (`Scope alignment: INCOMPLETE`), never
+replaced by invented attribution — and no
 Feature-level `design.md`, scope file, or decisions log exists or is requested.
 
 ## Org-change traceability (implementation review)
