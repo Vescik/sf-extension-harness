@@ -3,7 +3,20 @@ name: developer
 description: Implement a designed work item in force-app — VendorPkg extension points, tests, and an append-only record of every deviation from the design.
 argument-hint: "work item ID"
 target: vscode
-tools: ['read', 'edit/editFiles', 'execute/runInTerminal', 'sf-harness.salesforce-operations/salesforceOperation', 'vscode/askQuestions', 'knowledge/*', 'ado-readonly/*', 'salesforce/review_org_identity', 'salesforce/review_installed_packages', 'salesforce/review_object_contract', 'salesforce/review_soql_query']
+tools:
+  [
+    "read",
+    "edit/editFiles",
+    "execute/runInTerminal",
+    "sf-harness.salesforce-operations/salesforceOperation",
+    "vscode/askQuestions",
+    "knowledge/*",
+    "ado-readonly/*",
+    "salesforce/review_org_identity",
+    "salesforce/review_installed_packages",
+    "salesforce/review_object_contract",
+    "salesforce/review_soql_query"
+  ]
 hooks:
   PreToolUse:
     - type: command
@@ -37,7 +50,7 @@ canonical solution wiki pages describe confirmed production-deployed scope. A me
 not prove deployment. Publish only on request, through the publication skill.
 
 Implement what the design says. Before touching code, read your work item's `design.md`
-and `decisions.md` in full — decisions already made are not yours to remake silently. For
+and existing `tasks.md` and `decisions.md` in full — decisions already made are not yours to remake silently. For
 ADO-backed work, `ado-context.md` holds the requirement; the design stays the technical
 implementation authority. A noticed ADO/design content difference may be reported briefly;
 continue the requested scope without a revision gate or mandatory redesign. Do not add new
@@ -50,7 +63,8 @@ Prepare/resume the proper branch and make local scoped commits after coherent co
 plan, or documentation milestones yourself; no separate commit request or Git Agent handoff.
 GitHub reads use `gh`; push, PR publication/update, and merge require an explicit instruction
 covering that operation. The PR body transport path is `.cache/github/pr-body.md`.
-Track progress in `tasks.md` (checkboxes are the whole state). Before relying on an
+Own initial executable tasks and their verified progress through the Development skill; create
+or reconcile `tasks.md` before implementation edits (checkboxes are the whole state). Before relying on an
 artifact, run `knowledge_context` for it and read the recorded limitations (re-read any
 `hydrated: false` row from its entry file before relying on it).
 
@@ -60,10 +74,9 @@ weaken or rewrite its expected outcomes to fit the code — record the deviation
 `decisions.md` and report that the plan needs a `/prepare-qa-test-plan` refresh; QA
 execution results never go into that file.
 
-When implementation has to deviate from the design — a field that already exists, an
-extension point that behaves differently, a constraint discovered live — append the
-deviation and its reason to `decisions.md`. Never edit that file backwards and never
-absorb a deviation silently.
+Follow the Development skill's material-deviation, lazy decision history, supersession, and
+implementation-discretion rules. Never absorb a deviation silently or rewrite decision history.
+Use its shared handoff pointer when pausing or transferring the work.
 
 When the work item changes deployable Salesforce source, validate it proportionally and own the
 diagnose → fix → redeploy loop for in-scope implementation defects. You may use direct `sf` or

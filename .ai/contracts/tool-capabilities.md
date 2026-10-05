@@ -3,26 +3,26 @@
 Status: normative mapping; verify runtime names in VS Code diagnostics after every dependency
 upgrade.
 
-| Logical capability | Configured implementation | Consumers |
-|---|---|---|
-| ADO work-item/query/wiki reads + project-scoped text search (includes reading a formally linked Test Case as a Work Item) | `ado-readonly/*` local stdio MCP (`@azure-devops/mcp`, version-pinned, domains bounded to work-items/wiki/search) | intake, Feature delivery preparation, feature health, QA test-plan authoring, handover, search-ado |
-| Requested wiki page/navigation publication and delivery Story Wiki link | Narrow adaptation of the same `ado-readonly` connector: conditional `wiki_create_or_update_page` and Wiki-only `wit_add_artifact_link` | Developer through publish-wiki only |
-| Reconciled Salesforce org identity | `salesforce/review_org_identity` | runtime startup proof and operator diagnostics |
-| Reconciled installed package inventory | `salesforce/review_installed_packages` | investigator, design, review |
-| Reconciled allowlisted object contract | `salesforce/review_object_contract` | investigator, design, review, QA |
-| Scoped enumeration of configured org aliases (requires `safety.allowScopedEnumeration`) | `salesforce/review_configured_orgs` | investigator |
-| Composed read-only SOQL incl. record reads (verbatim, facade REST transport, unredacted single-source rows) | `salesforce/review_soql_query` | investigator, design, review, development, knowledge curation |
-| Salesforce metadata retrieve; dry-run validation only on `dev`/`uat`/`stage` | direct `sf`/`sfdx` terminal command | Developer |
-| Real metadata deployment, including quick and destructive, only on `dev`/`uat`/`stage` | direct `sf`/`sfdx`; global hook asks before every exact invocation with target, scope, and real-org-change warning | Developer |
-| Record create/update/upsert/delete and bulk data operations on `dev`/`uat`/`stage` | direct `sf data`/legacy `sfdx` terminal command | Developer |
-| Apex execution/testing, package operations, and org lifecycle on `dev`/`uat`/`stage` | direct `sf`/`sfdx` terminal command | Developer |
-| Optional legacy check-only validation helper | `python scripts/validate_salesforce_deploy.py start\|status` | Developer |
-| Native one-operation Salesforce environment/target selection and reviewed job execution | `sf-harness.salesforce-operations/salesforceOperation` local VS Code extension, arguments only | Developer only |
-| Bounded GitHub repository and PR reads | `gh`/`gh.exe` on PATH, through guarded terminal commands | all eight custom roles |
-| Scoped PR create/edit/ready/merge and branch push on instruction | GitHub CLI plus direct Git; exact repository/PR and expected merge head | Designer, Developer, Test Strategist, Workspace Maintainer, Git Agent |
-| Local task branch preparation and coherent-result commits | guarded Git with the shared Git Workflow | active authors within role; Git Agent retains broader existing local assistance |
-| Interactive human confirmation | `vscode/askQuestions` | prompts and approval gates |
-| Subagent delegation | `agent` plus explicit `agents` allowlist | Designer, Developer |
+| Logical capability                                                                                                        | Configured implementation                                                                                                              | Consumers                                                                                          |
+| ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| ADO work-item/query/wiki reads + project-scoped text search (includes reading a formally linked Test Case as a Work Item) | `ado-readonly/*` local stdio MCP (`@azure-devops/mcp`, version-pinned, domains bounded to work-items/wiki/search)                      | intake, Feature delivery preparation, feature health, QA test-plan authoring, handover, search-ado |
+| Requested wiki page/navigation publication and delivery Story Wiki link                                                   | Narrow adaptation of the same `ado-readonly` connector: conditional `wiki_create_or_update_page` and Wiki-only `wit_add_artifact_link` | Developer through publish-wiki only                                                                |
+| Reconciled Salesforce org identity                                                                                        | `salesforce/review_org_identity`                                                                                                       | runtime startup proof and operator diagnostics                                                     |
+| Reconciled installed package inventory                                                                                    | `salesforce/review_installed_packages`                                                                                                 | investigator, design, review                                                                       |
+| Reconciled allowlisted object contract                                                                                    | `salesforce/review_object_contract`                                                                                                    | investigator, design, review, QA                                                                   |
+| Scoped enumeration of configured org aliases (requires `safety.allowScopedEnumeration`)                                   | `salesforce/review_configured_orgs`                                                                                                    | investigator                                                                                       |
+| Composed read-only SOQL incl. record reads (verbatim, facade REST transport, unredacted single-source rows)               | `salesforce/review_soql_query`                                                                                                         | investigator, design, review, development, knowledge curation                                      |
+| Salesforce metadata retrieve; dry-run validation only on `dev`/`uat`/`stage`                                              | direct `sf`/`sfdx` terminal command                                                                                                    | Developer                                                                                          |
+| Real metadata deployment, including quick and destructive, only on `dev`/`uat`/`stage`                                    | direct `sf`/`sfdx`; global hook asks before every exact invocation with target, scope, and real-org-change warning                     | Developer                                                                                          |
+| Record create/update/upsert/delete and bulk data operations on `dev`/`uat`/`stage`                                        | direct `sf data`/legacy `sfdx` terminal command                                                                                        | Developer                                                                                          |
+| Apex execution/testing, package operations, and org lifecycle on `dev`/`uat`/`stage`                                      | direct `sf`/`sfdx` terminal command                                                                                                    | Developer                                                                                          |
+| Optional legacy check-only validation helper                                                                              | `python scripts/validate_salesforce_deploy.py start\|status`                                                                           | Developer                                                                                          |
+| Native one-operation Salesforce environment/target selection and reviewed job execution                                   | `sf-harness.salesforce-operations/salesforceOperation` local VS Code extension, arguments only                                         | Developer only                                                                                     |
+| Bounded GitHub repository and PR reads                                                                                    | `gh`/`gh.exe` on PATH, through guarded terminal commands                                                                               | all eight custom roles                                                                             |
+| Scoped PR create/edit/ready/merge and branch push on instruction                                                          | GitHub CLI plus direct Git; exact repository/PR and expected merge head                                                                | Designer, Developer, Test Strategist, Workspace Maintainer, Git Agent                              |
+| Local task branch preparation and coherent-result commits                                                                 | guarded Git with the shared Git Workflow                                                                                               | active authors within role; Git Agent retains broader existing local assistance                    |
+| Interactive human confirmation                                                                                            | `vscode/askQuestions`                                                                                                                  | prompts and approval gates                                                                         |
+| Manual role handoff                                                                                                       | User selects a role and sends the bounded request; Designer also offers two optional `send: false` shortcuts                           | existing roles; Designer shortcuts target Reviewer or Developer                                    |
 
 ## Azure DevOps actions used
 
@@ -107,8 +107,10 @@ MCP and CLI agreement is transport corroboration from the same org, not independ
 
 Design work has no MCP runtime and no machine state: it is the `fetch-ado-item` prompt and skill
 persisting `work-items/<id>-<slug>/ado-context.md` (requirement intake), then the
-`solution-design` prompt and skill writing prose into `work-items/<id>-<slug>/design.md`,
-each reviewed by a human on the pull request.
+`solution-design` prompt and skill writing prose into `work-items/<id>-<slug>/design.md`.
+The persisted design can be reviewed and explicitly authorized for bounded implementation
+before publication. A claim of human PR approval still requires that PR's actual evidence;
+follow the [shared handoff contract](execution-contract.md#handoff-and-continuation).
 
 Feature delivery preparation (`/prepare-delivery-feature`, 2026-08-12) introduces **no new
 capability or MCP surface**: it is another consumer of the existing `ado-readonly` work-item
