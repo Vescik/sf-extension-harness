@@ -195,15 +195,21 @@ sf project deploy start --target-org production
                 shutil.copy2(ROOT / "scripts" / filename, script_dir / filename)
             for script, args in (("copilot_role_guard.py", ["--role", "developer"]),
                                  ("copilot_safety_hook.py", [])):
+                bootstrap = (
+                    "import pathlib,runpy,sys; sys.argv=sys.argv[1:]; "
+                    "sys.path.insert(0,str(pathlib.Path(sys.argv[0]).parent)); "
+                    "runpy.run_path(sys.argv[0],run_name='__main__')"
+                )
                 result = subprocess.run(
-                    [sys.executable, "-I", str(script_dir / script), *args],
+                    [sys.executable, "-I", "-B", "-c", bootstrap, str(script_dir / script), *args],
                     input=json.dumps({"tool_name": "wiki_create_or_update_page", "tool_input": PAGE}),
                     cwd=directory, text=True, capture_output=True, timeout=10,
                 )
                 self.assertEqual(0, result.returncode, result.stderr)
                 output = json.loads(result.stdout)
                 self.assertEqual("deny", decision(output))
-                self.assertIn("could not load", output["hookSpecificOutput"]["permissionDecisionReason"])
+                self.assertIn("ADO policy unavailable", output["hookSpecificOutput"]["permissionDecisionReason"])
+                self.assertIn("ado_tool_policy", output["hookSpecificOutput"]["permissionDecisionReason"])
 
 
 if __name__ == "__main__":

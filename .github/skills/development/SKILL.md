@@ -108,8 +108,9 @@ does not become a selected policy through that request.
 
 ## Local checkpoints
 
-Before new work, the active Developer prepares/reuses the matching branch through
-[Git Workflow](../git-workflow/SKILL.md). After each coherent implementation milestone and its
+Before new work, the active Developer inspects repository state through
+[Git Workflow](../git-workflow/SKILL.md). Branch names are conventions, not gates.
+After each coherent implementation milestone and its
 proportional verification, the same author stages and commits the exact completed result,
 including relevant durable plans and org-change history, without a separate request or Git
 Agent handoff. Preserve unrelated changes and human-authored work outside an explicit commit

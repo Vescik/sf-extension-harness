@@ -532,6 +532,13 @@ def main() -> None:
     else:
         install_dependencies(resolved["npm"])
 
+    step("Installing Git commit-message validation")
+    # A custom hooksPath or existing commit-msg belongs to the user. The installer
+    # preserves it and explains integration; that does not block Salesforce setup.
+    hook = run([sys.executable, str(REPO_ROOT / "scripts/install_git_message_hook.py")])
+    if hook.returncode:
+        warn("Git message hook was not installed; existing hooks were preserved. See the Git Workflow skill.")
+
     prepare_config()
 
     pending: dict[str, object] = {}

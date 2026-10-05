@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -681,19 +682,12 @@ class RoleGuardTests(unittest.TestCase):
                 with self.subTest(role=role, command=command):
                     self.assertTrue(role_guard.allowed_role_command(command, root, role))
 
-    def test_mutating_and_exec_capable_commands_remain_denied(self) -> None:
+    def test_non_git_mutating_and_exec_capable_commands_remain_denied(self) -> None:
         from scripts import copilot_role_guard as role_guard
 
         root = ROOT
         denied = (
-            "git push origin main",
             "git commit -m x",
-            "git checkout -b new-branch",
-            "git reset --hard",
-            "git branch new-branch",       # creation, not listing
-            "git branch -D main",          # deletion
-            "git remote add origin http://x",
-            "git log --output=stolen.txt", # write-capable flag
             "find . -delete",
             "find . -exec rm {} +",
             "tree -o out.txt",
@@ -1706,7 +1700,7 @@ class TerminalGateCoverageTests(unittest.TestCase):
             "sh",
         ):
             with self.subTest(tool_name=tool_name):
-                actual, reason = self.run_hook(tool_name, "git push origin main --force")
+                actual, reason = self.run_hook(tool_name, "rm -rf output")
                 self.assertEqual(actual, "deny")
                 self.assertIn("Destructive operation", reason)
 
@@ -1731,6 +1725,153 @@ class TerminalGateCoverageTests(unittest.TestCase):
                 self.assertFalse(safety.is_terminal_tool(tool_name))
 
 
+class StandaloneGitIsolationTests(unittest.TestCase):
+    """Exercise real hook startup; commands are payloads and are never executed."""
+
+    ROLES = (
+        "config-investigator", "knowledge-curator", "test-strategist", "designer",
+        "developer", "reviewer", "git-agent", "workspace-maintainer",
+    )
+    POLICY_FILES = (
+        "copilot_role_guard.py", "copilot_safety_hook.py", "git_workflow_policy.py",
+        "salesforce_operation_policy.py", "verify_salesforce_org.py",
+        "ado_config.py", "ado_tool_policy.py",
+    )
+
+    def setUp(self) -> None:
+        temporary = tempfile.TemporaryDirectory(prefix="sf-git-isolation-")
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        self.scripts = self.root / "scripts"
+        self.scripts.mkdir()
+        self.cwd = self.root / "nested" / "directory"
+        self.cwd.mkdir(parents=True)
+        for filename in self.POLICY_FILES:
+            shutil.copy2(ROOT / "scripts" / filename, self.scripts / filename)
+
+    def invoke(self, event: dict[str, Any], role: str | None = None) -> dict[str, Any]:
+        script = "copilot_role_guard.py" if role else "copilot_safety_hook.py"
+        args = ["--role", role] if role else []
+        bootstrap = (
+            "import pathlib,runpy,sys; sys.argv=sys.argv[1:]; "
+            "sys.path.insert(0,str(pathlib.Path(sys.argv[0]).parent)); "
+            "runpy.run_path(sys.argv[0],run_name='__main__')"
+        )
+        result = subprocess.run(
+            [sys.executable, "-I", "-B", "-c", bootstrap, str(self.scripts / script), *args],
+            input=json.dumps({"cwd": str(self.cwd), **event}),
+            cwd=self.cwd, text=True, capture_output=True, timeout=10, check=False,
+        )
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertFalse(result.stderr, result.stderr)
+        return json.loads(result.stdout)
+
+    def assert_decision(self, event: dict[str, Any], expected: str,
+                        role: str | None = None) -> None:
+        output = self.invoke(event, role)
+        self.assertEqual(expected, hook_decision(output), output)
+
+    @staticmethod
+    def terminal(command: str) -> dict[str, Any]:
+        return {"tool_name": "run_in_terminal", "tool_input": {"command": command}}
+
+    def test_every_role_and_global_hook_allow_git_without_repository_preconditions(self) -> None:
+        commands = (
+            "git add -A",
+            'git commit -m "[chore] Save all changes"',
+            'git commit -m "[WI-42] Save changes AB#42"',
+            'git commit -m "[FEATURE-9] Update delivery AB#9"',
+            "git switch -c arbitrary/branch",
+            "git -C ../another-repo checkout main",
+            "git reset --hard",
+            "git clean -fdx",
+            "git push --force-with-lease origin main",
+            "git push origin --delete arbitrary/branch",
+            "git pull --rebase",
+            "git stash pop",
+            "git log --output=history.txt",
+            'git add . && git commit -m "[docs] Explain sf deploy and git reset --hard"',
+            "gh api repos/owner/other-repo/issues --method POST",
+            "gh pr merge 5 --squash --admin --repo owner/other-repo",
+        )
+        for role in (None, *self.ROLES):
+            for command in commands:
+                with self.subTest(role=role, command=command):
+                    self.assert_decision(self.terminal(command), "continue", role)
+
+    def test_git_command_does_not_admit_unrelated_destructive_or_role_restricted_commands(self) -> None:
+        self.assert_decision(self.terminal("git status && rm -rf output"), "deny")
+        self.assert_decision(
+            {"cwd": str(self.root), **self.terminal("git status && curl https://example.com")},
+            "deny", "reviewer",
+        )
+
+    def test_every_role_and_global_hook_reject_invalid_explicit_commit_messages(self) -> None:
+        for role in (None, *self.ROLES):
+            for message in ("Save changes", "[docs]", "[WI-42] Save changes AB#7"):
+                with self.subTest(role=role, message=message):
+                    self.assert_decision(self.terminal(f'git commit -m "{message}"'), "deny", role)
+
+    def test_missing_or_broken_external_modules_do_not_block_git_or_local_reads(self) -> None:
+        events = (
+            self.terminal("git status"),
+            self.terminal('git commit -m "[docs] Save local notes"'),
+            self.terminal("gh pr merge 3 --merge"),
+            {"tool_name": "read_file", "tool_input": {"path": "README.md"}},
+            {"cwd": str(self.root), **self.terminal("cat README.md")},
+        )
+        for filename in ("salesforce_operation_policy.py", "ado_config.py", "ado_tool_policy.py"):
+            path = self.scripts / filename
+            for failure in ("missing", "syntax-error"):
+                with self.subTest(module=filename, failure=failure):
+                    if failure == "missing":
+                        path.unlink()
+                    else:
+                        path.write_text("def invalid syntax(:\n", encoding="utf-8")
+                    for role in (None, "developer", "reviewer"):
+                        for event in events:
+                            self.assert_decision(event, "continue", role)
+                    shutil.copy2(ROOT / "scripts" / filename, path)
+
+    def test_unreadable_or_invalid_external_configuration_does_not_block_local_work(self) -> None:
+        config = self.root / "config" / "harness.local.json"
+        config.parent.mkdir()
+        for contents in (b"\xff\xfe\x00", b"{ malformed json"):
+            config.write_bytes(contents)
+            for role in (None, "developer", "reviewer"):
+                with self.subTest(config=contents, role=role):
+                    self.assert_decision(self.terminal("git status"), "continue", role)
+                    self.assert_decision(
+                        {"tool_name": "read_file", "tool_input": {"path": "README.md"}},
+                        "continue", role,
+                    )
+        config.unlink()
+        config.mkdir()  # Also exercise an actual read error, not only a parse error.
+        for role in (None, "developer", "reviewer"):
+            self.assert_decision(self.terminal("git status"), "continue", role)
+            self.assert_decision({"cwd": str(self.root), **self.terminal("cat README.md")}, "continue", role)
+
+    def test_external_operations_still_deny_when_their_policy_cannot_load(self) -> None:
+        cases = (
+            ("salesforce_operation_policy.py", {"cwd": str(self.root),
+                                                 **self.terminal("sf org display -o dev-sbx")}),
+            ("ado_tool_policy.py", {"tool_name": "ado-readonly/wit_get_work_item",
+                                    "tool_input": {"project": "Example", "id": 42}}),
+            ("ado_config.py", {"tool_name": "ado-readonly/wit_get_work_item",
+                              "tool_input": {"project": "Example", "id": 42}}),
+        )
+        for filename, event in cases:
+            path = self.scripts / filename
+            path.unlink()
+            roles = (None,) if filename == "ado_config.py" else (None, "developer")
+            for role in roles:
+                with self.subTest(module=filename, role=role):
+                    output = self.invoke(event, role)
+                    self.assertEqual("deny", hook_decision(output), output)
+                    self.assertIn(Path(filename).stem, output["hookSpecificOutput"]["permissionDecisionReason"])
+            shutil.copy2(ROOT / "scripts" / filename, path)
+
+
 class WorkspaceMaintainerTests(unittest.TestCase):
     """Protected control plane + workspace-maintainer (plan 2026-08-11).
 
@@ -1741,6 +1882,8 @@ class WorkspaceMaintainerTests(unittest.TestCase):
     """
 
     ROOT_OF_TRUST = (
+        ".githooks/commit-msg",
+        "scripts/install_git_message_hook.py",
         "scripts/copilot_role_guard.py",
         "scripts/copilot_safety_hook.py",
         "scripts/ado_config.py",
@@ -1914,7 +2057,6 @@ class WorkspaceMaintainerTests(unittest.TestCase):
             "npm run build",
             "npm install leftpad",
             "pip install anything",
-            "git push origin main",
             "git commit -m x",
             "sf project deploy start",
             "curl https://example.com",
@@ -1997,8 +2139,12 @@ class DeployValidationWrapperTests(unittest.TestCase):
                 self.assertEqual(
                     role_guard.allowed_role_command(command, ROOT, role), role == "developer"
                 )
-        decision, _ = role_guard.git_agent_terminal_decision(command)
-        self.assertEqual(decision, "deny")
+        output = run_hook(
+            "copilot_role_guard.py",
+            {"cwd": str(ROOT), "tool_name": "run_in_terminal", "tool_input": {"command": command}},
+            "--role", "git-agent",
+        )
+        self.assertEqual(hook_decision(output), "deny")
 
     def test_safety_hook_asks_only_for_commands_that_start_real_deploys(self) -> None:
         with tempfile.TemporaryDirectory() as name:

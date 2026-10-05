@@ -551,7 +551,7 @@ class TestFetchPromptIntakeBoundary(unittest.TestCase):
     def test_author_checkpoints_intake_then_returns_design_without_invoking_it(self) -> None:
         text = squash(self.text)
         self.assertIn("skills/git-workflow/SKILL.md", text)
-        self.assertIn("yourself to prepare/resume the correct branch", text)
+        self.assertIn("Branch names and delivery maps do not gate Git", text)
         self.assertIn("stage/commit the completed context", text)
         self.assertIn("/solution-design itemId=<ID>", text)
         self.assertIn("Do not begin Solution Design", text)
@@ -584,23 +584,21 @@ class TestGitBootstrapBeforeSolutionDesign(unittest.TestCase):
         self.assertIn("start work item <ID>", self.git_agent)
         self.assertIn("/solution-design itemId=<ID>", self.git_skill)
 
-    def test_start_is_exact_path_local_and_scoped_to_one_container(self) -> None:
+    def test_git_has_no_branch_path_index_or_external_context_gate(self) -> None:
         text = squash(self.git_skill)
-        self.assertIn("git add -- <exact-files>", text)
-        self.assertIn("no dot, directory, wildcard/pathspec magic", text)
-        self.assertIn("Do not push without the publication instruction", text)
-        self.assertIn("work-item/<work-item-id>-<slug>", text)
-        self.assertIn("one delivery container per branch", text)
-        self.assertIn("Local `main` must equal the confirmed `origin/main`", text)
-        self.assertIn("preserving staged/unstaged content", text)
+        self.assertIn("All eight roles can use all Git", text)
+        self.assertIn("including partial staging or `git add -A`", text)
+        self.assertIn("Other branches, including `main`, are permitted", text)
+        self.assertIn("index/working-tree equality is a Git prerequisite", text)
+        self.assertIn("Salesforce/ADO configuration does not gate Git", text)
+        self.assertIn("Preserve unrelated staged, unstaged, and untracked work", text)
 
-    def test_designer_prepares_the_matching_branch_before_new_design_work(self) -> None:
+    def test_design_scope_is_independent_of_branch_names(self) -> None:
         design_skill = squash(
             (ROOT / ".github/skills/solution-design/SKILL.md").read_text(encoding="utf-8")
         )
-        self.assertIn("active Designer prepares or reuses that branch", design_skill)
-        self.assertIn("before new design work", design_skill)
-        self.assertIn("never design on an unrelated branch", design_skill)
+        self.assertIn("Branch names are conventions, not design or commit gates", design_skill)
+        self.assertIn("independently of the branch name", design_skill)
         self.assertIn("silently include a deferred item", design_skill)
         self.assertNotIn("git-agent: start work item", design_skill)
         self.assertIn("skills/solution-design/SKILL.md", self.design_prompt)
@@ -624,8 +622,8 @@ class TestGitPostPushPRHandoff(unittest.TestCase):
         self.assertIn(".cache/github/pr-body.md", text)
         for flag in ("--repo", "--head", "--base", "--title", "--body-file"):
             self.assertIn(flag, text)
-        self.assertIn("Search for the matching existing PR first", text)
-        self.assertIn("preserving human changes", text)
+        self.assertIn("Search for an existing matching PR before creating one", text)
+        self.assertIn("Preserve human edits", text)
         self.assertIn("actual PR URL, head, status", text)
 
     def test_gh_publication_and_merge_require_their_own_instruction(self) -> None:
@@ -636,15 +634,14 @@ class TestGitPostPushPRHandoff(unittest.TestCase):
         self.assertIn("One instruction can cover both publication and merge", text)
         self.assertIn("do not ask again for steps it already covers", text)
         self.assertIn("--match-head-commit", text)
-        self.assertIn("No `--admin`", text)
-        self.assertIn("All active authors perform their own bounded branch preparation", squash(self.git_agent))
+        self.assertIn("not hook-enforced command restrictions", text)
+        self.assertIn("All roles can use all Git and GitHub CLI commands", squash(self.git_agent))
+        self.assertIn("destructive Git operations require an explicit human instruction", text)
 
     def test_failed_or_unknown_remote_is_not_misrepresented(self) -> None:
         text = squash(self.git_skill)
-        self.assertIn("repository and host against `origin`", text)
-        self.assertIn("never select a PR by similar title", text)
+        self.assertIn("Resolve the intended repository and PR from the request and actual state", text)
         self.assertIn("read remote state before retrying", text)
-        self.assertIn("never create a duplicate PR or claim an unconfirmed merge", text)
         self.assertIn("Queued or auto-merge enabled is not merged", text)
 
 
@@ -931,7 +928,7 @@ class TestFetchEpicNavigation(unittest.TestCase):
             self.assertNotIn("git-agent: start work item", contract)
 
     def test_epic_stays_undeliverable_downstream(self) -> None:
-        self.assertIn("An Epic is not a delivery branch", self.git_skill)
+        self.assertIn("a Git action does not start a new lifecycle phase", self.git_skill)
         self.assertIn("Epic gets a request for a concrete child Feature/Work Item", self.design_skill)
         self.assertIn("Epic navigation fetch does not activate a child", self.skill)
 
@@ -1032,8 +1029,8 @@ class TestSolutionDesignRoutingPrecedesDiscovery(unittest.TestCase):
     def test_written_requirements_stay_lightweight(self) -> None:
         text = squash(self.skill)
         self.assertIn("written requirement without ADO provenance needs no context file", text)
-        self.assertIn("never fabricate either", text)
-        self.assertIn("without inventing an ADO ID, then go to Stage 2", text)
+        self.assertIn("without inventing an ADO ID or requiring a particular branch", text)
+        self.assertIn("then go to Stage 2", text)
 
 
 class TestDesignerScopedTerminalCapability(unittest.TestCase):
@@ -1069,10 +1066,7 @@ class TestDesignerScopedTerminalCapability(unittest.TestCase):
 
 
 class TestWorkItemFeatureBranchModel(unittest.TestCase):
-    """Plan 2026-08-16 (Work Item and Feature Branch Delivery Model): `work-item/` is
-    the only standard concrete ADO delivery namespace; `feature/` is reserved for an
-    explicitly prepared multi-Story ADO Feature; commits carry explicit Work Item
-    ownership plus a link-only raw AB# reference; PR linking is per delivery container."""
+    """Delivery context guides work while Git validates message syntax only."""
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -1092,30 +1086,30 @@ class TestWorkItemFeatureBranchModel(unittest.TestCase):
             encoding="utf-8"
         )
 
-    def test_branch_namespaces_are_work_item_feature_chore_only(self) -> None:
+    def test_branch_names_are_conventions(self) -> None:
         self.assertIn("work-item/<work-item-id>-<slug>", self.git_skill)
         self.assertIn("feature/<feature-id>-<slug>", self.git_skill)
         self.assertIn("chore/<short-description>", self.git_skill)
-        # The old namespaces are retired: no fix/ branch kind, no integration/ line.
-        self.assertNotIn("fix/<work-item-id>", self.git_skill)
-        self.assertNotIn("integration/<", self.git_skill)
+        self.assertIn("These names are conventions, not requirements", squash(self.git_skill))
+        self.assertIn("Other branches, including `main`, are permitted", squash(self.git_skill))
 
-    def test_feature_branch_requires_prepared_feature_and_explicit_human_choice(self) -> None:
+    def test_feature_delivery_choice_remains_human_owned_without_git_gates(self) -> None:
         text = squash(self.git_skill)
         self.assertIn("start feature <Feature ID>", self.git_agent)
-        self.assertIn("exactly one matching prepared `delivery-map.md`", text)
-        self.assertIn("explicit human choice of combined delivery", text)
-        self.assertIn("A parent relation alone does not select this container", text)
-        self.assertIn("preserve the prepared files until answered", text)
+        self.assertIn("combined Feature delivery selected by the human", text)
+        self.assertIn("A parent relation alone does not select combined Feature delivery", text)
+        self.assertIn("Feature membership is a planning decision, not a Git gate", text)
 
-    def test_commit_attribution_is_explicit_on_feature_branches(self) -> None:
+    def test_commit_validation_checks_syntax_and_matching_ids_only(self) -> None:
         text = squash(self.git_skill)
-        self.assertIn("active child ID must be explicit and included", text)
-        self.assertIn("refuse deferred/absent or mixed unexplained scope", text)
         self.assertIn("[WI-<work-item-id>]", text)
-        self.assertIn("AB#<work-item-id>", text)
         self.assertIn("[FEATURE-<feature-id>]", text)
-        self.assertIn("Feature coordination commits cannot hide child source changes", text)
+        self.assertIn("subject's `AB#` number must match the prefix number", text)
+        self.assertIn("No ADO, branch state, task files, or delivery maps are inspected", text)
+        self.assertIn("The body is unrestricted and may reference other Work Items", text)
+        self.assertIn("nonempty descriptive subject", text)
+        self.assertIn("scripts/install_git_message_hook.py", text)
+        self.assertIn("not a server-side guarantee for every commit path", text)
 
     def test_commits_and_prs_never_use_state_transition_keywords(self) -> None:
         for keyword in ("Fixes", "Resolves", "Closes"):
@@ -1134,16 +1128,13 @@ class TestWorkItemFeatureBranchModel(unittest.TestCase):
         # Work Item mode stays: one delivering Work Item, no transition keywords.
         self.assertIn("AB#<id>", self.template)
 
-    def test_final_feature_merge_preserves_work_item_commits_or_stops(self) -> None:
+    def test_history_rewriting_follows_explicit_scope(self) -> None:
         text = squash(self.git_skill)
-        self.assertIn("final Feature PR merges to `main` with a merge commit", text)
-        self.assertIn("retain meaningful `[WI-ID]` commits", text)
-        self.assertIn("If only squash is permitted, obtain the owner's delivery decision", text)
-        self.assertIn("instead of falsely claiming commit-level traceability", text)
+        self.assertIn("Preserve useful history unless rewriting it is part of the explicit request", text)
+        self.assertIn("shared-history rewriting", text)
 
-    def test_design_stage_accepts_work_item_or_matching_feature_branch(self) -> None:
-        self.assertIn("work-item/<id>-<slug>", self.design_skill)
-        self.assertIn("feature/<feature-id>-<slug>", self.design_skill)
+    def test_design_stage_does_not_require_branch_naming(self) -> None:
+        self.assertIn("Branch names are conventions, not design or commit gates", squash(self.design_skill))
 
     def test_prepare_returns_the_two_explicit_delivery_choices(self) -> None:
         text = squash(self.prepare_skill)
@@ -1181,8 +1172,8 @@ class TestSolutionDesignProcedureOwnership(unittest.TestCase):
         for recovery in ("/fetch-ado-item itemId=<ID>", "/prepare-delivery-feature itemId=<ID>", "INCOMPLETE — NEEDS HUMAN"):
             self.assertIn(recovery, self.skill)
         text = squash(self.skill)
-        self.assertIn("active Designer prepares or reuses that branch", text)
-        self.assertIn("never design on an unrelated branch", text)
+        self.assertIn("Branch names are conventions, not design or commit gates", text)
+        self.assertIn("never silently include a deferred item", text)
         self.assertIn("skills/git-workflow/SKILL.md", self.skill.replace("../git-workflow", "skills/git-workflow"))
 
     def test_prompt_is_a_thin_alias_without_restated_procedure(self) -> None:
@@ -1200,8 +1191,8 @@ class TestSolutionDesignProcedureOwnership(unittest.TestCase):
         self.assertIn("skills/solution-design/SKILL.md", self.agent)
         self.assertIn("skills/git-workflow/SKILL.md", self.agent)
         text = squash(self.agent)
-        self.assertIn("No manual Git Agent handoff is required", text)
-        self.assertIn("publication and merge require an explicit instruction", text)
+        self.assertIn("No Git Agent handoff is required", text)
+        self.assertIn("Push, PR writes, merge, and destructive actions require an explicit human instruction", text)
         self.assertIn("You never mutate an org and never edit `force-app/`", text)
         for restated in ("work-item/<id>-<slug>", "feature/<feature-id>-<slug>",
                          "git-agent: start work item", "docs/package-concept.md", "exactly one"):

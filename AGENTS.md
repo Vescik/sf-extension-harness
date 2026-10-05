@@ -1,6 +1,6 @@
 # Agent Compatibility Contract
 
-Use `.github/copilot-instructions.md` through a custom agent. `docs/` explains the package;
+Follow `.github/copilot-instructions.md`. `docs/` explains the package;
 `.ai/knowledge/` holds facts; `work-items/` holds plans. `brain-core` (`.`) is the only SFDX root.
 Load role contracts/skills and `.ai/repo-map.md`; never search another root for metadata.
 
@@ -12,5 +12,7 @@ supply approval/environment fields. See `docs/native-salesforce-operations.md`.
 Before a real deploy, identify target/scope and warn that changes reach the org; confirm that exact
 invocation. Native execution requires its modal confirmation.
 
-Supported host: **VS Code Local** with frontmatter hooks. Built-in/default Agent mode and hosts
-without those hooks are unsupported for external work or repository-state changes.
+Governed Salesforce/ADO and protected non-Git edits require **VS Code Local** custom-agent
+frontmatter hooks, unavailable in default Agent mode. Git/gh work independently, with only
+commit-message validation. Preserve unrelated work; publication, merge,
+and destructive actions require explicit instructions.

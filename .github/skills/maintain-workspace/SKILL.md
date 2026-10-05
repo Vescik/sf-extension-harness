@@ -36,12 +36,12 @@ guard is the enforcement point; this skill is the procedure, never a substitute 
    files and `npm run prettier:verify` / `npm run lint` where relevant). Content-only
    changes use the documented proportional checks plus the pinned scenarios they touch.
    Report only results actually observed; a skipped or interrupted gate is reported as such.
-7. **Commit and report.** Follow the [Git Workflow](../git-workflow/SKILL.md) to prepare/resume
-   the proper `chore/` branch and stage/commit the completed permitted result after verification,
+7. **Commit and report.** Follow the [Git Workflow](../git-workflow/SKILL.md) and stage/commit
+   the completed permitted result after verification. `chore/` is a convention, not a gate,
    without a separate commit request or Git Agent handoff. Preserve unrelated work. Report
    changed surfaces, actual validation, commit SHA, and residual risk. Root-of-trust approval
-   remains on the edit. GitHub reads are available; push/PR publication/update and merge require
-   an explicit instruction covering that operation. Do not deploy or touch org/ADO state.
+   remains on the edit. All Git/gh commands are available; push/PR publication/update, merge,
+   and destructive Git actions require an explicit instruction. Do not deploy or touch org/ADO state.
 
 No approval ledger, work record, or recurring maintenance queue exists in this lane; git
 history and the PR are the review trail.

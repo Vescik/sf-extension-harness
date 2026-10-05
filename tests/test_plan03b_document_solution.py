@@ -1,9 +1,9 @@
-"""Plan 03b's narrow editor grant and inherited Plan 03 commit boundaries.
+"""Plan 03b's narrow editor grant remains independent of unrestricted Git access.
 
 Contract: Developer may edit exactly three files per lowercase hyphenated solution
 slug. Regression: a broad docs grant or path alias would overwrite unrelated files.
 Gap: delivery-document tests do not cover this set or in-repository redirection.
-Independent proof retained: existing safety-hook and Plan 03 Git tests are unchanged.
+Git validates commit-message syntax; it does not repeat editor path or role checks.
 """
 from __future__ import annotations
 
@@ -224,16 +224,15 @@ class SolutionDocumentationGitTests(SolutionDocumentationFixture):
         self.assertEqual("Human notes\n", other.read_text())
         self.assertEqual("?? docs/unrelated.md", self.git("status", "--short"))
 
-    def test_new_scope_does_not_widen_other_authors_or_fourth_file_commit_paths(self):
+    def test_git_authority_is_independent_of_editor_scope_for_every_role(self):
         self.init_git()
         for path in self.paths:
             self.write(path)
         self.write("docs/solutions/invoice-approval/extra.md")
-        self.assertEqual("deny", self.git_decision("add", "--", *self.paths, "docs/solutions/invoice-approval/extra.md"))
-        for role in ("designer", "test-strategist", "reviewer", "knowledge-curator", "config-investigator"):
+        self.assertEqual("allow", self.git_decision("add", "--", *self.paths, "docs/solutions/invoice-approval/extra.md"))
+        for role in roles.ALLOWED_PREFIXES:
             with self.subTest(role=role):
-                self.assertEqual("deny", self.git_decision("add", "--", *self.paths, role=role))
-        self.assertEqual("allow", self.git_decision("add", "--", *self.paths, role="workspace-maintainer"))
+                self.assertEqual("allow", self.git_decision("add", "--", *self.paths, role=role))
 
     def test_standalone_documentation_uses_existing_chore_commit_without_fictional_item(self):
         self.init_git("chore/document-invoice-approval")
@@ -248,12 +247,12 @@ class SolutionDocumentationGitTests(SolutionDocumentationFixture):
         self.init_git(with_context=False)
         for path in self.paths:
             self.write(path)
-        for forbidden in ("docs/solutions/invoice-approval/extra.md",
-                          "force-app/main/default/classes/Example.cls",
-                          "work-items/123-invoice-approval/design.md"):
-            self.write(forbidden)
-            self.assertEqual("deny", self.git_decision("add", "--", *self.paths, forbidden), forbidden)
-            (self.root / forbidden).unlink()
+        for additional in ("docs/solutions/invoice-approval/extra.md",
+                           "force-app/main/default/classes/Example.cls",
+                           "work-items/123-invoice-approval/design.md"):
+            self.write(additional)
+            self.assertEqual("allow", self.git_decision("add", "--", *self.paths, additional), additional)
+            (self.root / additional).unlink()
         self.assertEqual("allow", self.git_decision("add", "--", *self.paths))
         self.git("add", "--", *self.paths)
         args = ("commit", "-m", "[WI-123] document invoice approval — AB#123", "--", *self.paths)
@@ -262,12 +261,12 @@ class SolutionDocumentationGitTests(SolutionDocumentationFixture):
         self.assertEqual(set(self.paths), set(self.git("diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD").splitlines()))
         self.assertFalse((self.root / "work-items/123-invoice-approval/ado-context.md").exists())
 
-    def test_existing_git_symlink_and_traversal_checks_still_protect_new_grant(self):
+    def test_git_path_handling_is_not_an_editor_permission_check(self):
         self.init_git()
         source = self.write("work-items/123-invoice-approval/design.md")
         self.symlink(self.paths[0], source)
-        self.assertEqual("deny", self.git_decision("add", "--", self.paths[0]))
-        self.assertEqual("deny", self.git_decision("add", "--", "docs/solutions/other/../invoice-approval/overview.md"))
+        self.assertEqual("allow", self.git_decision("add", "--", self.paths[0]))
+        self.assertEqual("allow", self.git_decision("add", "--", "docs/solutions/other/../invoice-approval/overview.md"))
 
 
 if __name__ == "__main__":

@@ -1757,3 +1757,26 @@ checks remain in force. The single-repository limitation accepted above is uncha
 
 The requested push covers this delivery branch. It does not request a PR, merge, release,
 or acceptance of untested Copilot host behavior.
+
+
+## 2026-10-05 — Git availability for every role; message validation only
+
+The owner approved unrestricted Git and then explicitly requested implementation. All eight
+roles can use all Git and GitHub CLI commands. Hooks no longer enforce role, branch, path,
+index/working-tree equality, staging, commit-option, working-directory, repository, or PR
+restrictions. Salesforce/ADO configuration does not gate Git. This supersedes the Git-specific
+restrictions in the 2026-09-29 and 2026-09-30 entries and the historical Plan 03 handoff.
+
+The remaining Git check is descriptive commit-message syntax: `[chore]`, `[docs]`,
+`[WI-<ID>] … AB#<ID>`, or `[FEATURE-<ID>] … AB#<ID>`, with matching numbers. Available message
+text is checked by the pre-tool hooks. A local `commit-msg` hook validates final messages
+when installed; standard Git hook-skipping behavior remains. This is not a server-side
+validation guarantee for every commit path. No ADO lookup or delivery-map check is involved.
+
+The agent preserves unrelated work. Push, PR creation/update, merge, and destructive Git
+actions require an explicit human instruction. Publication alone does not authorize merge;
+existing authorization does not need repeated questions. Branch names are conventions.
+Reviewer source editing, Knowledge authoring/approval, Salesforce/ADO access controls, and
+root-of-trust editor approvals retain their existing boundaries. Native terminal approval
+is separate. Local implementation/tests do not prove Windows, Copilot host, CI, or release
+acceptance. See [Git Workflow](../../.github/skills/git-workflow/SKILL.md).

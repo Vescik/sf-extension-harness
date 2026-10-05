@@ -37,8 +37,8 @@ PowerShell before running the check — PATH changes only apply to new windows.
 
 Install [GitHub CLI](https://cli.github.com/) so `gh.exe` is on PATH. Check `gh --version`
 and `gh auth status` for the host used by your repository's `origin`. The human signs in;
-never send tokens to the agent. The installed CLI must support `gh pr merge --match-head-commit`.
-GitHub reads are available to all roles; only executing roles can perform requested PR writes.
+never send tokens to the agent. All roles can use all GitHub CLI commands within the requested
+task. Push, PR writes, merge, and destructive Git actions require an explicit human instruction.
 
 ### 1.2 Python 3.12
 
@@ -290,16 +290,28 @@ fixture tests do not replace host approval checks or bounded live MCP/retrieve i
 
 ## Local commits and PR work
 
-Active authors prepare/resume the proper branch and commit coherent permitted results after
-verification, using [Git Workflow](../.github/skills/git-workflow/SKILL.md). You do not need to
-switch to Git Agent or ask again for each local commit. Reviewer stays read-only and Knowledge
-keeps its existing authoring/approval lifecycle. Ignored cache and temporary output are not forced
-into commits. The native terminal may still ask for approval; do not enable broad Git/gh auto-approval.
+All roles can use all Git/gh commands through [Git Workflow](../.github/skills/git-workflow/SKILL.md).
+Hooks validate only commit-message syntax and matching IDs. Branch names, working directories,
+paths, staging methods, commit options, and Salesforce/ADO configuration do not gate Git.
+Active authors commit coherent results after verification and preserve unrelated changes.
+A review remains a review; Knowledge and editor permissions keep their existing boundaries.
+You do not need to switch to Git Agent for repository work.
 
-Ask explicitly for PR publication/update or merge. One instruction can cover both, but a completed
-phase or passing checks does not authorize either. The agent confirms the actual repository/PR
-state; a queued merge is not complete. Verify these tools and both hooks in VS Code Local on each
-supported platform before claiming host acceptance.
+Install final commit-message validation once per checkout:
+
+```bash
+python3 scripts/install_git_message_hook.py
+```
+
+Use `python scripts/install_git_message_hook.py` on Windows. This local Git hook validates
+editor/file messages as well; Git's standard hook-skipping behavior remains. The pre-tool
+hook alone cannot validate a future message that does not exist yet.
+
+Ask explicitly for push, PR publication/update, merge, or destructive Git operations. One
+instruction can cover multiple operations, but publication alone does not authorize merge.
+The agent confirms actual remote state; queued is not merged. Native terminal approval may
+still appear. Verify both hooks in VS Code Local on each supported platform before claiming
+host acceptance.
 
 ## Native one-operation Salesforce tool (plan 01a)
 

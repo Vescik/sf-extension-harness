@@ -198,11 +198,10 @@ Independent child delivery: /fetch-ado-item itemId=<first-included-ID>
 ```
 
 Preparation activates context only; the human selects the delivery container, and a prepared
-Feature never silently implies a Feature branch. Once the container is unambiguous, the active
-author uses [Git Workflow](../git-workflow/SKILL.md) to prepare/reuse the correct branch and
-stage/commit the coherent durable Feature result. No switch to Git Agent is required. If the
-choice is unresolved, ask in this conversation and preserve pending files; do not silently
-branch or claim a commit. Existing compatible branch/selection can be reused. Report the
-actual SHA or checkpoint state. No effective change or ignored-cache-only write makes no
-commit; no checkpoint publishes or merges a PR. With no included child, state the required
-human action and no fabricated ID.
+Feature never silently implies a Feature branch. The active author uses
+[Git Workflow](../git-workflow/SKILL.md) to stage/commit the coherent durable Feature result.
+Branch names and unresolved future delivery choices do not gate this commit. No switch to
+Git Agent is required. Keep an unresolved delivery choice explicit without silently selecting
+combined delivery. Report the actual SHA or checkpoint state. No effective change or
+ignored-cache-only write makes no commit; no checkpoint publishes or merges a PR. With no
+included child, state the required human action and no fabricated ID.

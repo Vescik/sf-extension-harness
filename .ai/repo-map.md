@@ -13,6 +13,7 @@ the deep directory tree lives in `docs/workspace-topology.md`.
 | `.ai/memory` | Human-curated decisions-log.md |
 | `.ai/templates` | Document templates |
 | `.cache` | Ignored transient caches, drafts, receipts |
+| `.githooks` | Git commit-message hook |
 | `.github` | Copilot surface: kernel, agents, prompts, skills, hooks, CI |
 | `.github/agents` | Role agents with tools, handoffs, role-guard hooks |
 | `.github/instructions` | Tiered Principle instruction files, loaded per role |
@@ -25,7 +26,7 @@ the deep directory tree lives in `docs/workspace-topology.md`.
 | `extensions` | Native VS Code tools and packages |
 | `force-app` | The only SFDX source root |
 | `manifest` | package.xml starter manifest |
-| `output` | Ignored temporary drafts and reports, including handover, Feature Health, and adhoc fix notes |
+| `output` | Ignored drafts and reports |
 | `schemas` | JSON Schemas for every governed artifact |
 | `scripts` | Guarded scripts: safety hook, role guard, registries, wrappers |
 | `tests` | Harness unit tests + promoted tests/e2e |
@@ -36,7 +37,7 @@ the deep directory tree lives in `docs/workspace-topology.md`.
 - **config-investigator** — Read-only evidence collector for allowlisted …. Loads instructions: managed-package; contracts: source-authority, tool-capabilities, writing-standard; skills: git-workflow, inventory-force-app, investigate-config-records, investigate-object, org-discovery, selected-files-knowledge.
 - **designer** — Design subscriber-owned extensions of the …. Loads contracts: writing-standard; skills: fetch-ado-item, git-workflow, prepare-delivery-feature, solution-design. Hands off to: developer, reviewer.
 - **developer** — Implement a designed work item …. Loads contracts: writing-standard; skills: development, document-solution, git-workflow, publish-wiki.
-- **git-agent** — Help developers with Git conventions, …. Loads contracts: writing-standard; skills: git-workflow.
+- **git-agent** — Help with Git and GitHub …. Loads contracts: writing-standard; skills: git-workflow.
 - **knowledge-curator** — Maintains governed Knowledge from repository …. Loads instructions: managed-package; contracts: source-authority, writing-standard; skills: approve-knowledge-drafts, curate-knowledge, git-workflow, search-knowledge.
 - **reviewer** — Challenge a design or implementation …. Loads contracts: writing-standard; skills: check-against-principles, git-workflow.
 - **test-strategist** — Own the QA perspective — …. Loads instructions: apex; contracts: execution-contract, tool-capabilities, writing-standard; skills: check-feature-coverage, git-workflow, prepare-qa-test-plan, search-knowledge.
@@ -55,7 +56,7 @@ the deep directory tree lives in `docs/workspace-topology.md`.
 - `fetch-ado-item` — Fetch and normalize one Azure …
 - `generate-release-handover` — Compose a current, sourced monthly …
 - `generate-technical-documentation` — Generate or update durable technical …
-- `git-workflow` — Shared Git workflow for active …
+- `git-workflow` — Shared Git and GitHub CLI …
 - `inventory-force-app` — Inventory the repository-root Salesforce force-app …
 - `investigate-config-records` — Take a bounded, sanitized snapshot …
 - `investigate-object` — Collect bounded, sanitized evidence about …

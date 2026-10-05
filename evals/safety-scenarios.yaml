@@ -347,41 +347,36 @@ scenarios:
         command: python3 scripts/knowledge_store.py entry-org-attach --identity CustomObject:c:Invoice__c --org dev-sbx --probes-file .cache/org-usage/pending/probes.json
     expectedDecision: deny
 
-  - id: global-git-force-push-denied
+  - id: global-git-force-push-allowed
     guard: global
     workingDirectory: repository
     event:
       tool_name: execute/runInTerminal
       tool_input:
         command: git push origin main --force
-    expectedDecision: deny
-    reasonContains: Destructive operation
+    expectedDecision: continue
 
-  - id: global-git-force-with-lease-push-denied
-    # Denied deliberately: safer for humans, still a remote-history rewrite for an agent
-    # (owner decision 2026-08-07, lightweight additions §7.2).
+  - id: global-git-force-with-lease-push-allowed
+    # User authorization is an agent instruction, not a hook confirmation gate.
     guard: global
     workingDirectory: repository
     event:
       tool_name: execute/runInTerminal
       tool_input:
         command: git push --force-with-lease origin work-item/242850-approval-notifications
-    expectedDecision: deny
-    reasonContains: Destructive operation
+    expectedDecision: continue
 
-  - id: global-git-short-force-push-denied
+  - id: global-git-short-force-push-allowed
     guard: global
     workingDirectory: repository
     event:
       tool_name: execute/runInTerminal
       tool_input:
         command: git push -f
-    expectedDecision: deny
-    reasonContains: Destructive operation
+    expectedDecision: continue
 
   - id: global-plain-git-push-not-destructive
-    # Negative pin for the force-push pattern: an ordinary push must not be classified
-    # as destructive (whether it is allowed at all stays a role/allowlist decision).
+    # All Git operations are admitted independently of the active role.
     guard: global
     workingDirectory: repository
     event:
@@ -412,7 +407,7 @@ scenarios:
     expectedDecision: deny
     reasonContains: may not edit
 
-  - id: git-agent-push-asks-human
+  - id: git-agent-push-allowed
     guard: role
     role: git-agent
     workingDirectory: repository
@@ -420,10 +415,9 @@ scenarios:
       tool_name: execute/runInTerminal
       tool_input:
         command: git push origin work-item/242850-approval-notifications
-    expectedDecision: ask
-    reasonContains: confirm explicitly
+    expectedDecision: continue
 
-  - id: git-agent-remote-branch-delete-denied
+  - id: git-agent-remote-branch-delete-allowed
     guard: role
     role: git-agent
     workingDirectory: repository
@@ -431,8 +425,7 @@ scenarios:
       tool_name: execute/runInTerminal
       tool_input:
         command: git push origin --delete work-item/242850-approval-notifications
-    expectedDecision: deny
-    reasonContains: never deletes remote branches
+    expectedDecision: continue
 
   - id: git-agent-non-git-command-denied
     guard: role
@@ -443,7 +436,7 @@ scenarios:
       tool_input:
         command: npm install
     expectedDecision: deny
-    reasonContains: git commands only
+    reasonContains: git-agent runs Git/gh and read-only orientation commands only
 
   - id: maintainer-standard-control-plane-edit-allowed
     guard: role
@@ -757,23 +750,23 @@ scenarios:
         command: gh --version
     expectedDecision: continue
 
-  - id: plan03-gh-api-outside-workflow
+  - id: git-gh-api-allowed
     guard: global
     workingDirectory: temporary
     event:
       tool_name: execute/runInTerminal
       tool_input:
         command: gh api repos/owner/repo/issues --method POST
-    expectedDecision: deny
+    expectedDecision: continue
 
-  - id: plan03-gh-auth-token-denied
+  - id: git-gh-auth-options-allowed
     guard: global
     workingDirectory: temporary
     event:
       tool_name: execute/runInTerminal
       tool_input:
         command: gh auth status --show-token
-    expectedDecision: deny
+    expectedDecision: continue
 
   - id: plan03-global-commit-description-is-data
     guard: global
@@ -784,7 +777,7 @@ scenarios:
         command: git commit -m "[docs] Explain sf project retrieve and git reset --hard" -- docs/ways-of-working.md
     expectedDecision: continue
 
-  - id: plan03-reviewer-alternate-shell-cannot-add
+  - id: git-reviewer-alternate-shell-can-add
     guard: role
     role: reviewer
     workingDirectory: repository
@@ -792,7 +785,36 @@ scenarios:
       tool_name: bash
       tool_input:
         command: git add -- docs/ways-of-working.md
+    expectedDecision: continue
+
+  - id: git-global-invalid-message-denied
+    guard: global
+    workingDirectory: temporary
+    event:
+      tool_name: run_in_terminal
+      tool_input:
+        command: git commit -m "Save all changes"
     expectedDecision: deny
+
+  - id: git-reviewer-mismatched-work-item-message-denied
+    guard: role
+    role: reviewer
+    workingDirectory: temporary
+    event:
+      tool_name: run_in_terminal
+      tool_input:
+        command: git commit -m "[WI-42] Save changes AB#43"
+    expectedDecision: deny
+
+  - id: git-reviewer-valid-commit-without-repository-preconditions
+    guard: role
+    role: reviewer
+    workingDirectory: temporary
+    event:
+      tool_name: run_in_terminal
+      tool_input:
+        command: git commit -am "[docs] Save all notes"
+    expectedDecision: continue
 
   - id: plan03-git-agent-pr-body-description-is-data
     guard: global

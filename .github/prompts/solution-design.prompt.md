@@ -10,9 +10,9 @@ requirement. Follow the whole [solution-design skill](../skills/solution-design/
 its order: the skill's Stage 1 owns context resolution, item-type routing, the delivery
 container, and delivery-map membership before any discovery, and its stop/recovery returns are
 the ones to use. The result is `work-items/<id>-<slug>/design.md`. The active Designer
-prepares/resumes the correct branch and commits the completed design through the shared
-[Git Workflow](../skills/git-workflow/SKILL.md), without a separate commit request or
-Git Agent handoff. The commit records a draft; it does not approve or start implementation.
+commits the completed design through the shared [Git Workflow](../skills/git-workflow/SKILL.md),
+without a separate commit request or Git Agent handoff. Branch names do not gate design or Git.
+The commit records a draft; it does not approve or start implementation.
 
 For a written requirement without an ADO item, no `ado-context.md` exists or is fabricated, and
 the design identifies the requirement as human-provided.

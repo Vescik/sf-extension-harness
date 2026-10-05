@@ -193,7 +193,7 @@ completeness; unresolved questions; whether implementation evidence was availabl
 Knowledge candidates, if any; and the exact next action. Never claim QA executed or passed
 anything. After a coherent new or updated durable QA plan and proportional verification,
 the active Test Strategist stages and commits it through [Git Workflow](../git-workflow/SKILL.md),
-without a separate commit request or Git Agent handoff. Prepare/reuse the correct branch before
+without a separate commit request or Git Agent handoff. Inspect repository state before
 new authoring; preserve unrelated work. Report the actual SHA or unresolved checkpoint state.
 Unchanged content makes no empty commit; local commits do not publish or prove QA execution.
 

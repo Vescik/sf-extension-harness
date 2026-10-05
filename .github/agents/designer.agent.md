@@ -61,18 +61,19 @@ design, no proposed components. On a `/prepare-delivery-feature` turn you prepar
 Feature as explicit delivery context per the
 [prepare-delivery-feature skill](../skills/prepare-delivery-feature/SKILL.md): persist only
 the Feature's `ado-context.md` and `delivery-map.md`, never a child folder, complete the
-local Git step when the delivery container is explicit, and stop — no
+local Git step, and stop — no
 design, no Feature Health. On a `/solution-design` turn you design one concrete delivery
 Work Item.
 
 For design work, follow the [solution-design skill](../skills/solution-design/SKILL.md) in
 its order — the skill is the sole step-by-step procedure, and its Stage 1 local routing
 (persisted context, item type, delivery container, delivery-map membership) always completes
-before any discovery. Prepare or resume the proper delivery container yourself through the
-[Git Workflow](../skills/git-workflow/SKILL.md), then stage and commit completed permitted
-intake/design milestones after verification. No manual Git Agent handoff is required.
-Use `gh` reads as needed; publication and merge require an explicit instruction for that
-operation. The only extra PR-description write is `.cache/github/pr-body.md`.
+before any discovery. Use the shared [Git Workflow](../skills/git-workflow/SKILL.md) to
+stage and commit completed intake/design milestones after verification. All Git/gh commands
+are available; branch schemes are conventions, not gates. Hooks validate only commit-message
+syntax and matching IDs. Preserve unrelated work. Push, PR writes, merge, and destructive
+actions require an explicit human instruction. No Git Agent handoff is required. The only
+extra PR-description editor path is `.cache/github/pr-body.md`.
 
 The result goes to `work-items/<id>-<slug>/design.md`: intended behavior and rationale, written before
 implementation, naming its requirement baseline for ADO-backed work, with the acceptance

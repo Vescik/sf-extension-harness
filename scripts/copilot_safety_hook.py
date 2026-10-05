@@ -10,23 +10,32 @@ import shlex
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-try:
+
+# Git and local tools do not depend on a working Salesforce/ADO installation.
+# Record a safe diagnostic and reject only the operation that needs a failed policy.
+import importlib
+
+_POLICY_ERRORS: dict[str, str] = {}
+
+
+def _optional_policy(name: str):
     try:
-        from scripts import salesforce_operation_policy as sf_policy
-        from scripts import git_workflow_policy as git_policy
-        from scripts import ado_tool_policy as ado_policy
-        from scripts.ado_config import ado_config_error
-    except ModuleNotFoundError:
-        import salesforce_operation_policy as sf_policy
-        import git_workflow_policy as git_policy
-        import ado_tool_policy as ado_policy
-        from ado_config import ado_config_error
-except Exception:
-    # A partially copied template must not become a nonblocking host exit code 1.
-    print(json.dumps({"continue": False, "hookSpecificOutput": {
-        "hookEventName": "PreToolUse", "permissionDecision": "deny",
-        "permissionDecisionReason": "Guard policy could not load; operation was not authorized."}}))
-    raise SystemExit(0)
+        try:
+            return importlib.import_module("scripts." + name)
+        except ModuleNotFoundError as exc:
+            if exc.name not in {"scripts", "scripts." + name}:
+                raise
+            return importlib.import_module(name)
+    except Exception as exc:
+        _POLICY_ERRORS[name] = type(exc).__name__
+        return None
+
+
+sf_policy = _optional_policy("salesforce_operation_policy")
+git_policy = _optional_policy("git_workflow_policy")
+ado_policy = _optional_policy("ado_tool_policy")
+_ado_config = _optional_policy("ado_config")
+ado_config_error = _ado_config.ado_config_error if _ado_config is not None else None
 
 from typing import Any
 from urllib.parse import unquote, urlparse
@@ -35,12 +44,6 @@ from urllib.parse import unquote, urlparse
 # quote/backslash-splice resistant) rather than a regex, to avoid catastrophic backtracking
 # on large inputs and to scope flag detection to each command segment.
 DESTRUCTIVE_PATTERNS = (
-    re.compile(r"\bgit\s+reset\s+--hard\b", re.IGNORECASE),
-    re.compile(r"\bgit\s+clean\s+-[^\n]*f", re.IGNORECASE),
-    # Force-push rewrites remote history. --force-with-lease is denied deliberately:
-    # safer for humans, but for an agent it is still a remote-history rewrite — when a
-    # lease push is genuinely needed, a human runs it by hand (owner decision 2026-08-07).
-    re.compile(r"\bgit\s+push\b[^\n]*(?:\s--force(?:-with-lease)?\b|\s-f\b)", re.IGNORECASE),
     re.compile(r"\bDROP\s+(TABLE|DATABASE)\b", re.IGNORECASE),
     re.compile(r"\bDELETE\s+FROM\b", re.IGNORECASE),
     # cmd.exe / PowerShell spellings of the recursive deletions above (W-1,
@@ -179,7 +182,11 @@ def safety_toggle(config: dict[str, Any] | None, name: str) -> bool:
 # MCP tool classification. VS Code may hand the hook either a "server/tool" name or a BARE "tool"
 # name (observed live: `core_list_orgs`). Server-prefix matching alone therefore leaks — classify by
 # the unqualified tool token too, and fail-closed on unrecognized MCP-shaped tools.
-ADO_TOOL_PREFIXES = ado_policy.ADO_TOOL_PREFIXES
+# This fallback only identifies calls that must fail when the ADO module is broken.
+ADO_TOOL_PREFIXES = (
+    "core_", "wit_", "wiki", "testplan", "build_", "repo_", "release_",
+    "pipelines_", "search_", "advsec_", "work_item",
+)
 ENUMERATION_TOOLS = frozenset({"list_all_orgs", "core_list_orgs", "core_list_projects"})
 SALESFORCE_DEV_TOOL_TOKENS = frozenset({
     "run_soql_query", "list_all_orgs", "deploy_metadata", "retrieve_metadata",
@@ -315,7 +322,7 @@ def load_config(root: Path) -> dict[str, Any] | None:
     path = root / "config" / "harness.local.json"
     try:
         return json.loads(path.read_text(encoding="utf-8"))
-    except (FileNotFoundError, json.JSONDecodeError):
+    except (OSError, UnicodeError, json.JSONDecodeError):
         return None
 
 
@@ -696,20 +703,15 @@ def within_salesforce_source(raw: str, root: Path) -> bool:
     )
 
 
-def main() -> int:
-    try:
-        event = json.load(sys.stdin)
-    except json.JSONDecodeError as exc:
-        print(json.dumps(hook_response("deny", "Safety hook could not parse input.")))
-        return 0
-
+def evaluate_event(event: dict[str, Any], *, inspect_git: bool = True) -> dict[str, Any]:
     tool_name = str(event.get("tool_name", ""))
     global _EVENT_TOOL_NAME
     _EVENT_TOOL_NAME = tool_name
     lowered_name = tool_name.lower()
     # Unqualified tool token, so a bare `core_list_orgs` is classified the same as `ado-readonly/core_list_orgs`.
     bare_tool = tool_name.rsplit("/", 1)[-1].lower()
-    is_ado = ado_policy.is_ado_tool(tool_name)
+    is_ado = (ado_policy.is_ado_tool(tool_name) if ado_policy is not None else
+              "ado-readonly" in lowered_name or bare_tool.startswith(ADO_TOOL_PREFIXES))
     is_sf_review = (
         lowered_name == "salesforce"
         or lowered_name.startswith("salesforce/")
@@ -721,8 +723,10 @@ def main() -> int:
         # Environment questions, drift checks and deployment dialogs happen in one native
         # invocation. Do not deny an unknown classification before the host can ask.
         error = native_operation_input_error(tool_input)
-        print(json.dumps(hook_response("deny", error) if error else hook_response()))
-        return 0
+        return hook_response("deny", error) if error else hook_response()
+    if is_ado and (ado_policy is None or ado_config_error is None):
+        failed = "ado_tool_policy" if ado_policy is None else "ado_config"
+        return hook_response("deny", f"ADO policy unavailable: {failed} ({_POLICY_ERRORS.get(failed, 'load error')}).")
     # Wiki Markdown may contain quoted commands or source URLs. Only the known
     # adapter's top-level text fields are data; all selectors remain guarded.
     checked_input = ado_policy.selector_input(tool_name, tool_input) if is_ado else tool_input
@@ -734,24 +738,22 @@ def main() -> int:
     # Salesforce commands (observed live on the Windows pilot). Non-command surfaces are still
     # covered by the `text` checks (destructive/production patterns) and tool classification.
     command = terminal_command(tool_input) if is_terminal_tool(tool_name) else ""
-    if command and git_policy.is_git_gh_command(command):
-        try:
-            parts = git_policy.parse_command(command)
-            if git_policy.executable(parts) == "gh":
-                if Path(event.get("cwd") or os.getcwd()).resolve() != root:
-                    print(json.dumps(hook_response("deny", "Run guarded GitHub operations from the repository root.")))
-                    return 0
-                decision, reason = git_policy.gh_decision(parts, root, None)
-                print(json.dumps(hook_response() if decision == "allow" else hook_response(decision, reason)))
-                return 0
-            # Only literal commit-message operands are removed. All executable/options/
-            # path operands still pass through the existing global checks below.
-            command = git_policy.command_for_safety(command)
-            text = command
-        except (ValueError, OSError) as exc:
-            print(json.dumps(hook_response("deny", str(exc))))
-            return 0
-    elif not command:
+    if command and inspect_git and git_policy is not None:
+        admission = git_policy.inspect_command(command, Path(event.get("cwd") or os.getcwd()))
+        if admission.has_git:
+            if admission.decision == "deny":
+                return hook_response("deny", admission.reason)
+            # A Git command cannot exempt a second, non-Git command from its policy.
+            results = [evaluate_event({**event, "tool_input": {"command": remaining}}, inspect_git=False)
+                       for remaining in admission.remaining_commands]
+            for decision in ("deny", "ask"):
+                for result in results:
+                    if result.get("hookSpecificOutput", {}).get("permissionDecision") == decision:
+                        return result
+            return hook_response()
+    if command and git_policy is None and re.search(r"\b(?:git|gh)(?:\.exe)?\b", command):
+        return hook_response("deny", "Git message validator could not load; restore scripts/git_workflow_policy.py.")
+    if not command and git_policy is not None:
         paths = collect_filesystem_paths(tool_input)
         is_editor = any(token in lowered_name for token in ("edit", "createfile", "create_file", "replace", "insert", "patch", "write"))
         correct_cwd = Path(event.get("cwd") or os.getcwd()).resolve() == root
@@ -760,8 +762,7 @@ def main() -> int:
             # The independent role guard still governs this exact transport path.
             text = " ".join(paths)
     if command and private_native_invocation(command):
-        print(json.dumps(hook_response("deny", "Private Salesforce session/executor cannot be invoked from a terminal; use the native Developer tool.")))
-        return 0
+        return hook_response("deny", "Private Salesforce session/executor cannot be invoked from a terminal; use the native Developer tool.")
 
     if is_terminal_tool(tool_name) and re.search(
         r"knowledge_store\.py", dequote(command).replace("\\", "/")
@@ -777,78 +778,59 @@ def main() -> int:
             if feature
             else "Knowledge Entry approval/revocation"
         )
-        print(
-            json.dumps(
-                hook_response(
+        return hook_response(
                     "ask",
                     f"SAFE-HUMAN-001: confirm this {subject} — the "
                     "command is digest-pinned to the exact displayed content and your click is "
                     "recorded as the copilot-chat-entry-confirmation review mechanism "
                     "(docs/knowledge-one-file-contract.md §6, §13).",
                 )
-            )
-        )
-        return 0
 
     if has_recursive_force_rm(text) or any(pattern.search(text) for pattern in DESTRUCTIVE_PATTERNS):
-        print(json.dumps(hook_response("deny", "Destructive operation blocked by the global safety policy.")))
-        return 0
+        return hook_response("deny", "Destructive operation blocked by the global safety policy.")
 
-    config = load_config(root)
+    config = load_config(root) if is_ado or is_sf_review else None
     if bare_tool in ENUMERATION_TOOLS:
-        print(json.dumps(hook_response("deny", "Org/project enumeration is disabled; the harness is bound to one org.")))
-        return 0
+        return hook_response("deny", "Org/project enumeration is disabled; the harness is bound to one org.")
     if is_ado:
         # Retain the existing read diagnostic for read/unknown tool names. The
         # same configuration and scope authority governs the two narrow writes.
         operation = "publication" if ado_policy.bare_tool_name(tool_name) in ado_policy.WRITE_TOOLS else "read"
         if config is None:
-            print(json.dumps(hook_response("deny", f"ADO {operation} blocked: local harness configuration is missing.")))
-            return 0
+            return hook_response("deny", f"ADO {operation} blocked: local harness configuration is missing.")
         scope_error = ado_scope_error(config, checked_input)
         if scope_error:
-            print(json.dumps(hook_response("deny", f"ADO {operation} blocked: {scope_error}.")))
-            return 0
+            return hook_response("deny", f"ADO {operation} blocked: {scope_error}.")
         capability_error = ado_policy.tool_error(tool_name, tool_input)
         if capability_error:
-            print(json.dumps(hook_response("deny", f"ADO {operation} blocked: {capability_error}.")))
-            return 0
+            return hook_response("deny", f"ADO {operation} blocked: {capability_error}.")
     if is_sf_review:
         scope_error = salesforce_review_tool_error(config, tool_name, tool_input)
         if scope_error:
-            print(
-                json.dumps(
-                    hook_response(
+            return hook_response(
                         "deny",
                         f"Salesforce org review blocked: {scope_error}.",
                     )
-                )
-            )
-            return 0
     if is_sf_dev:
-        print(json.dumps(hook_response("deny", "Salesforce development MCP is not an available channel. Use the governed direct CLI or existing read-only review tools.")))
-        return 0
+        return hook_response("deny", "Salesforce development MCP is not an available channel. Use the governed direct CLI or existing read-only review tools.")
     try:
         sf_parts = direct_sf_command(command)
     except ValueError as exc:
-        print(json.dumps(hook_response("deny", f"Salesforce command blocked: {exc}.")))
-        return 0
+        return hook_response("deny", f"Salesforce command blocked: {exc}.")
     if sf_parts is not None:
+        if sf_policy is None:
+            return hook_response("deny", f"Salesforce policy unavailable: salesforce_operation_policy ({_POLICY_ERRORS.get('salesforce_operation_policy', 'load error')}).")
         decision = sf_policy.evaluate(sf_parts, root)
         if not decision.allowed:
-            print(json.dumps(hook_response("deny", decision.reason)))
-            return 0
+            return hook_response("deny", decision.reason)
         if is_real_deploy_command(sf_parts):
             reason = real_deploy_confirmation_reason(sf_parts)
             reason += f" Resolved Org ID: {decision.organization_id}; environment: {decision.environment}."
-            print(json.dumps(hook_response("ask", reason)))
-            return 0
-        print(json.dumps(hook_response()))
-        return 0
+            return hook_response("ask", reason)
+        return hook_response()
 
     if re.search(r"(?:@salesforce/mcp|ALLOW_ALL_ORGS|DEFAULT_TARGET_ORG)", command, re.IGNORECASE):
-        print(json.dumps(hook_response("deny", "An unguarded Salesforce runtime wrapper is forbidden; invoke sf or sfdx directly.")))
-        return 0
+        return hook_response("deny", "An unguarded Salesforce runtime wrapper is forbidden; invoke sf or sfdx directly.")
 
     is_browser_named = (
         any(token in lowered_name for token in BROWSER_TOOL_NAME_TOKENS)
@@ -856,15 +838,10 @@ def main() -> int:
         and lowered_name not in SIMPLE_BROWSER_PREVIEW_NAMES
     )
     if is_browser_named or BROWSER_COMMAND_PATTERN.search(dequote(command)):
-        print(
-            json.dumps(
-                hook_response(
+        return hook_response(
                     "deny",
                     "Direct browser tooling is disabled; the browser automation lane was removed from this harness.",
                 )
-            )
-        )
-        return 0
 
     # Fail-closed backstop: an MCP-shaped tool the hook did not positively classify (a new server
     # tool, or a bare name the guards above did not recognize) must not silently auto-run.
@@ -881,18 +858,25 @@ def main() -> int:
     # names by shape ("_") wrongly caught VS Code's snake_case built-ins (list_dir, read_file, …).
     mcp_shaped = "/" in tool_name
     if tool_name and not recognized and mcp_shaped:
-        print(
-            json.dumps(
-                hook_response(
+        return hook_response(
                     "ask",
                     f"Unrecognized tool '{tool_name}' is not an allowlisted capability; "
                     "confirm before running (SAFE-TOOL-001 fail-closed).",
                 )
-            )
-        )
-        return 0
 
-    print(json.dumps(hook_response()))
+    return hook_response()
+
+
+def main() -> int:
+    try:
+        event = json.load(sys.stdin)
+    except json.JSONDecodeError:
+        print(json.dumps(hook_response("deny", "Hook could not parse input.")))
+        return 0
+    if not isinstance(event, dict):
+        print(json.dumps(hook_response("deny", "Hook input must be an object.")))
+        return 0
+    print(json.dumps(evaluate_event(event)))
     return 0
 
 

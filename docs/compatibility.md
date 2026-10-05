@@ -11,7 +11,7 @@ Last verified against vendor documentation: 2026-07-10
 | VS Code | 1.112+; certify current stable before rollout | Windows is the primary platform. Salesforce MCP is read-only; Developer Salesforce writes use reviewed CLI or the native operation tool. Requested Wiki publication uses its narrow ADO connector adaptation. |
 | GitHub Copilot | Consolidated `GitHub.copilot` extension bundled/supported by the chosen VS Code release | The old separate Copilot Chat prerequisite is not used. |
 | Python | 3.11+ | Runs validation, safety hooks, and tests using the standard library plus the dev requirement below. |
-| GitHub CLI | `gh`/`gh.exe` on PATH with `pr create/edit/ready/merge` and `--match-head-commit` support | Authentication is human-managed for the host in origin; no automatic login or token output. CLI/parser checks do not certify host approvals. |
+| GitHub CLI | `gh`/`gh.exe` on PATH | Authentication is human-managed for the host in origin; no automatic login or token output. CLI/parser checks do not certify host approvals. |
 | PyYAML | `>=6,<7`; CI uses the lock file | Frontmatter and evaluation validation. |
 | jsonschema | `>=4,<5`; CI uses the lock file | Draft 2020-12 configuration/cache/output validation. |
 | Node.js | 22+ (`.nvmrc` pins 24) | MCP launchers and the ADO server run on Node; CI installs the `.nvmrc` version. |
@@ -49,23 +49,26 @@ dry runs, retrieve, status/report/resume/cancel, and data mutations do not. The 
 remains read-only and is preferred for structured evidence. Browser automation tooling remains
 denied outright.
 
-The governed external-work surface is limited to repository custom agents within their role
-limits. Use the credential-free portable pilot for rejection tests and least-privileged real
-accounts for owner-side destination checks. Built-in/default Agent and arbitrary terminal modes
-are not certified; hooks are not a general shell sandbox.
+Governed Salesforce/ADO work and protected non-Git edits require repository custom agents
+within their role limits. Built-in/default Agent mode is unsupported for those capabilities.
+This restriction does not apply to Git/gh commands, which use message-only validation as
+specified below. Use the credential-free portable pilot for rejection tests and least-privileged
+real accounts for owner-side destination checks. Hooks are not a general shell sandbox.
 
 ## Git/gh role and host acceptance
 
-All eight agents expose terminal access for permitted Git/gh reads. Designer, Developer,
-Test Strategist, Workspace Maintainer, and Git Agent can execute requested PR writes. Reviewer
-remains read-only; Knowledge roles keep their existing lifecycle. Git Agent's editor exception
-is exactly `.cache/github/pr-body.md`, never source or Knowledge. Prompts with their own tools
-must retain the capabilities needed by their actual workflow; read-only prompts stay read-only.
+All eight agents expose terminal access for all Git/gh commands. Hooks validate only commit
+messages, with no role, branch, path, staging, commit-option, working-directory, repository,
+or PR gate. Git does not depend on Salesforce/ADO configuration. Install the local
+`commit-msg` hook to check final messages produced by an editor, file, or Git itself:
+`python3 scripts/install_git_message_hook.py` (`python` on Windows). Standard Git hook-skipping
+behavior remains; this is not a server-side guarantee for every commit path.
 
-Active authors perform bounded local bootstrap/stage/commit; publication and merge require an
-explicit instruction covering the operation. Scope authorization and native terminal approval
-are separate. Do not add shared gh/add/commit auto-approval or certify default Agent mode.
-The canonical procedure is [Git Workflow](../.github/skills/git-workflow/SKILL.md).
+Push, PR publication/update, merge, and destructive actions require an explicit human
+instruction. A review request remains a review. Knowledge lifecycle and source editor
+permissions are unchanged. Git Agent's editor exception remains `.cache/github/pr-body.md`.
+Native terminal approval is separate from these repository hooks. The canonical procedure is
+[Git Workflow](../.github/skills/git-workflow/SKILL.md).
 
 Use a fresh trusted VS Code Local session for each platform: record VS Code/Copilot/Git/gh/Python
 versions, effective prompt tools, terminal payload name, and both hook results. Exercise bootstrap

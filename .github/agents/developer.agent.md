@@ -59,10 +59,12 @@ requirements on your own. No design still means no silent implementation.
 Follow the [development skill](../skills/development/SKILL.md) for the how (extension
 points, Apex coverage, Flow test plans) and the
 [git-workflow skill](../skills/git-workflow/SKILL.md) for branches, commits, and PRs.
-Prepare/resume the proper branch and make local scoped commits after coherent code, test,
-plan, or documentation milestones yourself; no separate commit request or Git Agent handoff.
-GitHub reads use `gh`; push, PR publication/update, and merge require an explicit instruction
-covering that operation. The PR body transport path is `.cache/github/pr-body.md`.
+Make local commits after coherent code, test, plan, or documentation milestones yourself;
+no separate commit request or Git Agent handoff is needed. All Git/gh commands are available;
+branch schemes are conventions, not gates. Hooks validate only commit-message syntax and
+matching IDs. Preserve unrelated changes. Push, PR publication/update, merge, and destructive
+Git actions require an explicit human instruction. The PR body transport path is
+`.cache/github/pr-body.md`.
 Own initial executable tasks and their verified progress through the Development skill; create
 or reconcile `tasks.md` before implementation edits (checkboxes are the whole state). Before relying on an
 artifact, run `knowledge_context` for it and read the recorded limitations (re-read any

@@ -29,14 +29,11 @@ stop before any design context is loaded.
    no direct technical design — stop and return `/prepare-delivery-feature itemId=<ID>`; an
    Epic gets a request for a concrete child Feature/Work Item instead. Both stop here, before
    package docs and before any Knowledge or org call.
-3. For a concrete item, require the current Git branch to agree with the item's delivery
-   container: `work-item/<id>-<slug>` matching the item and stable folder, or a combined
-   Feature branch `feature/<feature-id>-<slug>` when exactly one prepared delivery map for
-   that exact Feature ID lists the item as included (resolved in step 4). The active Designer
-   prepares or reuses that branch through [Git Workflow](../git-workflow/SKILL.md) before new
-   design work. Preserve existing changes and resolve any ambiguous container in this
-   conversation; never design on an unrelated branch or silently include a deferred item.
-   There is no mandatory handoff to Git Agent.
+3. Inspect local changes and preserve unrelated work through
+   [Git Workflow](../git-workflow/SKILL.md). Branch names are conventions, not design or
+   commit gates. Use the explicit requirement scope; never silently include a deferred item.
+   Resolve prepared Feature context in step 4 independently of the branch name. There is no
+   mandatory handoff to Git Agent.
 4. Resolve prepared Feature delivery context locally — never
    over ADO. Search `work-items/*/delivery-map.md` for the exact numeric Story ID listed as
    included (exact-ID match only: `15001` never matches `5001`; a deferred listing does not
@@ -50,10 +47,9 @@ stop before any design context is loaded.
    Feature, or persist the ambiguity as an open design issue under the product goal's
    degraded-delivery rule; discovery does not start until the ambiguity is handled.
 
-A written requirement without ADO provenance needs no context file and does not use the
-ADO-specific Git bootstrap — never fabricate either; identify the requirement as human-provided
-in the design. Prepare the appropriate existing Work Item or docs/chore branch through Git
-Workflow without inventing an ADO ID, then go to Stage 2.
+A written requirement without ADO provenance needs no context file or ADO-specific Git
+bootstrap. Identify the requirement as human-provided in the design. Use Git Workflow
+without inventing an ADO ID or requiring a particular branch, then go to Stage 2.
 
 ## Stage 2 — design discovery and authoring
 

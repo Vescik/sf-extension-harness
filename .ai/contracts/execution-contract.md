@@ -66,36 +66,35 @@ Developer, subject to the global real-deploy confirmation hook:
   sanitized outcome to the canonical org-change log using the Development skill. A missing
   post-action entry is incomplete delivery/review follow-up, not a pre-execution denial. It does
   not add confirmation to data, Apex, package, permission, or org-lifecycle commands.
-- **Read-only orientation is allowed for every role**: `git status|diff|log|show|blame|rev-parse|
-ls-files|grep`, listing/reading (`ls`, `dir`, `cat`, `type`, `head`, `tail`, `wc`, `grep`,
-  `findstr`, `find`, `where`, `which`, and the PowerShell read cmdlets). Command chaining,
-  redirection, substitution, and output flags (`--output`, `find -delete/-exec`) remain denied
-  in this read-only lane. Scoped Git/GitHub authoring follows the separate contract below.
+- **Read-only orientation is allowed for every role**: listing/reading (`ls`, `dir`, `cat`,
+  `type`, `head`, `tail`, `wc`, `grep`, `findstr`, `find`, `where`, `which`, and the PowerShell
+  read cmdlets). Command chaining, redirection, substitution, and output flags (`--output`,
+  `find -delete/-exec`) remain denied in this non-Git read-only lane. Git/GitHub follows the
+  separate contract below.
   Use guarded scripts for harness state and the Developer's Salesforce capability for org work.
 
 ## Git and GitHub authoring
 
-Use the [Git Workflow](../../.github/skills/git-workflow/SKILL.md) as the single procedure for
-branch preparation, exact-path staging, descriptive commits, and scoped GitHub CLI operations.
-Designer, Developer, Test Strategist, and Workspace Maintainer commit a completed coherent
-result within their role, or changes the user explicitly asks them to commit. The active author
-prepares the task branch and completes the local commit without a Git Agent handoff or another
-commit request. Preserve unrelated staged and unstaged changes; do not commit on main/master.
-The Git Agent retains its existing broader local Git assistance. Reviewer remains read-only;
-Knowledge roles gain GitHub reads without new Knowledge authoring or auto-commit permissions.
+Use the [Git Workflow](../../.github/skills/git-workflow/SKILL.md) for all Git and GitHub CLI
+work. All eight roles can use all commands. The hooks validate only commit-message syntax
+and matching Work Item/Feature IDs. They do not enforce branch, path, staging, working-directory,
+commit-option, repository, or PR restrictions. Salesforce/ADO configuration is not a Git gate.
+Install the local `commit-msg` hook as documented there to validate final editor/file messages.
 
-All eight roles can use bounded `gh` repository/PR reads. Executing roles can perform scoped
-PR operations in their task. Push and PR creation/update require an explicit publication
-instruction; merge requires an instruction that includes merge. One instruction may cover both,
-without asking again for its already-authorized steps. A finished intake, design, development
-milestone, or successful check is not a publication or merge instruction. Automatic Ready
-criteria are outside this change. Native terminal approval can still appear; do not add global
-auto-approval rules to remove it. Never bypass repository reviews or required checks.
+Active authors commit coherent completed results after verification. Preserve unrelated staged
+and unstaged changes; choose a staging method appropriate to the requested scope. Reviewer
+continues to review without editing source unless the user changes the task. Knowledge
+lifecycle, editor permissions, Salesforce access, and ADO access remain unchanged.
 
-Use the ignored `.cache/github/pr-body.md` only as PR-body transport; never stage it. Resolve
-the repository, PR and expected head explicitly. Re-read uncertain remote outcomes before
-retrying. Queued or auto-merge-enabled is not merged. Literal commit/PR prose is data, not a
-shell command; command substitution, wrappers, and actual forbidden commands remain prohibited.
+Push, PR creation/update, merge, and destructive Git actions need an explicit human instruction
+covering the operation. One instruction can cover publication and merge without repeated
+questions, but publication alone does not authorize merge. Completed work and passing checks
+are not authorization. Native terminal approval may still appear separately.
+
+Use the ignored `.cache/github/pr-body.md` as PR-body transport, not durable documentation.
+Inspect the intended repository, PR, head/base, checks, and reviews before publication or merge.
+Respect repository requirements. Re-read uncertain remote outcomes before retrying. Queued or
+auto-merge-enabled is not merged. Quote commit/PR prose literally for the actual shell.
 
 ## Handoff and continuation
 
