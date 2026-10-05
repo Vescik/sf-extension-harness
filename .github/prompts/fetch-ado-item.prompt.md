@@ -20,11 +20,11 @@ This turn is requirement intake only:
    rules (stable folder by ID, source-faithful sanitized snapshot separate from the
    `AI understanding — unapproved` section, equivalent-content no-rewrite, never overwrite a
    complete snapshot with a partial fetch).
-3. For a concrete delivery item, use the [Git Workflow](../skills/git-workflow/SKILL.md)
-   yourself to prepare/resume the correct branch and stage/commit the completed context after
-   verification. No separate commit request or Git Agent handoff is needed. A Feature/Epic
-   does not implicitly authorize a delivery branch; preserve its context pending an explicit
-   valid delivery container. Do not commit directly to main or force-add ignored cache.
+3. Use the [Git Workflow](../skills/git-workflow/SKILL.md) yourself to stage/commit the
+   completed context after verification. No separate commit request or Git Agent handoff is
+   needed. Branch names and delivery maps do not gate Git. A Feature/Epic does not implicitly
+   select combined delivery or activate a child. Preserve unrelated work; ignored cache keeps
+   its existing lifecycle.
 4. Report: the context path; item type/title/state; retrieval time;
    completeness and warnings; whether the tracked file was `created`, `updated`, or `unchanged`;
    and the local commit SHA or concrete reason no commit occurred. A noticed content difference
@@ -38,8 +38,8 @@ This turn is requirement intake only:
 /solution-design itemId=<ID>
 ```
 
-   The same author completes branch preparation and the local context commit before this
-   next phase; an unresolved Git condition is reported without claiming success. For a Feature, the next action is
+   The same author reports the actual local context commit outcome before this next phase;
+   a failed commit is reported without claiming success. For a Feature, the next action is
    `/prepare-delivery-feature itemId=<ID>` (explicit
    multi-Story delivery preparation — never invoked automatically from this turn). For an Epic
    fetched in hierarchy mode, follow the skill's `Epic navigation` contract: list the verified

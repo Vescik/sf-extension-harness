@@ -24,7 +24,7 @@ Install and confirm each is on `PATH` (open a **new** PowerShell and run the che
 | Node.js | **22+** (MCP launchers and the ADO server run on Node) | `node --version` |
 | Salesforce CLI | v2 | `sf --version` |
 | Git | any recent | `git --version` |
-| GitHub CLI | `gh.exe` on PATH; PR merge supports `--match-head-commit` | `gh --version`, `gh auth status` |
+| GitHub CLI | `gh.exe` on PATH | `gh --version`, `gh auth status` |
 
 For GitHub work, the human configures `gh` authentication for the host used by `origin`.
 Never paste token output into chat or files; the agent reports missing access without logging in.
@@ -146,11 +146,20 @@ the `sf_review_org` input, enter your explicitly selected alias (e.g. `mpsa_dev_
   Approval`** (Command Palette), expand `salesforce` and `ado-readonly`, and trust all
   their tools at **workspace** scope.
 
-The active author performs scoped local milestone commits through
-[Git Workflow](../.github/skills/git-workflow/SKILL.md). PR publication/update and merge each
-need an explicit instruction covering the operation; do not switch to Git Agent just to commit.
-On Windows, verify both hooks and the effective terminal tool in a fresh VS Code Local session.
-A parser/unit-test result is not proof that PowerShell quoting or host approvals work.
+All roles can use all Git/gh commands through [Git Workflow](../.github/skills/git-workflow/SKILL.md).
+The only Git-specific validation is commit-message syntax and matching IDs. There are no
+branch, path, staging, commit-option, working-directory, or Salesforce/ADO configuration gates.
+Install final commit-message validation once per checkout:
+
+```powershell
+python scripts/install_git_message_hook.py
+```
+
+This local Git hook validates editor/file messages; standard Git hook-skipping options retain
+their normal behavior. Push, PR publication/update, merge, and destructive actions require an
+explicit human instruction. Native terminal approval may still appear. You do not need to
+switch to Git Agent just to commit. Verify both hooks and the effective terminal tool in a
+fresh VS Code Local session; parser/unit tests do not prove Windows host behavior.
 
 ## Step 9 — Verify
 

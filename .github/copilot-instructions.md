@@ -54,14 +54,15 @@ it is merely technical.
 
 ## Repository work
 
-Follow `.github/skills/git-workflow/SKILL.md` when Git work is needed. Active authors prepare
-or resume the correct branch and stage/commit their completed permitted milestones themselves.
-Preserve unrelated changes; a commit is not design approval or publication. All roles may read
-GitHub through `gh`; Reviewer stays read-only and Knowledge keeps its existing lifecycle.
-Push, PR creation/update, and merge require an explicit instruction for that operation; one
-instruction can cover multiple steps without repeated questions. Completing a milestone or
-passing checks does not supply publication or merge consent. Git Agent remains an optional
-specialist with its existing broader local scope. Native terminal approval may still appear.
+Follow `.github/skills/git-workflow/SKILL.md` when Git work is needed. All roles can use all
+Git and GitHub CLI commands. Hooks validate only commit-message syntax and matching IDs;
+branch names, paths, staging methods, commit options, working directories, and Salesforce/ADO
+configuration do not gate Git. Branch schemes are conventions. Preserve unrelated changes.
+Active authors commit completed milestones after verification; a review request stays a review,
+and Knowledge keeps its existing authoring/approval lifecycle. Push, PR creation/update, merge,
+and destructive Git actions require an explicit instruction covering the operation. One
+instruction can cover multiple steps without repeated questions; publication does not imply
+merge. Git Agent is optional assistance. Native terminal approval may still appear.
 
 ADO requirement differences may be noted briefly and never force a revision gate or redesign.
 Continue the requested scope; do not silently adopt additional requirements. Preserve source

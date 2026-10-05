@@ -37,8 +37,10 @@ class PortablePilotTests(unittest.TestCase):
             prepare(self.root)
         self.assertEqual((self.root / 'config/harness.local.json').read_bytes(), before)
 
-    def test_missing_or_broken_policy_import_is_a_valid_deny_not_host_exit_one(self):
+    def test_missing_or_broken_salesforce_policy_denies_only_its_operation_without_host_exit_one(self):
         module = self.root / 'scripts/salesforce_operation_policy.py'
+        event = {'cwd': str(self.root), 'tool_name': 'execute/runInTerminal',
+                 'tool_input': {'command': 'sf project retrieve start -o team-alpha -m ApexClass:Pilot'}}
         for broken in (None, 'raise RuntimeError("PRIVATE-ERROR-TEXT")\n', 'not valid python !!!\n'):
             if broken is None:
                 module.unlink()
@@ -47,7 +49,7 @@ class PortablePilotTests(unittest.TestCase):
             for script, extra in (('copilot_safety_hook.py', []), ('copilot_role_guard.py', ['--role', 'developer'])):
                 with self.subTest(broken=broken, script=script):
                     proc = subprocess.run([sys.executable, '-B', str(self.root / 'scripts' / script), *extra],
-                                          input='{}', cwd=self.root, env=self.env,
+                                          input=json.dumps(event), cwd=self.root, env=self.env,
                                           text=True, capture_output=True, timeout=5)
                     self.assertEqual(proc.returncode, 0, proc.stderr)
                     self.assertEqual(json.loads(proc.stdout)['hookSpecificOutput']['permissionDecision'], 'deny')
@@ -72,6 +74,8 @@ class PortablePilotTests(unittest.TestCase):
 
     def test_git_policy_missing_broken_or_crashing_import_is_sanitized_deny(self):
         module = self.root / 'scripts/git_workflow_policy.py'
+        event = {'cwd': str(self.root), 'tool_name': 'execute/runInTerminal',
+                 'tool_input': {'command': 'git commit -m "[chore] Save pilot changes"'}}
         for broken in (None, 'raise RuntimeError("PRIVATE-GIT-ERROR")\n', 'invalid python !!!\n'):
             if broken is None:
                 module.unlink()
@@ -82,7 +86,7 @@ class PortablePilotTests(unittest.TestCase):
                 with self.subTest(broken=broken, script=script):
                     result = subprocess.run(
                         [sys.executable, '-B', str(self.root / 'scripts' / script), *extra],
-                        input='{}', cwd=self.root, env=self.env,
+                        input=json.dumps(event), cwd=self.root, env=self.env,
                         text=True, capture_output=True, timeout=5,
                     )
                     self.assertEqual(0, result.returncode, result.stderr)
@@ -93,6 +97,8 @@ class PortablePilotTests(unittest.TestCase):
 
     def test_ado_scope_dependency_missing_broken_or_crashing_import_is_sanitized_deny(self):
         module = self.root / 'scripts/ado_config.py'
+        event = {'cwd': str(self.root), 'tool_name': 'ado-readonly/wit_get_work_item',
+                 'tool_input': {'project': 'Pilot', 'id': 42}}
         for broken in (None, 'raise RuntimeError("PRIVATE-ADO-ERROR")\n', 'invalid python !!!\n'):
             if broken is None:
                 module.unlink()
@@ -101,7 +107,7 @@ class PortablePilotTests(unittest.TestCase):
             with self.subTest(broken=broken):
                 result = subprocess.run(
                     [sys.executable, '-B', str(self.root / 'scripts/copilot_safety_hook.py')],
-                    input='{}', cwd=self.root, env=self.env,
+                    input=json.dumps(event), cwd=self.root, env=self.env,
                     text=True, capture_output=True, timeout=5,
                 )
                 self.assertEqual(result.returncode, 0, result.stderr)

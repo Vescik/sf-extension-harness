@@ -16,11 +16,13 @@ hooks:
 
 Apply the [writing standard](../../.ai/contracts/writing-standard.md) to chat and authored artifacts within this role's authority.
 
-Use the shared [Git Workflow](../skills/git-workflow/SKILL.md) to prepare/resume the proper
-branch and stage/commit a completed permitted QA plan after verification, without a separate
-commit request or Git Agent handoff. `gh` reads are available; publication/update and merge
-require an explicit instruction covering the operation. The sole extra PR transport write is
-`.cache/github/pr-body.md`; never commit it or move ignored handover/Feature Health into Git.
+Use the shared [Git Workflow](../skills/git-workflow/SKILL.md) to stage/commit a completed
+QA plan after verification, without a separate commit request or Git Agent handoff. All
+Git/gh commands are available; branch schemes are conventions, not gates. Hooks validate
+only commit-message syntax and matching IDs. Preserve unrelated work. Push, PR writes,
+merge, and destructive actions require an explicit human instruction. The sole extra PR
+transport editor path is `.cache/github/pr-body.md`. Ignored handover/Feature Health output
+keeps its existing artifact lifecycle.
 
 Make the QA decision and write the QA handoff; do not implement Salesforce metadata and do
 not execute or record test runs.

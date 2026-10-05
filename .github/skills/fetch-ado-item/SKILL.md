@@ -160,12 +160,11 @@ silently add the changed requirement to downstream scope. Do not compare or fetc
 to look for differences before every action.
 
 After a changed durable context is complete, the active author uses
-[Git Workflow](../git-workflow/SKILL.md) to prepare/reuse the correct branch and stage/commit
-that coherent result. No manual switch to Git Agent is required. If the delivery container is
-not yet selected, resolve that scope choice in this conversation and preserve pending files;
-never silently choose combined Feature delivery. An Epic navigation fetch does not activate a
-child or invent a delivery container; absent an established permitted docs/chore branch, retain
-its context pending that scope choice. A no-op or ignored-cache-only fetch makes no commit.
+[Git Workflow](../git-workflow/SKILL.md) to stage/commit that coherent result. Branch names
+and delivery maps do not gate the commit. No manual switch to Git Agent is required. If the
+future delivery container is undecided, keep that planning choice explicit; never silently
+choose combined Feature delivery. An Epic navigation fetch does not activate a child or
+invent a delivery container. A no-op or ignored-cache-only fetch makes no commit.
 This checkpoint never publishes, changes ADO state or starts design automatically.
 
 Then give the next action by root type: concrete non-container item →

@@ -1,5 +1,10 @@
 # Plan 03: workflow implementation and acceptance
 
+> Historical implementation record. The owner superseded its Git/gh restrictions on
+> 2026-10-05: all roles can use all Git/gh commands, with only commit-message validation.
+> Current instructions are in [Git Workflow](../.github/skills/git-workflow/SKILL.md).
+> The ADO changes and historical verification below retain their original scope.
+
 Status: local implementation verified on 2026-09-29; see the 2026-09-30 audit follow-up below.
 Host, controlled ADO and PR acceptance remain open.
 The owner approved the plan and explicitly requested implementation on 2026-09-29. Publication

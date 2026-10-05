@@ -8,7 +8,7 @@ how to choose between independent Work Item delivery and a combined Feature bran
 > role contracts, and safety controls remain authoritative for agents. The active author follows
 > Git Workflow for local branches/staging/commits; Git Agent remains available for broader help.
 >
-> Every push, PR create/edit, or merge below requires an explicit instruction covering that
+> Every push, PR create/edit, merge, or destructive Git action below requires an explicit instruction covering that
 > operation and task. A request to publish a PR does not authorize merge. A request covering
 > both allows both without another approval question. Finished work or passing checks never
 > supplies that instruction. Ready/Draft follows the authorized workflow; it is not automatic
@@ -49,8 +49,8 @@ before using this procedure. Agents do not change ADO state automatically.
 
 1. Prepare or reuse the correct branch from a confirmed authoritative base. The active author
    uses Git Workflow; the user does not have to switch to Git Agent.
-2. After a coherent durable result and proportional verification, stage exact in-scope files
-   and create a descriptive local commit. Preserve unrelated staged/unstaged work and human
+2. After a coherent durable result and proportional verification, stage the requested changes
+   with the appropriate method and create a descriptive local commit. Preserve unrelated staged/unstaged work and human
    changes outside an explicit commit request. No effective change means no empty commit.
 3. Publish only on an explicit task instruction. Use the configured GitHub repository and
    explicit PR head/base/title/body; do not infer another PR by its title. Edit only its
@@ -58,20 +58,27 @@ before using this procedure. Agents do not change ADO state automatically.
 4. The link-only raw `AB#<ID>` in a pushed commit or PR description permits the configured
    Azure Boards–GitHub integration to link it. It never changes ADO state. A formal Branch
    link remains optional and human-managed.
-5. Merge only on an explicit instruction covering merge, after current checks/review and with
-   the expected PR head pinned. Preserve the repository merge convention, never use admin
-   bypass or automatically delete branches. Queued or auto-merge-enabled is not merged.
-6. Fetch and compare the declared base when preparing work or final review. Expose real
-   conflicts; never force-push shared history or silently decide another contributor's scope.
+5. Merge only on an explicit instruction covering merge, after checking current state and
+   respecting repository requirements. Prefer pinning the expected PR head. Branch deletion
+   needs its own requested scope. Queued or auto-merge-enabled is not merged.
+6. Fetch and compare the declared base when the task needs it. Resolve conflicts within the
+   requested scope. Force push, shared-history rewriting, and other destructive actions need
+   an explicit human instruction; preserve unrelated work.
 
 Local commits do not prove approval, deployment, release, or publication. Do not stage ignored
 cache/output, credentials or local configuration, and do not amend/squash simply to hide logical
-checkpoints. For exact commands, ownership and mixed-index recovery, use
+checkpoints. For Git commands and preservation of unrelated changes, use
 [Git Workflow](../.github/skills/git-workflow/SKILL.md).
 
 ## Branch and traceability conventions
 
-The branch identifies the delivery container; the commit identifies the implementation owner.
+These are delivery conventions, not Git preconditions. All roles can use all Git/gh commands
+on any branch and from any working directory, including partial staging and other commit
+options. The only Git-specific validation is commit-message syntax and matching IDs. No ADO
+configuration, context file, delivery map, synchronized base, or index equality gates Git.
+The local `commit-msg` installation is described in [setup](setup-zero-to-first-prompt.md).
+
+The conventional branch describes the delivery container; the commit describes its result.
 
 | Purpose | Branch | Normal PR target | PR ADO reference |
 |---|---|---|---|
@@ -79,10 +86,10 @@ The branch identifies the delivery container; the commit identifies the implemen
 | Prepared Feature, combined delivery | `feature/<feature-id>-<slug>` | `main` | `AB#<Feature ID>` plus included children |
 | Maintenance without ADO | `chore/<short-description>` | `main` | Not applicable |
 
-`work-item/` delivers one concrete ADO Work Item directly; there is no separate `fix/` kind —
-a Bug's type stays visible in its `ado-context.md`. `feature/` is reserved for an ADO Feature
-that was explicitly prepared with `/prepare-delivery-feature` and explicitly selected for
-combined delivery; a parent relation alone never creates a Feature branch.
+Use `work-item/` conventionally for one concrete ADO Work Item; its type stays visible in
+`ado-context.md`. Use `feature/` conventionally for an explicitly selected combined delivery.
+Other branch names are allowed. A branch name or parent relation alone never selects
+Feature scope; use `/prepare-delivery-feature` when that planning context is needed.
 
 Commit delivery work as:
 
@@ -408,8 +415,9 @@ claim and pointer, not approval or independent evidence.
 
 ### Failed push or diverged remote
 
-Stop and report local/remote commit evidence. Never force-push. Determine whether another person
-updated the branch, coordinate ownership, then merge safely. A failed or unverified push is not a
+Inspect and report local/remote commit evidence. Determine whether another person updated
+the branch and preserve their work. A force push needs an explicit human instruction; it is
+not an automatic recovery step. A failed or unverified push is not a
 successful sync and must not produce a claimed PR link.
 
 ## CI, review, and merge
@@ -486,17 +494,18 @@ feature/5000-<slug> → final PR to main: AB#5000 + included AB#5001, AB#5002, A
 - [ ] Draft PR describes current scope, blockers, validation, and next action
 - [ ] Branch compared with its correct base
 - [ ] Noticed ADO/Feature differences disclosed when useful; requested scope preserved
-- [ ] No force-push, duplicated commit, silent conflict decision, or mixed Work Item scope
+- [ ] Destructive Git actions explicitly requested; unrelated work preserved; actual outcomes verified
 
 ## Automation boundary
 
-Designer, Developer, Test Strategist and Workspace Maintainer prepare/reuse the correct branch
-and stage/commit their coherent durable work through Git Workflow. An explicit request can also
-cover a developer's existing changes. Reviewer remains read-only; Knowledge keeps its existing
-separate lifecycle. Git Agent retains its broader local Git assistance.
+All eight roles can use all Git/gh commands. Active authors commit coherent durable results
+after verification; the hook validates only commit-message syntax and matching IDs. Branch,
+path, staging, working-directory, repository, and PR conventions are not technical gates.
+A review request remains a review. Source editor permissions and the Knowledge lifecycle
+are unchanged. Git Agent is optional assistance.
 
-Executing roles use GitHub CLI for reads and explicitly requested PR operations and merge.
-They do not automatically publish checkpoints, choose Feature delivery mode, change ADO state,
-release, delete branches or bypass repository checks. Git Agent does not deploy; Developer org
-execution follows its separate target, confirmation and logging contract. Native terminal
-approval may still appear; no shared Git/gh auto-approval was added.
+Push, PR publication/update, merge, and destructive Git actions require an explicit human
+instruction covering them. The agent preserves unrelated work and verifies actual results.
+Git availability does not select Feature scope, change ADO state, release, or deploy.
+Developer org execution follows its separate target, confirmation, and logging contract.
+Native terminal approval may still appear independently of repository hooks.

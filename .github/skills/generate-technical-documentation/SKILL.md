@@ -127,7 +127,7 @@ verification-plan and formal Test Case link status, canonical org-change-log pat
 none applies), checks performed, gaps, and publication next step. Do not repeat the full document.
 After a coherent new or updated durable document and proportional verification, the active
 Developer stages and commits it through [Git Workflow](../git-workflow/SKILL.md), without a
-separate commit request or Git Agent handoff. Prepare/reuse the correct branch before new work,
+separate commit request or Git Agent handoff. Inspect repository state before new work,
 preserve unrelated changes, and report the actual SHA or unresolved checkpoint state. A no-op
 makes no empty commit. This workflow does not automatically add ADO links or publish to wiki.
 When the request includes publication, continue with [Publish Wiki](../publish-wiki/SKILL.md).

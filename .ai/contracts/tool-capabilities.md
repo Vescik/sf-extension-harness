@@ -18,9 +18,9 @@ upgrade.
 | Apex execution/testing, package operations, and org lifecycle on `dev`/`uat`/`stage` | direct `sf`/`sfdx` terminal command | Developer |
 | Optional legacy check-only validation helper | `python scripts/validate_salesforce_deploy.py start\|status` | Developer |
 | Native one-operation Salesforce environment/target selection and reviewed job execution | `sf-harness.salesforce-operations/salesforceOperation` local VS Code extension, arguments only | Developer only |
-| Bounded GitHub repository and PR reads | `gh`/`gh.exe` on PATH, through guarded terminal commands | all eight custom roles |
-| Scoped PR create/edit/ready/merge and branch push on instruction | GitHub CLI plus direct Git; exact repository/PR and expected merge head | Designer, Developer, Test Strategist, Workspace Maintainer, Git Agent |
-| Local task branch preparation and coherent-result commits | guarded Git with the shared Git Workflow | active authors within role; Git Agent retains broader existing local assistance |
+| Git and GitHub CLI commands | `git`/`git.exe` and `gh`/`gh.exe` on PATH; only commit-message validation | all eight custom roles |
+| Publication, merge, and destructive Git actions | Same commands; explicit human instruction checked by the agent | all eight custom roles within the requested task |
+| Final commit-message validation | Local `commit-msg` hook installed per checkout | every role; standard Git hook-skipping behavior remains |
 | Interactive human confirmation | `vscode/askQuestions` | prompts and approval gates |
 | Subagent delegation | `agent` plus explicit `agents` allowlist | Designer, Developer |
 
@@ -75,19 +75,20 @@ Ignore transport `rev`, `revision`, and `System.Rev` metadata in ADO projections
 related items and Test Cases. Preserve the actual requirement text, IDs/links, retrieval time,
 scope and completeness. Do not change vendor transport or lose hierarchy relations to hide a field.
 
-## GitHub CLI
+## Git and GitHub CLI
 
-The [Git Workflow](../../.github/skills/git-workflow/SKILL.md) owns this procedure. GitHub CLI is
-a terminal tool, not a new MCP. Use the installed `gh`/`gh.exe` and existing user authentication;
-report missing access without printing tokens or signing in for the user. Reads are bounded
-repo/PR/auth-status/version operations. Writes are scoped PR operations and explicit branch push,
-not account administration, `gh api`, secrets, rulesets, or merge bypass. Reviewer and Knowledge
-roles remain read-only here. `.cache/github/pr-body.md` is the only PR transport edit granted to
-Git Agent; it does not widen that role's ordinary file editing.
+The [Git Workflow](../../.github/skills/git-workflow/SKILL.md) owns this procedure. All eight
+roles can use all Git and `gh`/`gh.exe` commands. GitHub CLI is a terminal tool, not a new MCP.
+Use existing authentication without printing tokens. Hooks apply no branch, path, index,
+working-directory, commit-option, repository, PR, or role restriction to Git/gh. They validate
+commit-message syntax and matching IDs only, independently of Salesforce/ADO configuration.
 
-Both hooks enforce command and local target boundaries; they do not read chat authorization or
-prove remote PR checks. The active author verifies the user's instruction, current PR scope,
-head/base, checks and required reviews. Existing native terminal approval remains separate.
+The agent preserves unrelated work and follows the user's scope. Push, PR publication/update,
+merge, and destructive Git actions require an explicit instruction. Hooks do not attest chat
+authorization or remote checks. Native terminal approval remains separate. Reviewer does not
+edit source as part of a review; Knowledge authoring/approval and all editor, Salesforce, and
+ADO controls remain in place. `.cache/github/pr-body.md` remains Git Agent's only editor
+exception; Git availability does not grant general file-edit permission.
 
 ## Salesforce tools used
 

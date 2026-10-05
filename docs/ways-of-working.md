@@ -91,8 +91,8 @@ From a written requirement:
 1. From an ADO item, `/fetch-ado-item` first persists the requirement snapshot in
    `work-items/<id>-<slug>/ado-context.md` — source-faithful ADO text kept separate from an
    explicitly unapproved AI understanding.
-2. The same author verifies the delivery scope and base, prepares or resumes the proper branch,
-   stages the completed context, and commits it locally with the item's raw `AB#<id>` reference.
+2. The same author verifies the requested scope, preserves unrelated changes, and commits
+   the completed context locally with its truthful message. Branch names do not gate Git.
    There is no manual switch to Git Agent. It then returns `/solution-design itemId=<ID>`
    without starting design or pushing. Once explicitly published, Azure Boards links the commit
    natively; no manual Branch link is required. Existing unrelated changes are preserved.
@@ -121,14 +121,14 @@ From a written requirement:
    changes; nothing creates it automatically, and QA execution results (PASS/FAIL, runs,
    screenshots) stay in Azure Test Plans, never in the repository.
 8. Each active author commits coherent implementation, test, plan, and documentation results
-   locally after verification. Git Agent remains an optional specialist. All roles can read
-   GitHub repository and PR context with `gh`; Reviewer stays read-only and Knowledge keeps
-   its existing lifecycle. Ask the executing author to publish/update a PR or merge it when
-   you want that operation. One instruction can cover publication and merge without repeating
-   it; publication alone does not imply merge. Finished phases and passing checks never trigger
-   publication or merge by themselves. The author reports the actual remote PR state; queued
-   is not merged. Automatic Ready criteria remain separate from this basic workflow. Release
-   decisions remain yours; real Salesforce deploys still require exact-invocation confirmation.
+   locally after verification. All roles can use all Git/gh commands; hooks validate only
+   commit messages. Branch schemes are conventions, not gates. Git Agent is optional.
+   Preserve unrelated work; a review remains a review, and Knowledge keeps its existing
+   lifecycle. Push, PR publication/update, merge, and destructive actions require your explicit
+   instruction. One instruction can cover multiple steps; publication alone does not imply
+   merge. Finished phases and passing checks never trigger publication. The author reports
+   actual remote state; queued is not merged. Release decisions remain yours; real Salesforce
+   deploys still require exact-invocation confirmation.
 9. Changes to the workspace itself — prompts, skills, instructions, scripts, schemas, tests,
    docs, tracked configuration — go through the **workspace-maintainer** agent, not a
    delivery agent. Files that define permissions or external capability (the safety

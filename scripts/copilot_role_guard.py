@@ -11,21 +11,30 @@ import shlex
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-try:
+
+# Git and local tools do not depend on a working Salesforce/ADO installation.
+# Record a safe diagnostic and reject only the operation that needs a failed policy.
+import importlib
+
+_POLICY_ERRORS: dict[str, str] = {}
+
+
+def _optional_policy(name: str):
     try:
-        from scripts import salesforce_operation_policy as sf_policy
-        from scripts import git_workflow_policy as git_policy
-        from scripts import ado_tool_policy as ado_policy
-    except ModuleNotFoundError:
-        import salesforce_operation_policy as sf_policy
-        import git_workflow_policy as git_policy
-        import ado_tool_policy as ado_policy
-except Exception:
-    # A partially copied template must not become a nonblocking host exit code 1.
-    print(json.dumps({"continue": False, "hookSpecificOutput": {
-        "hookEventName": "PreToolUse", "permissionDecision": "deny",
-        "permissionDecisionReason": "Guard policy could not load; operation was not authorized."}}))
-    raise SystemExit(0)
+        try:
+            return importlib.import_module("scripts." + name)
+        except ModuleNotFoundError as exc:
+            if exc.name not in {"scripts", "scripts." + name}:
+                raise
+            return importlib.import_module(name)
+    except Exception as exc:
+        _POLICY_ERRORS[name] = type(exc).__name__
+        return None
+
+
+sf_policy = _optional_policy("salesforce_operation_policy")
+git_policy = _optional_policy("git_workflow_policy")
+ado_policy = _optional_policy("ado_tool_policy")
 
 from typing import Any, Iterable
 
@@ -331,6 +340,8 @@ ROOT_OF_TRUST_EXACT = frozenset(
         "scripts/ado_wiki_link_tools.mjs",
         "scripts/salesforce_operation_policy.py",
         "scripts/git_workflow_policy.py",
+        "scripts/install_git_message_hook.py",
+        ".githooks/commit-msg",
         "scripts/salesforce_operation_session.py",
         "scripts/salesforce_job_selection.py",
         "scripts/salesforce_job_executor.mjs",
@@ -480,7 +491,8 @@ STANDALONE_ORG_CHANGE_LOG_PATTERN = re.compile(
     r"docs/org-changes/[0-9]{4}-[0-9]{2}-[0-9]{2}-[a-z0-9][a-z0-9-]*\.md"
 )
 # Solution documentation is an exact three-file grant, never a docs/ prefix grant.
-SOLUTION_DOCUMENTATION_PATTERN = git_policy.SOLUTION_DOCUMENTATION_PATTERN
+SOLUTION_DOCUMENTATION_PATTERN = (git_policy.SOLUTION_DOCUMENTATION_PATTERN
+                                  if git_policy is not None else re.compile(r"(?!)"))
 
 
 PATH_KEYS = {
@@ -686,74 +698,6 @@ def read_only_orientation_command(parts: list[str]) -> bool:
     return False
 
 
-# git-agent terminal policy (plan 2026-08-07, lightweight additions §7.2): local,
-# recoverable operations run freely; anything that publishes or touches shared history
-# asks the human first; remote-branch deletion is never done. Force-push and
-# `reset --hard` are denied one layer down by the global safety hook.
-GIT_AGENT_FREE_SUBCOMMANDS = frozenset(
-    {
-        "status", "log", "diff", "show", "ls-files", "shortlog", "describe",
-        "branch", "switch", "checkout", "restore", "add", "commit", "stash",
-        "fetch", "rev-parse", "merge-base", "remote",
-    }
-)
-GIT_AGENT_ASK_SUBCOMMANDS = frozenset({"push", "pull", "merge", "rebase", "cherry-pick", "reset"})
-
-
-def git_agent_terminal_decision(command: str) -> tuple[str, str]:
-    try:
-        parts = git_policy.parse_command(command)
-    except ValueError:
-        return ("deny", "git-agent could not parse the command.")
-    if not parts:
-        return ("deny", "git-agent received an empty command.")
-    if read_only_orientation_command(parts):
-        return ("allow", "")
-    if git_policy.executable(parts) != "git":
-        return ("deny", "git-agent runs git commands only.")
-    subcommand = parts[1].lower() if len(parts) > 1 else ""
-    arguments = [part.lower() for part in parts[2:]]
-    if subcommand == "push" and (
-        "--delete" in arguments or "-d" in arguments or any(arg.startswith(":") for arg in arguments)
-    ):
-        return ("deny", "git-agent never deletes remote branches.")
-    if subcommand in GIT_AGENT_ASK_SUBCOMMANDS:
-        return (
-            "ask",
-            f"git {subcommand} publishes or rewrites shared state — confirm explicitly "
-            "(git-workflow skill: ask before merge to main, any push, or touching others' commits).",
-        )
-    if subcommand in GIT_AGENT_FREE_SUBCOMMANDS:
-        return ("allow", "")
-    return ("deny", f"git {subcommand or '<none>'} is outside the git-agent's routine-operations scope.")
-
-
-def author_commit_path_allowed(path: str, root: Path, role: str) -> bool:
-    if role == MAINTAINER_ROLE:
-        # Consent belongs to the edit; recording an already-authorized result needs no
-        # second root-of-trust approval. The commit does not grant edit permission.
-        return maintainer_edit_decision(path) in {"allow", "ask"}
-    if role == "developer" and any(path.startswith(prefix) for prefix in METADATA_EDIT_PREFIXES):
-        return True
-    return role_path_allowed(path, role)
-
-
-def workflow_terminal_decision(command: str, root: Path, role: str) -> tuple[str, str] | None:
-    if not git_policy.is_git_gh_command(command):
-        return None
-    try:
-        parts = git_policy.parse_command(command)
-        if git_policy.executable(parts) == "gh":
-            return git_policy.gh_decision(parts, root, role)
-        if role == "git-agent":
-            return git_agent_terminal_decision(command)
-        return git_policy.author_git_decision(
-            parts, root, role, lambda path: author_commit_path_allowed(path, root, role)
-        )
-    except (ValueError, OSError) as exc:
-        return ("deny", str(exc))
-
-
 def salesforce_command_decision(command: str, root: Path, role: str):
     """Keep policy failures actionable in either hook without evaluating twice."""
     if role != "developer" or not command or re.search(r"[;&|`$<>\n\r]", command):
@@ -768,9 +712,8 @@ def salesforce_command_decision(command: str, root: Path, role: str):
 
 
 def allowed_role_command(command: str, root: Path, role: str) -> bool:
-    workflow = workflow_terminal_decision(command, root, role)
-    if workflow is not None:
-        return workflow[0] == "allow"
+    # Git is routed by evaluate_event before this non-Git allowlist. Do not
+    # reclassify a remaining command substitution as a new Git exemption.
     if not command or re.search(r"[;&|`$<>\n\r]", command):
         return False
     # Normalize Windows path separators before POSIX shlex, which otherwise treats "\" as an
@@ -966,83 +909,77 @@ def is_governed_record_path(relative_path: str) -> bool:
     )
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--role", required=True, choices=sorted(ALLOWED_PREFIXES))
-    args = parser.parse_args()
-
-    try:
-        event = json.load(sys.stdin)
-    except json.JSONDecodeError as exc:
-        print(json.dumps(response("deny", "Role guard could not parse hook input.")))
-        return 0
-
+def evaluate_event(event: dict[str, Any], role: str, *, inspect_git: bool = True) -> dict[str, Any]:
     tool_name = str(event.get("tool_name", ""))
     _EVENT_CONTEXT["tool"] = tool_name
-    _EVENT_CONTEXT["role"] = args.role
+    _EVENT_CONTEXT["role"] = role
     root = HARNESS_ROOT
     event_root = Path(event.get("cwd") or os.getcwd()).resolve()
-    if ado_policy.is_ado_tool(tool_name):
-        error = ado_policy.tool_error(tool_name, event.get("tool_input", {}), args.role)
-        print(json.dumps(response("deny", error) if error else response()))
-        return 0
+    ado_name = tool_name.lower()
+    is_ado = (ado_policy.is_ado_tool(tool_name) if ado_policy is not None else
+              "ado-readonly" in ado_name or ado_name.rsplit("/", 1)[-1].startswith((
+        "core_", "wit_", "wiki", "testplan", "build_", "repo_", "release_",
+        "pipelines_", "search_", "advsec_", "work_item",
+    )))
+    if is_ado:
+        if ado_policy is None:
+            return response("deny", f"ADO policy unavailable: ado_tool_policy ({_POLICY_ERRORS.get('ado_tool_policy', 'load error')}).")
+        error = ado_policy.tool_error(tool_name, event.get("tool_input", {}), role)
+        return response("deny", error) if error else response()
     if tool_name in NATIVE_OPERATION_TOOLS:
         error = native_operation_input_error(event.get("tool_input"))
-        if args.role != "developer":
+        if role != "developer":
             error = "Native Salesforce operations are available only to the Developer custom agent."
-        print(json.dumps(response("deny", error) if error else response()))
-        return 0
+        return response("deny", error) if error else response()
     if is_execute_tool(tool_name):
-        if event_root != root:
-            print(
-                json.dumps(
-                    response(
-                        "deny",
-                        f"{args.role} guarded terminal commands must run from the brain-core root.",
-                    )
-                )
-            )
-            return 0
         command = terminal_command(event.get("tool_input", {}))
-        workflow = workflow_terminal_decision(command, root, args.role)
-        if workflow is not None:
-            decision, reason = workflow
-            print(json.dumps(response() if decision == "allow" else response(decision, reason)))
-            return 0
-        if args.role == "git-agent":
-            decision, reason = git_agent_terminal_decision(command)
-            if decision == "allow":
-                print(json.dumps(response()))
-            else:
-                print(json.dumps(response(decision, reason)))
-            return 0
-        sf_decision = salesforce_command_decision(command, root, args.role)
+        if inspect_git and git_policy is not None:
+            admission = git_policy.inspect_command(command, event_root)
+            if admission.has_git:
+                if admission.decision == "deny":
+                    return response("deny", admission.reason)
+                results = [evaluate_event({**event, "tool_input": {"command": remaining}}, role, inspect_git=False)
+                           for remaining in admission.remaining_commands]
+                for decision in ("deny", "ask"):
+                    for result in results:
+                        if result.get("hookSpecificOutput", {}).get("permissionDecision") == decision:
+                            return result
+                return response()
+        if git_policy is None and re.search(r"\b(?:git|gh)(?:\.exe)?\b", command):
+            return response("deny", "Git message validator could not load; restore scripts/git_workflow_policy.py.")
+        if event_root != root:
+            return response("deny", f"{role} non-Git terminal commands must run from the brain-core root.")
+        if role == "git-agent":
+            try:
+                parts = shlex.split(command.replace("\\", "/"))
+            except ValueError:
+                parts = []
+            if parts and not re.search(r"[;&|`$<>\n\r]", command) and read_only_orientation_command(parts):
+                return response()
+            return response("deny", "git-agent runs Git/gh and read-only orientation commands only.")
+        if sf_policy is None and re.search(r"\b(?:sf|sfdx)(?:\.exe|\.cmd)?\b", command):
+            return response("deny", f"Salesforce policy unavailable: salesforce_operation_policy ({_POLICY_ERRORS.get('salesforce_operation_policy', 'load error')}).")
+        sf_decision = salesforce_command_decision(command, root, role)
         if sf_decision is not None:
-            print(json.dumps(response() if sf_decision.allowed else response("deny", sf_decision.reason)))
-            return 0
-        if not allowed_role_command(command, root, args.role):
-            print(
-                json.dumps(
-                    response(
+            return response() if sf_decision.allowed else response("deny", sf_decision.reason)
+        if not allowed_role_command(command, root, role):
+            return response(
                         "deny",
-                        f"{args.role}: this exact command is outside the terminal allowlist. "
+                        f"{role}: this exact command is outside the terminal allowlist. "
                         "Allowed families: guarded harness scripts ("
                         "scripts/validate_harness.py, run_evals.py, "
                         "force_app_knowledge.py, "
                         "validate_handover_output.py), "
-                        "read-only git (status/diff/log/show/ls-files), file reads "
+                        "Git/gh (message format only), file reads "
                         "(ls/cat/grep/type/Get-Content), and tool --version checks — all plain, "
                         "single commands with no ; & | < > ` $ chaining. Do not retry variants "
                         "of a denied command; use one of these instead.",
                     )
-                )
-            )
-            return 0
-        print(json.dumps(response()))
-        return 0
+        return response()
     if not is_edit_tool(tool_name):
-        print(json.dumps(response()))
-        return 0
+        return response()
+    if git_policy is None:
+        return response("deny", "Editor path policy could not load; restore scripts/git_workflow_policy.py.")
 
     raw_paths = list(collect_paths(event.get("tool_input", {})))
     for raw in raw_paths:
@@ -1050,36 +987,24 @@ def main() -> int:
         resolves_to_body = normalize_path(raw, event_root, root) == git_policy.PR_BODY
         names_body = Path(os.path.normpath(lexical)) == root / git_policy.PR_BODY
         if (resolves_to_body or names_body) and not git_policy.pr_body_path(root, str(lexical)):
-            print(json.dumps(response("deny", "The PR body must be a repository-contained regular file without symlinks or hard links.")))
-            return 0
-    if args.role == "developer":
+            return response("deny", "The PR body must be a repository-contained regular file without symlinks or hard links.")
+    if role == "developer":
         if not raw_paths:
-            print(
-                json.dumps(
-                    response(
+            return response(
                         "ask",
-                        f"{args.role} requested an edit whose target path could not be determined.",
+                        f"{role} requested an edit whose target path could not be determined.",
                     )
-                )
-            )
-            return 0
         denied_raw = sorted(
             raw
             for raw in raw_paths
-            if not development_edit_allowed(raw, event_root, args.role)
+            if not development_edit_allowed(raw, event_root, role)
         )
         if denied_raw:
-            print(
-                json.dumps(
-                    response(
+            return response(
                         "deny",
-                        f"{args.role} may edit only root Salesforce force-app/manifest/tests/e2e source, work items, reviewed documentation, and ignored ADO cache: {', '.join(denied_raw)}",
+                        f"{role} may edit only root Salesforce force-app/manifest/tests/e2e source, work items, reviewed documentation, and ignored ADO cache: {', '.join(denied_raw)}",
                     )
-                )
-            )
-            return 0
-        print(json.dumps(response()))
-        return 0
+        return response()
 
     found = {
         normalized
@@ -1087,60 +1012,54 @@ def main() -> int:
         if (normalized := normalize_path(raw, event_root, root)) is not None
     }
     if not found:
-        print(
-            json.dumps(
-                response(
+        return response(
                     "ask",
-                    f"{args.role} requested an edit whose target path could not be determined.",
+                    f"{role} requested an edit whose target path could not be determined.",
                 )
-            )
-        )
-        return 0
 
-    if args.role == MAINTAINER_ROLE:
+    if role == MAINTAINER_ROLE:
         decisions = {path: "allow" if path == git_policy.PR_BODY else maintainer_edit_decision(path) for path in found}
         denied = sorted(path for path, decision in decisions.items() if decision == "deny")
         if denied:
             # Any denied path fails the whole multi-file operation — no partial edits.
-            print(
-                json.dumps(
-                    response(
+            return response(
                         "deny",
                         "workspace-maintainer may edit only the workspace control plane "
                         f"(root-of-trust files need confirmation); denied: {', '.join(denied)}",
                     )
-                )
-            )
-            return 0
         asked = sorted(path for path, decision in decisions.items() if decision == "ask")
         if asked:
-            print(
-                json.dumps(
-                    response(
+            return response(
                         "ask",
                         "Root-of-trust change — these files define permissions or external "
                         f"capability: {', '.join(asked)}. Confirm only if the agent has stated "
                         "the exact capability/safety impact and affected files.",
                     )
-                )
-            )
-            return 0
-        print(json.dumps(response()))
-        return 0
+        return response()
 
-    denied = sorted(path for path in found if not role_path_allowed(path, args.role))
+    denied = sorted(path for path in found if not role_path_allowed(path, role))
     if denied:
-        print(
-            json.dumps(
-                response(
+        return response(
                     "deny",
-                    f"{args.role} may not edit: {', '.join(denied)}",
+                    f"{role} may not edit: {', '.join(denied)}",
                 )
-            )
-        )
-        return 0
 
-    print(json.dumps(response()))
+    return response()
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--role", required=True, choices=sorted(ALLOWED_PREFIXES))
+    args = parser.parse_args()
+    try:
+        event = json.load(sys.stdin)
+    except json.JSONDecodeError:
+        print(json.dumps(response("deny", "Hook could not parse input.")))
+        return 0
+    if not isinstance(event, dict):
+        print(json.dumps(response("deny", "Hook input must be an object.")))
+        return 0
+    print(json.dumps(evaluate_event(event, args.role)))
     return 0
 
 
